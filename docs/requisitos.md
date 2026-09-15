@@ -6,6 +6,41 @@ Documento vivo: aquí se registra lo que la herramienta debe hacer. Cada cambio 
 
 Se descarga una carpeta de PDFs **escaneados** con Órdenes de Pago (OP). Un PDF puede traer 1 OP en pocas páginas o cientos de OP en 500–3000+ páginas. Hay que comprobar, contra un Excel, que cada OP solicitada esté en la carpeta y sea válida.
 
+## Flujo completo del proceso
+
+1. **Documento base** (Excel exportado del sistema, uno por entidad y ejercicio): trae órdenes de pago, montos y muchas columnas más. Es la fuente de **todo**: del Layout y de la verificación.
+2. **Layout:** a partir del documento base se genera un Excel con formato fijo que se sube a una plataforma externa.
+3. **Plataforma:** con el Layout, extrae y entrega los PDFs de las órdenes solicitadas.
+4. **Verificación:** se revisan esos PDFs contra el documento base (lo descrito en el resto de este documento).
+
+### Documento base (estructura observada en un ejemplo real)
+
+- Una hoja, encabezados en la fila 1. Columnas relevantes: `Contribución` (nombre de la entidad), `Orden de Pago` (10 dígitos, guardada como texto), `Fecha Contable` (fecha), `Importe en moneda de la entidad CP` (monto). Otras columnas (`DocReferencia`, `Período`, `Status Actual`, `Centro gestor`, etc.) no se usan para verificar.
+- `DocReferencia` **no** es la orden de pago; no usarla.
+- La última fila puede ser un **total con fórmula** sin orden de pago: se ignora toda fila sin orden de pago.
+- Puede haber **montos negativos**.
+- Una orden de pago puede repetirse en varias filas con montos distintos.
+- Hay series de orden que empiezan con `19` y con `71`.
+
+### Layout para la plataforma
+
+Plantilla: hoja `Hoja1`, 8 columnas con estos encabezados exactos. La plataforma es imperfecta: **no** llenar según el nombre de la columna, sino así:
+
+| Columna | Valor |
+|---|---|
+| `DocumentoReferencia` | Orden de pago |
+| `OrdenPago` | Orden de pago |
+| `FechaContable` | vacío |
+| `Periodo` | Año del ejercicio |
+| `CentroGestor` | vacío |
+| `PeriodoPresupuesto` | Año del ejercicio |
+| `Importe` | vacío |
+| `PartidaGasto` | vacío |
+
+- **Todo en formato número, sin decimales** (enteros).
+- **Sin órdenes repetidas:** la plataforma marca error. Una fila por orden de pago única. (En la verificación sí se conservan las repeticiones con montos distintos.)
+- Nombre de archivo: `Layout ｜ [Entidad] ｜ [Ejercicio] ｜ [Fecha] ｜ [Hora].xlsx`.
+
 ## Principios
 
 - **Privacidad:** los PDFs y el Excel se procesan en la computadora del usuario (en el navegador). Nada se sube a servidores ni a servicios de IA.
@@ -127,6 +162,6 @@ Acordadas durante el diseño del boceto. No son opcionales: son parte de lo que 
 
 ## Pendiente
 
-- Explicación del archivo tipo **Layout**.
+- Layout: de dónde sale el ejercicio, montos negativos, límite de filas de la plataforma, autollenar entidad desde `Contribución`.
 
 - PDF de ejemplo (con una OP válida, una con solo 2 de 3 firmas, una con varios montos y una con sello sobre firma) para la fase 0: medir lectura, enderezado, detección de firmas/sellos y velocidad en navegador.
