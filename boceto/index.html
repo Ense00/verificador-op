@@ -135,23 +135,30 @@ select{padding:6px 10px;border:1px solid var(--line);border-radius:var(--r);back
 .topscroll{overflow-x:auto;overflow-y:hidden;border-bottom:1px solid var(--line-soft)}
 .topscroll div{height:1px}
 .tablewrap{overflow-x:auto}
-.tablewrap.can-drag tbody{cursor:grab}
+.tablewrap.virtual{overflow:auto;height:calc(100vh - 150px);min-height:360px;overscroll-behavior:contain}
+.tablewrap.virtual:focus{outline:none}
 .tablewrap.dragging,.tablewrap.dragging tbody{cursor:grabbing;user-select:none}
 table{border-collapse:separate;border-spacing:0;width:100%;font-size:13px}
+.virtual table{table-layout:fixed}
 th{text-align:left;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--sunken);vertical-align:bottom}
-th.group{text-align:center;border-bottom:1px solid var(--line-soft);padding-block:5px 3px}
+.virtual thead th{position:sticky;top:0;z-index:2}
+.virtual thead th.sticky{z-index:3}
+th.val{background:var(--accent-soft);color:var(--ink)}
 td{padding:8px 10px;border-bottom:1px solid var(--line-soft);vertical-align:top;background:var(--surface)}
+.virtual tbody tr.sel td{height:38px;padding-block:0;vertical-align:middle;white-space:nowrap}
 td.r,th.r{text-align:right}
-th.c,td.c{padding-inline:4px;text-align:center;width:50px}
+th.c,td.c{padding-inline:4px;text-align:center}
 .sticky{position:sticky;left:0;z-index:1;box-shadow:inset -1px 0 0 var(--line)}
 tbody tr.sel{cursor:pointer}
 tbody tr.sel:hover td{background:var(--sunken)}
 tbody tr[aria-selected="true"] td{background:var(--accent-soft)}
 tbody tr[aria-selected="true"] td.sticky{box-shadow:inset 3px 0 0 var(--accent),inset -1px 0 0 var(--line)}
-td.motivo{min-width:190px}
-td.motivo small{display:block;height:4px}
-td.archivo{color:var(--muted);font-size:12px;min-width:140px;max-width:210px;overflow-wrap:anywhere}
-td.pag{white-space:nowrap;color:var(--muted)}
+tbody tr.sel:focus{outline:none}
+tbody tr.sel:focus-visible td{box-shadow:inset 0 2px 0 var(--accent),inset 0 -2px 0 var(--accent)}
+.clip{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+td.archivo{color:var(--muted);font-size:12px}
+.muted{color:var(--muted)}
+.spacer td{padding:0;border:0;background:transparent}
 .empty{padding:28px;text-align:center;color:var(--muted)}
 
 /* Estados: forma + color */
@@ -206,14 +213,14 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line);border-b
   <header class="top">
     <div class="brand">
       <h1>Verificador de Órdenes de Pago</h1>
-      <span class="stamp">Boceto · v0.2.0</span>
+      <span class="stamp">Boceto · v0.3.0</span>
     </div>
     <div class="privacy">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" stroke="currentColor" stroke-width="1.4"/></svg>
       Los archivos se procesan en esta computadora. No se suben a ningún lado.
     </div>
   </header>
-  <p class="notice"><b>Boceto de interfaz.</b> Números de orden, montos y archivos ficticios; todavía no procesa archivos. Prueba las casillas, los filtros y selecciona filas (también con <kbd>↑</kbd> <kbd>↓</kbd>).</p>
+  <p class="notice"><b>Boceto de interfaz con 3,000 órdenes ficticias.</b> Todavía no procesa archivos. Prueba las casillas, los filtros, la búsqueda, navega con <kbd>↑</kbd> <kbd>↓</kbd> <kbd>RePág</kbd> <kbd>AvPág</kbd> y descarga el Excel de prueba.</p>
 
   <section class="config" id="config" aria-label="Configuración">
     <div class="confighead">
@@ -225,15 +232,15 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line);border-b
       <div class="cgroup">
         <h3><span>1</span> Archivos</h3>
         <div class="files">
-          <button class="file" type="button" id="f-pdfs" data-toast="Aquí eliges la carpeta con los PDFs.">
+          <button class="file" type="button" id="f-pdfs" data-toast="Boceto: Aquí eliges la carpeta con los PDFs.">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" stroke="currentColor" stroke-width="1.8"/></svg>
-            <b>Carpeta de PDFs</b><small class="num">86 archivos · 41,380 págs.</small>
+            <b>Carpeta de PDFs</b><small class="num" id="s-files"></small>
           </button>
-          <button class="file" type="button" id="f-excel" data-toast="Aquí eliges el Excel con las órdenes solicitadas.">
+          <button class="file" type="button" id="f-excel" data-toast="Boceto: Aquí eliges el Excel con las órdenes solicitadas.">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M4 9h16M4 15h16M10 3v18" stroke="currentColor" stroke-width="1.5"/></svg>
-            <b>Excel de órdenes</b><small>Hoja "Verificación" · <span class="num">14</span> filas</small>
+            <b>Excel de órdenes</b><small>Hoja "Verificación" · <span class="num" id="s-excel"></span> filas</small>
           </button>
-          <button class="file" type="button" id="f-tpl" data-toast="La plantilla es una orden bien escaneada que sirve para enderezar y alinear las demás. Se guarda solo en este navegador.">
+          <button class="file" type="button" id="f-tpl" data-toast="Boceto: La plantilla es una orden bien escaneada que sirve para enderezar y alinear las demás. Se guarda solo en este navegador.">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3h8l4 4v14H6V3Z" stroke="currentColor" stroke-width="1.8"/><path d="M9 17h6M9 13h6" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2 2"/></svg>
             <b>Plantilla</b><small>Guardada en este navegador</small>
           </button>
@@ -264,7 +271,7 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line);border-b
         </div>
       </div>
       <div class="cgroup runbox">
-        <button class="btn primary" type="button" id="run" data-toast="En el boceto no se procesan archivos. En la versión real verás el avance y la configuración se oculta sola al terminar.">Verificar de nuevo</button>
+        <button class="btn primary" type="button" id="run" data-toast="Boceto: En el boceto no se procesan archivos. En la versión real verás el avance y la configuración se oculta sola al terminar.">Verificar de nuevo</button>
         <p class="runmeta num">Última verificación: 14 min 22 s</p>
       </div>
     </div>
@@ -273,7 +280,7 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line);border-b
   <section class="summary" aria-label="Resumen">
     <div class="sumtitle">
       <h2>Verificación terminada</h2>
-      <p class="num">41,380 págs. · 86 PDFs · 38,960 omitidas</p>
+      <p class="num" id="s-pages"></p>
     </div>
     <div class="sumcenter">
       <div class="bar" id="bar" aria-hidden="true"></div>
@@ -282,7 +289,7 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line);border-b
     <div class="downloads">
       <button class="btn primary" type="button" id="dl-xlsx">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2v8m0 0 3-3m-3 3L5 7M3 13h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-        Excel de resultados
+        Descargar Excel
       </button>
       <button class="btn" type="button" id="dl-zip">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2v8m0 0 3-3m-3 3L5 7M3 13h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
@@ -301,125 +308,277 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line);border-b
 </div>
 <div class="toast" id="toast" hidden role="status"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 const K = [
-  {k:'op', label:'Orden', short:'Núm.'},
-  {k:'ej', label:'Año', short:'Año'},
-  {k:'monto', label:'Monto', short:'Monto'},
-  {k:'firmas', label:'Firmas', short:'Firmas'},
-  {k:'sellos', label:'Sellos', short:'Sellos'}
+  {k:'op', label:'Orden', short:'Núm.', xl:'Valida orden'},
+  {k:'ej', label:'Año', short:'Año', xl:'Valida ejercicio'},
+  {k:'monto', label:'Monto', short:'Monto', xl:'Valida monto'},
+  {k:'firmas', label:'Firmas', short:'Firmas', xl:'Valida firmas'},
+  {k:'sellos', label:'Sellos', short:'Sellos', xl:'Valida sellos'}
 ];
 const LABEL = {ok:'Correcto', bad:'Incorrecto', rev:'Revisar', ile:'Ilegible'};
+const XL_STATE = {ok:'Correcto', bad:'Incorrecto', rev:'Revisar', ile:'Ilegible', na:'No aplica'};
 const RANK = {bad:4, ile:3, rev:2, ok:1, na:0};
-const F1 = '1900000102_1900000103_1900000104.pdf';
-const F2 = '1900000105_al_1900000191_(87 OPs).pdf';
+
+/* ---------- Datos ficticios: 3,000 órdenes generadas con semilla fija ---------- */
+function rng(seed){ return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const R = rng(20210914);
+const int = (a, b) => a + Math.floor(R() * (b - a + 1));
+const money = (n) => n.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+const cents = (n) => Math.round(n * 100) / 100;
+const N_ORDERS = 3000;
+
+const rows = [], manual = [], renames = [], dups = [], bigFiles = [];
+let uniquePages = 0, opNum = 1900000100, fileCount = 0;
 const ok = (m) => ['ok', m];
+const NA_MANUAL = ['na', 'Pendiente de revisión manual'];
 
-// Datos ficticios
-const rows = [
-  {op:'1900000101', ej:2021, monto:'189,945.00', file:'1900000101.pdf', pag:'1', sheet:{}, r:{op:ok('Coincide'), ej:ok('2021'), monto:ok('Es el total de la orden'), firmas:ok('3 de 3'), sellos:ok('Sello presente')}},
-  {op:'1900000102', ej:2021, monto:'910,085.52', file:F1, pag:'1–2', sheet:{firmas:['ok','ok','bad'], hit:0}, r:{op:ok('Coincide'), ej:ok('2021'), monto:ok('Línea 1 de la lista'), firmas:['bad','Solo 2 de 3 firmas'], sellos:ok('Sello presente')}},
-  {op:'1900000102', ej:2021, monto:'267,049.86', file:F1, pag:'1–2', sheet:{firmas:['ok','ok','bad'], hit:1}, r:{op:ok('Coincide'), ej:ok('2021'), monto:ok('Línea 2 de la lista'), firmas:['bad','Solo 2 de 3 firmas'], sellos:ok('Sello presente')}},
-  {op:'1900000103', ej:2021, monto:'2,500,000.00', file:F1, pag:'3', sheet:{}, r:{op:ok('Coincide'), ej:ok('2021'), monto:ok('Es el total de la orden'), firmas:ok('3 de 3'), sellos:ok('Sello presente')}},
-  {op:'1900000104', ej:2021, monto:'583,000.00', file:F1, pag:'4', sheet:{year:'2022'}, r:{op:ok('Coincide'), ej:['bad','Año 2022, se esperaba 2021'], monto:ok('Es el total de la orden'), firmas:ok('3 de 3'), sellos:ok('Sello presente')}},
-  {op:'1900000105', ej:2021, monto:'125,892.48', file:F2, pag:'12', sheet:{hit:-1}, r:{op:ok('Coincide'), ej:ok('2021'), monto:['bad','No aparece en la lista. El más cercano es $125,892.47 (difiere por $0.01)'], firmas:ok('3 de 3'), sellos:ok('Sello presente')}},
-  {op:'1900000106', ej:2021, monto:'', file:F2, pag:'13', sheet:{stampOn:1, firmas:['ok','rev','ok']}, r:{op:ok('Coincide'), ej:ok('2021'), monto:['na','El Excel no pide monto'], firmas:['rev','Un sello tapa una firma: no se puede confirmar que sean 3'], sellos:['rev','Sello encima de una firma']}},
-  {op:'1900000107', ej:2021, monto:'8,727.84', file:F2, pag:'14', sheet:{blurTable:true}, r:{op:ok('Coincide'), ej:ok('2021'), monto:['ile','La tabla de montos no se pudo leer (la lista no suma el total)'], firmas:ok('3 de 3'), sellos:ok('Sello presente')}},
-  {op:'1900000108', ej:2021, monto:'16,666.00', file:F2, pag:'15', sheet:{opBody:'1900000180'}, r:{op:['bad','El encabezado dice 1900000108 pero el documento muestra 1900000180'], ej:ok('2021'), monto:ok('Es el total de la orden'), firmas:ok('3 de 3'), sellos:ok('Sello presente')}},
-  {op:'1900000109', ej:2021, monto:'3,301,100.00', file:F2, pag:'16', sheet:{}, r:{op:ok('Coincide'), ej:ok('2021'), monto:ok('Es el total de la orden'), firmas:ok('3 de 3'), sellos:ok('Sello presente')}},
-  {op:'1900000110', ej:2021, monto:'142,649.00', file:F2, pag:'17', sheet:{blurFoot:true, firmas:['ile','ile','ile']}, r:{op:ok('Coincide'), ej:ok('2021'), monto:ok('Es el total de la orden'), firmas:['ile','Escaneo borroso en la zona de firmas'], sellos:['ile','Escaneo borroso en la zona de firmas']}},
-  {op:'1900000111', ej:2021, monto:'150,709.00', file:'Revisión manual/1900000111/', pag:'—', sheet:{}, r:{op:['rev','Está en 2 archivos distintos con el mismo ejercicio: 1900000111.pdf y 1900000111 (1).pdf. Se movieron a la carpeta "Revisión manual".'], ej:['na','Pendiente de revisión manual'], monto:['na','Pendiente de revisión manual'], firmas:['na','Pendiente de revisión manual'], sellos:['na','Pendiente de revisión manual']}},
-  {op:'1900000112', ej:2021, monto:'208,333.00', file:'1900000112_1900000113.pdf', pag:'1', sheet:{hit:0}, r:{op:ok('Coincide'), ej:ok('2021'), monto:ok('Línea 1 de la lista'), firmas:ok('3 de 3'), sellos:ok('Sello presente')}},
-  {op:'1900000112', ej:2021, monto:'395,725.50', file:'1900000112_1900000113.pdf', pag:'1', sheet:{hit:2}, r:{op:ok('Coincide'), ej:ok('2021'), monto:ok('Línea 3 de la lista'), firmas:ok('3 de 3'), sellos:ok('Sello presente')}}
-];
-const notFound = [['1900000150',2021,'60,000.00'],['1900000163',2021,'416,000.00'],['5100000021',2021,''],['5100000047',2021,'8,727.84']];
-const dups = [
-  ['1900000105_al_1900000191 (2).pdf','1900000105.pdf','3,000','Archivo idéntico'],
-  ['1900000105_al_1900000191 (3).pdf','1900000105.pdf','3,000','Archivo idéntico'],
-  ['1900000105_al_1900000191 (4).pdf','1900000105.pdf','3,000','Archivo idéntico'],
-  ['1900000102 - copia.pdf','1900000102.pdf','4','Mismas páginas, exportado de nuevo'],
-  ['… y 45 archivos más','','35,960','']
-];
-const manual = [['1900000111',2021,'1900000111.pdf (2 págs.) · 1900000111 (1).pdf (2 págs.)','Mismo número y ejercicio, contenido distinto']];
-const renames = [['1900000102.pdf',F1,3],['1900000105.pdf',F2,87],['1900000112.pdf','1900000112_1900000113.pdf',2]];
+let made = 0;
+while (made < N_ORDERS){
+  const roll = R();
+  let size = roll < .55 ? 1 : roll < .80 ? int(2, 5) : roll < .95 ? int(20, 99) : int(150, 400);
+  size = Math.min(size, N_ORDERS - made);
+  const ops = [];
+  for (let k = 0; k < size; k++){ opNum += 1 + (R() < .15 ? int(1, 6) : 0); ops.push(String(opNum)); }
+  const name = size === 1 ? `${ops[0]}.pdf` : size <= 20 ? `${ops.join('_')}.pdf` : `${ops[0]}_al_${ops[size-1]}_(${size} OPs).pdf`;
+  if (size > 1) renames.push([`${ops[0]}.pdf`, name, size]);
+  let page = 1;
+  ops.forEach(op => {
+    const nPages = R() < .7 ? 1 : int(2, 3);
+    const pag = nPages === 1 ? String(page) : `${page}–${page + nPages - 1}`;
+    page += nPages;
+    const nLines = R() < .55 ? 1 : int(2, 7);
+    const lines = Array.from({length:nLines}, () => cents(R() < .3 ? int(1, 900) * 1000 : Math.pow(10, 3 + R() * 3.4)));
+    const total = cents(lines.reduce((a, b) => a + b, 0));
 
+    const s = R();
+    const sc = s < .66 ? 'ok' : s < .78 ? 'firmas' : s < .82 ? 'ej' : s < .84 ? 'op' : s < .87 ? 'tapada' : s < .89 ? 'borrosa' : s < .915 ? 'tabla' : s < .92 ? 'manual' : 'ok';
+
+    // Qué montos pide el Excel para esta orden
+    let asks;
+    if (R() < .15) asks = [null];
+    else if (nLines === 1 || R() < .4) asks = ['t'];
+    else { const pool = [...lines.keys()].sort(() => R() - .5); asks = pool.slice(0, int(1, Math.min(3, nLines))); }
+
+    const miss = int(0, 2);
+    asks.forEach(ask => {
+      const row = {op, ej:2021, file:name, pag, lines, total, sheet:{}, r:{}};
+      const r = row.r;
+      r.op = ok('Coincide'); r.ej = ok('2021'); r.firmas = ok('3 de 3'); r.sellos = ok('Sello presente');
+      if (ask === null){ row.montoNum = null; r.monto = ['na', 'El Excel no pide monto']; }
+      else {
+        const real = ask === 't' ? total : lines[ask];
+        row.hit = ask;
+        r.monto = ok(ask === 't' ? 'Es el total de la orden' : `Línea ${ask + 1} de la lista`);
+        row.montoNum = real;
+        if (sc !== 'tabla' && sc !== 'manual' && R() < .04){
+          row.montoNum = cents(real + .01);
+          row.hit = -1; row.near = ask;
+          r.monto = ['bad', `No aparece en la lista. El más cercano es $${money(real)} (difiere por $0.01)`];
+        }
+      }
+      if (sc === 'firmas'){ const f = ['ok','ok','ok']; f[miss] = 'bad'; row.sheet.firmas = f; r.firmas = ['bad', 'Solo 2 de 3 firmas']; }
+      if (sc === 'ej'){ row.sheet.year = '2022'; r.ej = ['bad', 'Año 2022, se esperaba 2021']; }
+      if (sc === 'op'){ const other = String(+op + int(10, 90)); row.sheet.opBody = other; r.op = ['bad', `El encabezado dice ${op} pero el documento muestra ${other}`]; }
+      if (sc === 'tapada'){ const f = ['ok','ok','ok']; f[miss] = 'rev'; row.sheet.firmas = f; row.sheet.stampOn = miss; r.firmas = ['rev', 'Un sello tapa una firma: no se puede confirmar que sean 3']; r.sellos = ['rev', 'Sello encima de una firma']; }
+      if (sc === 'borrosa'){ row.sheet.blurFoot = true; row.sheet.firmas = ['ile','ile','ile']; r.firmas = ['ile', 'Escaneo borroso en la zona de firmas']; r.sellos = ['ile', 'Escaneo borroso en la zona de firmas']; }
+      if (sc === 'tabla' && ask !== null){ row.sheet.blurTable = true; row.hit = undefined; r.monto = ['ile', 'La tabla de montos no se pudo leer (la lista no suma el total)']; }
+      if (sc === 'manual'){
+        row.file = `Revisión manual/${op}/`; row.pag = '—'; row.hit = undefined;
+        r.op = ['rev', `Está en 2 archivos distintos con el mismo ejercicio: ${op}.pdf y ${op} (1).pdf. Se movieron a la carpeta "Revisión manual".`];
+        r.ej = NA_MANUAL; r.monto = row.montoNum == null ? r.monto : NA_MANUAL; r.firmas = NA_MANUAL; r.sellos = NA_MANUAL;
+      }
+      rows.push(row);
+    });
+    if (sc === 'manual') manual.push([op, 2021, `${op}.pdf (${nPages} págs.) · ${op} (1).pdf (${nPages} págs.)`, 'Mismo número y ejercicio, contenido distinto']);
+  });
+  uniquePages += page - 1;
+  if (size >= 20) bigFiles.push([name, page - 1]);
+  made += size;
+  fileCount++;
+}
+
+let dupPages = 0;
+for (let k = 0; k < 49; k++){
+  const [name, pages] = bigFiles[k % bigFiles.length];
+  const copy = Math.floor(k / bigFiles.length) + 2;
+  const identical = k % 7 !== 3;
+  dups.push([name.replace(/\.pdf$/, ` (${copy}).pdf`), name, pages, identical ? 'Archivo idéntico' : 'Mismas páginas, exportado de nuevo']);
+  dupPages += pages;
+}
+const notFound = Array.from({length:38}, (_, k) => [k < 30 ? String(1900009000 + k * 37) : String(5100000021 + k * 13), 2021, R() < .2 ? null : cents(Math.pow(10, 3 + R() * 3))]);
+const TOTAL_FILES = fileCount + dups.length + manual.length * 2;
+const TOTAL_PAGES = uniquePages + dupPages;
+
+/* ---------- Utilidades ---------- */
 const $ = (s, el=document) => el.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const state = {tab:'ver', filter:null, q:'', sel:1};
+const fmtInt = (n) => n.toLocaleString('en-US');
+const state = {tab:'ver', filter:null, q:'', sel: Math.max(0, rows.findIndex(r => r.r.firmas[0] === 'bad'))};
+let view = [];   // filas visibles tras filtro y búsqueda: [{i, s}]
+let stateCache = [];
 
 function active(){ return K.filter(x => $('#chk-'+x.k).checked); }
-function overall(row){
-  let best = 'na';
-  for (const {k} of active()){ const s = row.r[k][0]; if (RANK[s] > RANK[best]) best = s; }
-  return best === 'na' ? 'ok' : best;
+function computeStates(){
+  const act = active();
+  stateCache = rows.map(row => {
+    let best = 'na';
+    for (const {k} of act){ const s = row.r[k][0]; if (RANK[s] > RANK[best]) best = s; }
+    return best === 'na' ? 'ok' : best;
+  });
 }
-function motivo(row){
+const overall = (i) => stateCache[i];
+function motivoText(row){
   const bad = active().map(x => row.r[x.k]).filter(([s]) => s !== 'ok' && s !== 'na');
-  if (!bad.length) return '<span style="color:var(--muted)">Cumple todo lo revisado</span>';
-  return bad.map(([, m]) => esc(m)).join('<small></small>');
+  return bad.length ? bad.map(([, m]) => m).join(' · ') : '';
 }
 const pill = (s) => `<span class="pill ${s}">${LABEL[s]}</span>`;
 const dot = (s, t) => `<span class="dot ${s}" title="${esc(t)}" aria-label="${esc(t)}"></span>`;
 
+let toastTimer;
+function toast(msg){
+  const el = $('#toast'); el.textContent = msg; el.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.hidden = true, 4500);
+}
+
+/* ---------- Encabezados y resumen ---------- */
+function renderStatic(){
+  $('#s-files').textContent = `${fmtInt(TOTAL_FILES)} archivos · ${fmtInt(TOTAL_PAGES)} págs.`;
+  $('#s-excel').textContent = fmtInt(rows.length);
+  $('#s-pages').textContent = `${fmtInt(TOTAL_PAGES)} págs. · ${fmtInt(TOTAL_FILES)} PDFs · ${fmtInt(dupPages)} omitidas`;
+}
 function renderConfigSum(){
   const act = active();
   const fmt = $('#fmt').selectedOptions[0].textContent.replace(' (recomendado)', '');
-  $('#configsum').innerHTML = `<span><b class="num">86</b> PDFs</span><span>Excel <b class="num">14</b> filas</span><span>Revisa: <b>${act.length ? act.map(x=>x.label).join(', ') : 'nada'}</b></span><span>${esc(fmt)}${$('#chk-renombres').checked ? ' + Renombres' : ''}</span>`;
+  $('#configsum').innerHTML = `<span><b class="num">${fmtInt(TOTAL_FILES)}</b> PDFs</span><span>Excel <b class="num">${fmtInt(rows.length)}</b> filas · <b class="num">${fmtInt(N_ORDERS)}</b> órdenes</span><span>Revisa: <b>${act.length ? act.map(x=>x.label).join(', ') : 'nada'}</b></span><span>${esc(fmt)}${$('#chk-renombres').checked ? ' + Renombres' : ''}</span>`;
 }
-
 function renderSummary(){
   const c = {ok:0, bad:0, rev:0, ile:0};
-  rows.forEach(r => c[overall(r)]++);
+  stateCache.forEach(s => c[s]++);
   $('#bar').innerHTML = ['ok','rev','ile','bad'].map(s => `<i style="flex-grow:${c[s]};background:var(--${s})"></i>`).join('');
   $('#tallies').innerHTML = ['ok','bad','rev','ile'].map(s =>
-    `<button type="button" class="tally ${s}" id="tally-${s}" data-s="${s}" aria-pressed="${state.filter===s}"><b>${c[s]}</b><span>${LABEL[s]}</span></button>`).join('') +
-    `<span class="extras"><span><b>4</b> no encontradas</span><span><b>49</b> duplicados omitidos</span><span><b>1</b> a revisión manual</span><span><b>3</b> renombrados</span></span>`;
+    `<button type="button" class="tally ${s}" id="tally-${s}" data-s="${s}" aria-pressed="${state.filter===s}"><b>${fmtInt(c[s])}</b><span>${LABEL[s]}</span></button>`).join('') +
+    `<span class="extras"><span><b>${notFound.length}</b> no encontradas</span><span><b>${dups.length}</b> duplicados omitidos</span><span><b>${manual.length}</b> a revisión manual</span><span><b>${fmtInt(renames.length)}</b> renombrados</span></span>`;
 }
-
 function renderTabs(){
-  const tabs = [['ver','Verificación', rows.length],['nf','No encontradas', notFound.length],['man','Revisión manual', manual.length],['dup','Duplicados omitidos', 49]];
+  const tabs = [['ver','Verificación', rows.length],['nf','No encontradas', notFound.length],['man','Revisión manual', manual.length],['dup','Duplicados omitidos', dups.length]];
   if ($('#chk-renombres').checked) tabs.push(['ren','Renombres', renames.length]);
   if (!tabs.some(t => t[0] === state.tab)) state.tab = 'ver';
   $('#tabs').innerHTML = tabs.map(([id, l, n]) =>
-    `<button type="button" role="tab" class="tab" id="tab-${id}" data-tab="${id}" aria-selected="${state.tab===id}">${l} <em>${n}</em></button>`).join('');
+    `<button type="button" role="tab" class="tab" id="tab-${id}" data-tab="${id}" aria-selected="${state.tab===id}">${l} <em>${fmtInt(n)}</em></button>`).join('');
   $('#work').classList.toggle('solo', state.tab !== 'ver');
 }
 
+/* ---------- Pestañas ---------- */
 function renderBody(){
   const b = $('#tabbody');
   if (state.tab === 'ver'){ renderVer(b); renderPreview(); return; }
-  const simple = (head, body, right=[]) => `<div class="tablewrap"><table><thead><tr>${head.map((h,i)=>`<th class="${right.includes(i)?'r':''}">${h}</th>`).join('')}</tr></thead><tbody>${body.map(r=>`<tr>${r.map((v,i)=>`<td class="${right.includes(i)?'r num':''} ${i===0?'num':''}">${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
-  if (state.tab === 'nf') b.innerHTML = simple(['Orden','Ejercicio','Monto solicitado'], notFound.map(r=>[r[0],r[1],r[2]||'—']), [2]);
+  const simple = (head, body, right=[]) => `<div class="tablewrap simple"><table><thead><tr>${head.map((h,i)=>`<th class="${right.includes(i)?'r':''}">${h}</th>`).join('')}</tr></thead><tbody>${body.map(r=>`<tr>${r.map((v,i)=>`<td class="${right.includes(i)?'r num':''} ${i===0?'num':''}">${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  if (state.tab === 'nf') b.innerHTML = simple(['Orden','Ejercicio','Monto solicitado'], notFound.map(r=>[r[0], r[1], r[2] == null ? '—' : '$' + money(r[2])]), [2]);
   if (state.tab === 'man') b.innerHTML = `<div class="toolbar"><span class="hint">Estos archivos van en la carpeta <b>Revisión manual</b> dentro de la descarga.</span></div>` + simple(['Orden','Ejercicio','Archivos','Motivo'], manual);
-  if (state.tab === 'dup') b.innerHTML = `<div class="toolbar"><span class="hint">No se incluyen en la carpeta de descarga. Quedan listados como evidencia.</span></div>` + simple(['Archivo omitido','Es copia de','Páginas','Motivo'], dups, [2]);
+  if (state.tab === 'dup') b.innerHTML = `<div class="toolbar"><span class="hint">No se incluyen en la carpeta de descarga. Quedan listados como evidencia.</span></div>` + simple(['Archivo omitido','Es copia de','Páginas','Motivo'], dups.map(d => [d[0], d[1], fmtInt(d[2]), d[3]]), [2]);
   if (state.tab === 'ren') b.innerHTML = simple(['Nombre original','Nombre nuevo','Órdenes'], renames, [2]);
+}
+
+/* ---------- Tabla virtualizada ---------- */
+let ROW_H = 38;
+const OVERSCAN = 12;
+let colCount = 0;
+
+function computeView(){
+  const q = state.q.trim();
+  view = [];
+  for (let i = 0; i < rows.length; i++){
+    const s = stateCache[i];
+    if (state.filter && s !== state.filter) continue;
+    if (q && !rows[i].op.includes(q)) continue;
+    view.push(i);
+  }
 }
 
 function renderVer(b){
   const act = active();
-  const q = state.q.trim();
-  const all = rows.map((r,i)=>({r,i,s:overall(r)}));
-  const count = (s) => all.filter(x => x.s === s).length;
-  const list = all.filter(x => (!state.filter || x.s===state.filter) && (!q || x.r.op.includes(q)));
-  const head = `<tr><th rowspan="2" class="sticky">Orden</th><th rowspan="2">Ejercicio</th><th rowspan="2" class="r">Monto</th>${act.length ? `<th colspan="${act.length}" class="group">Validación</th>` : ''}<th rowspan="2">Estado</th><th rowspan="2">Motivo</th><th rowspan="2">Archivo</th><th rowspan="2" class="r">Pág.</th></tr>
-    ${act.length ? `<tr>${act.map(x=>`<th class="c">${x.short}</th>`).join('')}</tr>` : ''}`;
-  const fileHTML = (f) => esc(f).replace(/_/g, '_<wbr>').replace(/\//g, '/<wbr>');
-  const body = list.length ? list.map(({r,i,s}) => `<tr class="sel" tabindex="0" id="row-${i}" data-i="${i}" aria-selected="${state.sel===i}">
-      <td class="num sticky">${r.op}</td><td class="num">${r.ej}</td><td class="r num">${r.monto ? '$'+r.monto : '<span style="color:var(--muted)">—</span>'}</td>
-      ${act.map(x=>`<td class="c">${dot(r.r[x.k][0], x.label+': '+r.r[x.k][1])}</td>`).join('')}
-      <td>${pill(s)}</td><td class="motivo">${motivo(r)}</td><td class="archivo">${fileHTML(r.file)}</td><td class="r num pag">${r.pag}</td></tr>`).join('')
-    : `<tr><td colspan="${7+act.length}" class="empty">Ninguna orden coincide con el filtro.</td></tr>`;
-  const chip = (s, label, n) => `<button type="button" class="chip" id="chip-${s||'todos'}" data-filter="${s}" aria-pressed="${(state.filter||'')===s}">${s ? `<i style="background:var(--${s})"></i>` : ''}${label} <em>${n}</em></button>`;
+  colCount = 7 + act.length;
+  const count = (s) => stateCache.filter(x => x === s).length;
+  const chip = (s, label, n) => `<button type="button" class="chip" id="chip-${s||'todos'}" data-filter="${s}" aria-pressed="${(state.filter||'')===s}">${s ? `<i style="background:var(--${s})"></i>` : ''}${label} <em>${fmtInt(n)}</em></button>`;
+  const cols = `<col style="width:118px"><col style="width:84px"><col style="width:132px">${act.map(() => '<col style="width:58px">').join('')}<col style="width:112px"><col><col style="width:250px"><col style="width:70px">`;
+  const minW = 118 + 84 + 132 + act.length * 58 + 112 + 300 + 250 + 70;
+  const head = `<tr><th class="sticky">Orden</th><th>Ejercicio</th><th class="r">Monto</th>${act.map(x=>`<th class="c val" title="Validación: ${x.label}">${x.short}</th>`).join('')}<th>Estado</th><th>Motivo</th><th>Archivo</th><th class="r">Pág.</th></tr>`;
   b.innerHTML = `<div class="toolbar">
       <input class="search num" id="q" type="search" placeholder="Buscar orden…" value="${esc(state.q)}" aria-label="Buscar orden">
       <div class="chips" role="group" aria-label="Filtrar por estado">
-        ${chip('', 'Todos', all.length)}${['ok','bad','rev','ile'].map(s => chip(s, LABEL[s], count(s))).join('')}
+        ${chip('', 'Todos', rows.length)}${['ok','bad','rev','ile'].map(s => chip(s, LABEL[s], count(s))).join('')}
       </div>
-      <span class="hint end">${act.length < K.length ? 'Lo no marcado no se revisa.' : ''}</span>
+      <span class="hint end" id="vcount"></span>
     </div>
     <div class="topscroll" id="ts" hidden><div></div></div>
-    <div class="tablewrap" id="tw"><table><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
+    <div class="tablewrap virtual" id="tw" tabindex="-1"><table style="min-width:${minW}px"><colgroup>${cols}</colgroup><thead>${head}</thead><tbody id="vbody"></tbody></table></div>`;
+  computeView();
   wireScroll();
+  paintRows();
+}
+
+function rowHTML(i){
+  const r = rows[i], s = stateCache[i], act = active();
+  const mot = motivoText(r);
+  return `<tr class="sel" tabindex="-1" id="row-${i}" data-i="${i}" aria-selected="${state.sel===i}">
+    <td class="num sticky">${r.op}</td><td class="num">${r.ej}</td><td class="r num">${r.montoNum == null ? '<span class="muted">—</span>' : '$' + money(r.montoNum)}</td>
+    ${act.map(x=>`<td class="c">${dot(r.r[x.k][0], x.label+': '+r.r[x.k][1])}</td>`).join('')}
+    <td>${pill(s)}</td><td class="clip" title="${esc(mot)}">${mot ? esc(mot) : '<span class="muted">Cumple todo lo revisado</span>'}</td><td class="clip archivo" title="${esc(r.file)}">${esc(r.file)}</td><td class="r num muted">${r.pag}</td></tr>`;
+}
+
+let paintQueued = false;
+function paintRows(){
+  const wrap = $('#tw'), body = $('#vbody');
+  if (!wrap || !body) return;
+  const n = view.length;
+  $('#vcount').textContent = n === rows.length ? `${fmtInt(n)} filas` : `${fmtInt(n)} de ${fmtInt(rows.length)} filas`;
+  if (!n){ body.innerHTML = `<tr><td colspan="${colCount}" class="empty">Ninguna orden coincide con el filtro.</td></tr>`; return; }
+  const top = wrap.scrollTop, h = wrap.clientHeight;
+  const start = Math.max(0, Math.floor(top / ROW_H) - OVERSCAN);
+  const end = Math.min(n, Math.ceil((top + h) / ROW_H) + OVERSCAN);
+  const spacer = (px) => px > 0 ? `<tr class="spacer" aria-hidden="true"><td colspan="${colCount}" style="height:${px}px"></td></tr>` : '';
+  let html = spacer(start * ROW_H);
+  for (let p = start; p < end; p++) html += rowHTML(view[p]);
+  html += spacer((n - end) * ROW_H);
+  body.innerHTML = html;
+  // Medir la altura real de fila una vez y corregir si difiere
+  const first = body.querySelector('tr.sel');
+  if (first){
+    const real = first.getBoundingClientRect().height;
+    if (real > 0 && Math.abs(real - ROW_H) > .5){ ROW_H = real; paintRows(); }
+  }
+}
+function queuePaint(){ if (paintQueued) return; paintQueued = true; requestAnimationFrame(() => { paintQueued = false; paintRows(); }); }
+
+function refreshTable(resetScroll){
+  computeView();
+  const wrap = $('#tw');
+  if (wrap && resetScroll) wrap.scrollTop = 0;
+  paintRows();
+}
+
+/* ---------- Selección y vista previa ---------- */
+function select(i, focus){
+  state.sel = i;
+  const wrap = $('#tw');
+  const p = view.indexOf(i);
+  if (wrap && p !== -1){
+    const headH = wrap.querySelector('thead').getBoundingClientRect().height;
+    const rowTop = p * ROW_H;
+    if (rowTop < wrap.scrollTop) wrap.scrollTop = rowTop;
+    else if (rowTop + ROW_H + headH > wrap.scrollTop + wrap.clientHeight) wrap.scrollTop = rowTop + ROW_H + headH - wrap.clientHeight;
+  }
+  paintRows();
+  renderPreview();
+  if (focus){ const tr = $('#row-' + i); if (tr) tr.focus({preventScroll:true}); }
+}
+function step(dir){
+  if (!view.length) return;
+  const p = view.indexOf(state.sel);
+  const next = p === -1 ? view[0] : view[Math.min(view.length - 1, Math.max(0, p + dir))];
+  select(next, true);
 }
 
 function renderPreview(){
@@ -427,7 +586,7 @@ function renderPreview(){
   const el = $('#preview');
   if (!r){ el.innerHTML = '<p class="empty">Selecciona una orden de la tabla.</p>'; return; }
   const act = new Set(active().map(x=>x.k));
-  const s = overall(r);
+  const s = stateCache[state.sel];
   const items = K.map(x => {
     const [st, m] = r.r[x.k];
     const on = act.has(x.k);
@@ -437,29 +596,14 @@ function renderPreview(){
       <div class="prow"><span class="num op">${r.op}</span>${pill(s)}
         <span class="nav"><button type="button" class="btn small ghost" id="prev-row" aria-label="Orden anterior" title="Anterior (↑)">↑</button><button type="button" class="btn small ghost" id="next-row" aria-label="Orden siguiente" title="Siguiente (↓)">↓</button></span>
       </div>
-      <div class="pmeta">${esc(r.file)} · Pág. <b class="num">${r.pag}</b> · Monto <b class="num">${r.monto ? '$'+r.monto : 'no se pidió'}</b></div>
+      <div class="pmeta">${esc(r.file)} · Pág. <b class="num">${r.pag}</b> · Monto <b class="num">${r.montoNum == null ? 'no se pidió' : '$' + money(r.montoNum)}</b></div>
     </div>
     <ul class="results">${items}</ul>
     <figure class="sheet">${sheetSVG(r)}<figcaption>Zonas detectadas. En la versión real es la imagen del escaneo.</figcaption></figure>
     <div class="pactions">
-      <button type="button" class="btn small" id="open-page" data-toast="Aquí se abre la página del PDF a tamaño completo.">Abrir página</button>
-      <button type="button" class="btn small" id="mark-ok" data-toast="Aquí podrás corregir el resultado a mano después de revisarlo. Queda anotado en el Excel.">Marcar revisado</button>
+      <button type="button" class="btn small" id="open-page" data-toast="Boceto: aquí se abre la página del PDF a tamaño completo.">Abrir página</button>
+      <button type="button" class="btn small" id="mark-ok" data-toast="Boceto: aquí podrás corregir el resultado a mano después de revisarlo. Queda anotado en el Excel.">Marcar revisado</button>
     </div>`;
-}
-
-function select(i, focus){
-  state.sel = i;
-  document.querySelectorAll('tr.sel').forEach(tr => tr.setAttribute('aria-selected', String(+tr.dataset.i === i)));
-  renderPreview();
-  const tr = $('#row-'+i);
-  if (tr){ if (focus) tr.focus({preventScroll:true}); tr.scrollIntoView({block:'nearest'}); }
-}
-function step(dir){
-  const visible = [...document.querySelectorAll('tr.sel')].map(tr => +tr.dataset.i);
-  if (!visible.length) return;
-  const pos = visible.indexOf(state.sel);
-  const next = pos === -1 ? visible[0] : visible[Math.min(visible.length-1, Math.max(0, pos+dir))];
-  select(next, true);
 }
 
 function sheetSVG(r){
@@ -467,8 +611,6 @@ function sheetSVG(r){
   const col = (st) => ({ok:'var(--ok)', bad:'var(--bad)', rev:'var(--rev)', ile:'var(--ile)', na:'var(--paper-line)'}[st] || 'var(--ok)');
   const firmasOn = $('#chk-firmas').checked, montoOn = $('#chk-monto').checked, sellosOn = $('#chk-sellos').checked, opOn = $('#chk-op').checked, ejOn = $('#chk-ej').checked;
   const fs = sh.firmas || ['ok','ok','ok'];
-  const lines = ['910,085.52','267,049.86','395,725.50','125,892.47'];
-  const hit = sh.hit;
   const opBody = sh.opBody || r.op;
   let t = `<svg viewBox="0 0 300 390" role="img" aria-label="Página simulada de la orden ${r.op}">
     <defs><pattern id="hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" fill="var(--paper)"/><line x1="0" y1="0" x2="0" y2="5" stroke="var(--paper-line)" stroke-width="2"/></pattern></defs>
@@ -489,14 +631,20 @@ function sheetSVG(r){
     t += `<rect x="18" y="${tableY}" width="264" height="92" fill="url(#hatch)"/>`;
     if (montoOn) t += `<rect x="16" y="${tableY-2}" width="268" height="96" rx="2" fill="none" stroke="var(--ile)" stroke-width="1.6" stroke-dasharray="4 3"/>`;
   } else {
-    lines.forEach((v,i)=>{
-      const y = tableY + i*18;
-      t += `<rect x="18" y="${y+4}" width="${120 - i*14}" height="3" fill="var(--paper-line)"/><text x="282" y="${y+10}" text-anchor="end" font-family="var(--mono)" font-size="9" fill="var(--paper-ink)">${v}</text>`;
-      if (montoOn && hit === i) t += `<rect x="208" y="${y-1}" width="78" height="15" rx="2" fill="none" stroke="var(--ok)" stroke-width="1.6"/>`;
-      if (montoOn && hit === -1 && i === 3) t += `<rect x="208" y="${y-1}" width="78" height="15" rx="2" fill="none" stroke="var(--bad)" stroke-width="1.6" stroke-dasharray="3 2"/>`;
+    // Muestra hasta 4 líneas, recorriendo la ventana para que se vea la línea encontrada
+    const focusIdx = typeof r.hit === 'number' && r.hit >= 0 ? r.hit : r.hit === -1 ? r.near : 0;
+    const n = r.lines.length;
+    const from = typeof focusIdx === 'number' ? Math.max(0, Math.min(n - 4, focusIdx - 3)) : 0;
+    const shown = r.lines.slice(from, from + 4);
+    shown.forEach((v, j) => {
+      const idx = from + j, y = tableY + j*18;
+      t += `<rect x="18" y="${y+4}" width="${120 - j*14}" height="3" fill="var(--paper-line)"/><text x="282" y="${y+10}" text-anchor="end" font-family="var(--mono)" font-size="9" fill="var(--paper-ink)">${money(v)}</text>`;
+      if (montoOn && r.hit === idx) t += `<rect x="200" y="${y-1}" width="86" height="15" rx="2" fill="none" stroke="var(--ok)" stroke-width="1.6"/>`;
+      if (montoOn && r.hit === -1 && r.near === idx) t += `<rect x="200" y="${y-1}" width="86" height="15" rx="2" fill="none" stroke="var(--bad)" stroke-width="1.6" stroke-dasharray="3 2"/>`;
     });
-    t += `<line x1="180" y1="${tableY+74}" x2="282" y2="${tableY+74}" stroke="var(--paper-ink)"/><text x="190" y="${tableY+88}" font-family="var(--sans)" font-size="9" font-weight="700" fill="var(--paper-ink)">TOTAL</text><text x="282" y="${tableY+88}" text-anchor="end" font-family="var(--mono)" font-size="9" font-weight="600" fill="var(--paper-ink)">${r.monto && hit===undefined ? r.monto : '1,698,753.35'}</text>`;
-    if (montoOn && hit === undefined && r.monto) t += `<rect x="208" y="${tableY+77}" width="78" height="15" rx="2" fill="none" stroke="var(--ok)" stroke-width="1.6"/>`;
+    if (n > 4) t += `<text x="18" y="${tableY+80}" font-family="var(--sans)" font-size="8" fill="var(--paper-line)">${n} líneas en total</text>`;
+    t += `<line x1="170" y1="${tableY+74}" x2="282" y2="${tableY+74}" stroke="var(--paper-ink)"/><text x="176" y="${tableY+88}" font-family="var(--sans)" font-size="9" font-weight="700" fill="var(--paper-ink)">TOTAL</text><text x="282" y="${tableY+88}" text-anchor="end" font-family="var(--mono)" font-size="9" font-weight="600" fill="var(--paper-ink)">${money(r.total)}</text>`;
+    if (montoOn && (r.hit === 't' || (r.hit === -1 && r.near === 't'))) t += `<rect x="200" y="${tableY+77}" width="86" height="15" rx="2" fill="none" stroke="${r.hit === 't' ? 'var(--ok)' : 'var(--bad)'}" stroke-width="1.6" ${r.hit === 't' ? '' : 'stroke-dasharray="3 2"'}/>`;
   }
   const fy = 318;
   if (sh.blurFoot) t += `<rect x="12" y="${fy-36}" width="276" height="70" fill="url(#hatch)"/>`;
@@ -506,8 +654,9 @@ function sheetSVG(r){
     t += `<line x1="${x}" y1="${fy}" x2="${x+80}" y2="${fy}" stroke="var(--paper-ink)" stroke-width=".8"/><text x="${x+40}" y="${fy+12}" text-anchor="middle" font-family="var(--sans)" font-size="8" fill="var(--paper-ink)">Nombre y cargo</text>`;
     if (firmasOn) t += `<rect x="${x-3}" y="${fy-30}" width="86" height="48" rx="3" fill="none" stroke="${col(fs[i])}" stroke-width="1.6" ${fs[i]==='ok'?'':'stroke-dasharray="4 3"'}/>`;
   });
-  const sx = sh.stampOn === 1 ? 150 : 236, sy = sh.stampOn === 1 ? 300 : 84;
-  if (!sh.blurFoot || sh.stampOn){
+  const covering = typeof sh.stampOn === 'number';
+  const sx = covering ? 60 + sh.stampOn * 90 : 236, sy = covering ? 300 : 84;
+  if (!sh.blurFoot){
     t += `<g opacity=".75"><circle cx="${sx}" cy="${sy}" r="24" fill="none" stroke="#3B55C9" stroke-width="2"/><circle cx="${sx}" cy="${sy}" r="18" fill="none" stroke="#3B55C9" stroke-width="1"/><text x="${sx}" y="${sy+3}" text-anchor="middle" font-family="var(--sans)" font-size="7" font-weight="700" fill="#3B55C9">PAGADO</text></g>`;
     if (sellosOn) t += `<rect x="${sx-29}" y="${sy-29}" width="58" height="58" rx="29" fill="none" stroke="${col(r.r.sellos[0])}" stroke-width="1.6" stroke-dasharray="${r.r.sellos[0]==='ok'?'0':'4 3'}"/>`;
   }
@@ -523,7 +672,7 @@ function sheetSVG(r){
   });
 }
 
-// Barra de desplazamiento arriba de la tabla + arrastrar con clic izquierdo
+/* ---------- Desplazamiento: barra superior, arrastre y pintado virtual ---------- */
 let ro, drag = null, suppressClick = false;
 function wireScroll(){
   const wrap = $('#tw'), top = $('#ts');
@@ -533,23 +682,23 @@ function wireScroll(){
     inner.style.width = wrap.scrollWidth + 'px';
     const over = wrap.scrollWidth > wrap.clientWidth + 1;
     top.hidden = !over;
-    wrap.classList.toggle('can-drag', over);
     top.scrollLeft = wrap.scrollLeft;
+    queuePaint();
   };
   if (ro) ro.disconnect();
   ro = new ResizeObserver(sync); ro.observe(wrap); sync();
   top.addEventListener('scroll', () => { if (wrap.scrollLeft !== top.scrollLeft) wrap.scrollLeft = top.scrollLeft; });
-  wrap.addEventListener('scroll', () => { if (top.scrollLeft !== wrap.scrollLeft) top.scrollLeft = wrap.scrollLeft; });
+  wrap.addEventListener('scroll', () => { if (top.scrollLeft !== wrap.scrollLeft) top.scrollLeft = wrap.scrollLeft; queuePaint(); }, {passive:true});
   wrap.addEventListener('pointerdown', e => {
-    if (e.button !== 0 || e.pointerType !== 'mouse' || !wrap.classList.contains('can-drag') || e.target.closest('input,button,a')) return;
-    drag = {wrap, x: e.clientX, left: wrap.scrollLeft, moved: false};
+    if (e.button !== 0 || e.pointerType !== 'mouse' || e.target.closest('input,button,a,thead')) return;
+    drag = {wrap, x: e.clientX, y: e.clientY, left: wrap.scrollLeft, top: wrap.scrollTop, moved: false};
   });
 }
 window.addEventListener('pointermove', e => {
   if (!drag) return;
-  const dx = e.clientX - drag.x;
-  if (!drag.moved && Math.abs(dx) > 5){ drag.moved = true; drag.wrap.classList.add('dragging'); window.getSelection().removeAllRanges(); }
-  if (drag.moved){ drag.wrap.scrollLeft = drag.left - dx; e.preventDefault(); }
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  if (!drag.moved && Math.hypot(dx, dy) > 6){ drag.moved = true; drag.wrap.classList.add('dragging'); window.getSelection().removeAllRanges(); }
+  if (drag.moved){ drag.wrap.scrollLeft = drag.left - dx; drag.wrap.scrollTop = drag.top - dy; e.preventDefault(); }
 });
 window.addEventListener('pointerup', () => {
   if (!drag) return;
@@ -558,13 +707,60 @@ window.addEventListener('pointerup', () => {
   drag = null;
 });
 
-function renderAll(){ renderConfigSum(); renderSummary(); renderTabs(); renderBody(); }
+/* ---------- Exportar Excel de prueba ---------- */
+const downloadsReady = window.claude && typeof window.claude.use === 'function' ? window.claude.use('downloads').catch(() => null) : Promise.resolve(null);
 
-let toastTimer;
-function toast(msg){
-  const el = $('#toast'); el.textContent = 'Boceto: ' + msg; el.hidden = false;
-  clearTimeout(toastTimer); toastTimer = setTimeout(()=> el.hidden = true, 4200);
+function buildWorkbook(){
+  const act = active();
+  const wb = XLSX.utils.book_new();
+  const addSheet = (name, aoa, widths, moneyCols = []) => {
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = widths.map(w => ({wch:w}));
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    ws['!autofilter'] = {ref: XLSX.utils.encode_range({s:{r:0, c:0}, e:{r:range.e.r, c:range.e.c}})};
+    for (let r = 1; r <= range.e.r; r++) for (const c of moneyCols){
+      const cell = ws[XLSX.utils.encode_cell({r, c})];
+      if (cell && cell.t === 'n') cell.z = '#,##0.00';
+    }
+    XLSX.utils.book_append_sheet(wb, ws, name);
+  };
+  addSheet('Verificación', [
+    ['Orden de pago', 'Ejercicio', 'Monto solicitado', ...act.map(x => x.xl), 'Estado', 'Motivo', 'Archivo', 'Página'],
+    ...rows.map((r, i) => [r.op, r.ej, r.montoNum == null ? '' : r.montoNum, ...act.map(x => XL_STATE[r.r[x.k][0]]), LABEL[stateCache[i]], motivoText(r), r.file, r.pag])
+  ], [14, 10, 16, ...act.map(() => 15), 12, 60, 44, 8], [2]);
+  addSheet('No encontradas', [['Orden de pago', 'Ejercicio', 'Monto solicitado'], ...notFound.map(r => [r[0], r[1], r[2] == null ? '' : r[2]])], [14, 10, 16], [2]);
+  addSheet('Revisión manual', [['Orden de pago', 'Ejercicio', 'Archivos', 'Motivo'], ...manual], [14, 10, 60, 44]);
+  addSheet('Duplicados omitidos', [['Archivo omitido', 'Es copia de', 'Páginas', 'Motivo'], ...dups], [48, 44, 10, 34]);
+  if ($('#chk-renombres').checked) addSheet('Renombres', [['Nombre original', 'Nombre nuevo', 'Órdenes'], ...renames], [16, 48, 10]);
+  return wb;
 }
+
+async function exportExcel(){
+  if (!window.XLSX){ toast('No se pudo cargar el generador de Excel. Revisa la conexión a internet y recarga la página.'); return; }
+  const btn = $('#dl-xlsx');
+  btn.disabled = true;
+  const filename = 'Verificacion_resultados_BOCETO.xlsx';
+  try {
+    const wb = buildWorkbook();
+    const dl = await downloadsReady;
+    if (dl){
+      const buf = XLSX.write(wb, {bookType:'xlsx', type:'array', compression:true});
+      try { await dl.save({filename, data: new Blob([buf])}); toast('Excel descargado.'); }
+      catch (e){
+        if (e && e.code === 'declined') return;
+        if (e && e.code === 'rate_limited') toast('Ya hay una descarga esperando confirmación.');
+        else toast('La descarga no está disponible en esta vista. Abre el boceto desde la página de GitHub.');
+      }
+      return;
+    }
+    if (window.claude){ toast('La descarga no está disponible en esta vista. Abre el boceto desde la página de GitHub.'); return; }
+    XLSX.writeFile(wb, filename, {compression:true});
+    toast('Excel descargado.');
+  } finally { btn.disabled = false; }
+}
+
+/* ---------- Eventos ---------- */
+function renderAll(){ computeStates(); renderConfigSum(); renderSummary(); renderTabs(); renderBody(); }
 
 document.addEventListener('change', e => {
   if (e.target.matches('#checks input, #chk-renombres')) renderAll();
@@ -575,7 +771,7 @@ document.addEventListener('change', e => {
   }
 });
 document.addEventListener('input', e => {
-  if (e.target.id === 'q'){ state.q = e.target.value; const pos = e.target.selectionStart; renderVer($('#tabbody')); const q = $('#q'); q.focus(); q.setSelectionRange(pos,pos); }
+  if (e.target.id === 'q'){ state.q = e.target.value; refreshTable(true); }
 });
 document.addEventListener('click', e => {
   const t = e.target.closest('[data-toast]'); if (t) return toast(t.dataset.toast);
@@ -587,21 +783,24 @@ document.addEventListener('click', e => {
     return;
   }
   const tab = e.target.closest('[data-tab]'); if (tab){ state.tab = tab.dataset.tab; renderTabs(); renderBody(); return; }
-  const tally = e.target.closest('.tally'); if (tally){ const s = tally.dataset.s; state.filter = state.filter === s ? null : s; state.tab = 'ver'; renderAll(); return; }
-  const chip = e.target.closest('[data-filter]'); if (chip){ state.filter = chip.dataset.filter || null; renderAll(); return; }
+  const tally = e.target.closest('.tally'); if (tally){ const s = tally.dataset.s; state.filter = state.filter === s ? null : s; state.tab = 'ver'; renderSummary(); renderTabs(); renderBody(); return; }
+  const chip = e.target.closest('[data-filter]'); if (chip){ state.filter = chip.dataset.filter || null; renderSummary(); renderBody(); return; }
   if (e.target.closest('#prev-row')) return step(-1);
   if (e.target.closest('#next-row')) return step(1);
-  const tr = e.target.closest('tr.sel'); if (tr){ if (suppressClick) return; select(+tr.dataset.i); return; }
-  if (e.target.closest('#dl-xlsx')){ toast('aquí se descarga "Verificacion_resultados.xlsx" con las hojas Verificación, No encontradas, Revisión manual, Duplicados omitidos' + ($('#chk-renombres').checked ? ' y Renombres.' : '.')); return; }
-  if (e.target.closest('#dl-zip')){ toast('aquí se descarga la carpeta con los PDFs sin duplicados, ya renombrados, y la subcarpeta "Revisión manual".'); return; }
+  const tr = e.target.closest('tr.sel'); if (tr){ if (suppressClick) return; select(+tr.dataset.i, true); return; }
+  if (e.target.closest('#dl-xlsx')){ exportExcel(); return; }
+  if (e.target.closest('#dl-zip')){ toast('Boceto: aquí se descarga la carpeta con los PDFs sin duplicados, ya renombrados, y la subcarpeta "Revisión manual".'); return; }
 });
 document.addEventListener('keydown', e => {
-  const tr = e.target.closest && e.target.closest('tr.sel');
-  if (!tr) return;
-  if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); select(+tr.dataset.i, true); }
+  if (!e.target.closest) return;
+  const inTable = e.target.closest('#tw') || e.target.closest('#preview');
+  if (!inTable) return;
   if (e.key === 'ArrowDown'){ e.preventDefault(); step(1); }
   if (e.key === 'ArrowUp'){ e.preventDefault(); step(-1); }
+  if (e.key === 'PageDown'){ e.preventDefault(); step(10); }
+  if (e.key === 'PageUp'){ e.preventDefault(); step(-10); }
 });
+renderStatic();
 renderAll();
 </script>
 
