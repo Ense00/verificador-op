@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,500..800&family=IBM+Plex+Mono:wght@400;500;600&family=Public+Sans:wght@400;500;600;700&display=swap">
 <style>
 :root{
+  color-scheme:light;
   --ground:#E6EAF1; --grid:rgba(51,70,168,.055); --surface:#FFFFFF; --sunken:#F2F4F8; --head:#EBEEF5; --zebra:#F7F8FB; --desk:#DCE1EB;
   --ink:#151C2A; --muted:#586377; --line:#D2D8E2; --line-soft:#E4E8EF;
   --band:#1C2659; --band-2:#2B3782; --band-ink:#F3F5FC; --band-muted:#B7BFE0; --band-line:rgba(255,255,255,.14);
@@ -23,6 +24,7 @@
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
+    color-scheme:dark;
     --ground:#0D1117; --grid:rgba(147,162,245,.045); --surface:#151B24; --sunken:#1A212C; --head:#1C2431; --zebra:#171E28; --desk:#10151C;
     --ink:#E4E8EF; --muted:#95A1B3; --line:#2A3441; --line-soft:#212A35;
     --band:#161E47; --band-2:#232E68; --band-ink:#E8EBF7; --band-muted:#9EA7CF; --band-line:rgba(255,255,255,.11);
@@ -33,6 +35,7 @@
   }
 }
 :root[data-theme="dark"]{
+  color-scheme:dark;
   --ground:#0D1117; --grid:rgba(147,162,245,.045); --surface:#151B24; --sunken:#1A212C; --head:#1C2431; --zebra:#171E28; --desk:#10151C;
   --ink:#E4E8EF; --muted:#95A1B3; --line:#2A3441; --line-soft:#212A35;
   --band:#161E47; --band-2:#232E68; --band-ink:#E8EBF7; --band-muted:#9EA7CF; --band-line:rgba(255,255,255,.11);
@@ -355,6 +358,13 @@ table.parts td{vertical-align:middle}
 #ov-note::placeholder{color:var(--muted)}
 #ov-note:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 #ov-note[aria-invalid="true"]{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
+/* ---------- Selector de tema ---------- */
+.theme{display:inline-flex;gap:2px;padding:3px;border:1px solid var(--band-line);border-radius:9px;background:rgba(0,0,0,.18);position:relative;z-index:1}
+.theme button{display:inline-flex;align-items:center;gap:5px;border:0;background:none;color:var(--band-muted);font-size:12px;font-weight:600;padding:4px 9px;border-radius:6px;cursor:pointer}
+.theme button:hover{color:var(--band-ink)}
+.theme button[aria-checked="true"]{background:rgba(255,255,255,.16);color:var(--band-ink);box-shadow:inset 0 0 0 1px var(--band-line)}
+.theme button:focus-visible{outline:2px solid var(--band-ink);outline-offset:1px}
+@media (max-width:520px){.theme button{font-size:0;gap:0;padding:5px 8px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
@@ -365,11 +375,22 @@ table.parts td{vertical-align:middle}
   <header class="top">
     <div class="brand">
       <h1>Verificador de Órdenes de Pago</h1>
-      <span class="stamp">Boceto · v0.6.1</span>
+      <span class="stamp">Boceto · v0.6.2</span>
     </div>
     <div class="privacy">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" stroke="currentColor" stroke-width="1.4"/></svg>
       Los archivos se procesan en esta computadora. No se suben a ningún lado.
+    </div>
+    <div class="theme" role="radiogroup" aria-label="Tema de la página">
+      <button type="button" role="radio" id="theme-light" data-theme-choice="light" aria-checked="false" title="Tema claro">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5v1.8M8 12.7v1.8M1.5 8h1.8M12.7 8h1.8M3.4 3.4l1.3 1.3M11.3 11.3l1.3 1.3M3.4 12.6l1.3-1.3M11.3 4.7l1.3-1.3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Claro
+      </button>
+      <button type="button" role="radio" id="theme-dark" data-theme-choice="dark" aria-checked="false" title="Tema oscuro">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M13.5 9.8A5.8 5.8 0 0 1 6.2 2.5a5.8 5.8 0 1 0 7.3 7.3Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>Oscuro
+      </button>
+      <button type="button" role="radio" id="theme-auto" data-theme-choice="auto" aria-checked="true" title="Igual que el sistema o Claude">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="5.8" stroke="currentColor" stroke-width="1.5"/><path d="M8 2.2a5.8 5.8 0 0 1 0 11.6Z" fill="currentColor"/></svg>Automático
+      </button>
     </div>
   </header>
   <nav class="modes" role="tablist" aria-label="Etapa del proceso">
@@ -1431,6 +1452,33 @@ function setMode(mode){
   renderNames();
 }
 
+
+/* ---------- Tema: Claro / Oscuro / Automático ---------- */
+// "Automático" respeta el tema que ponga el visor (Claude) o, si no hay, el del sistema.
+const THEME_KEY = 'verificador-op:tema';
+const rootEl = document.documentElement;
+let hostTheme = rootEl.getAttribute('data-theme');
+let themeChoice = 'auto', lastSet = hostTheme;
+function applyTheme(choice){
+  themeChoice = choice;
+  const value = choice === 'auto' ? hostTheme : choice;
+  lastSet = value || null;
+  if (value) rootEl.setAttribute('data-theme', value); else rootEl.removeAttribute('data-theme');
+  document.querySelectorAll('[data-theme-choice]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.themeChoice === choice)));
+}
+// Los avisos del observador llegan después; se ignoran los cambios que hizo esta misma página.
+new MutationObserver(() => {
+  const current = rootEl.getAttribute('data-theme');
+  if (current === lastSet) return;
+  hostTheme = current;   // el visor cambió su tema
+  if (themeChoice !== 'auto') applyTheme(themeChoice);
+}).observe(rootEl, {attributes:true, attributeFilter:['data-theme']});
+(function initTheme(){
+  let saved = null;
+  try { saved = localStorage.getItem(THEME_KEY); } catch (e) {}
+  applyTheme(saved === 'light' || saved === 'dark' ? saved : 'auto');
+})();
+
 /* ---------- Eventos ---------- */
 function renderAll(){ computeStates(); renderConfigSum(); renderSummary(); renderTabs(); renderBody(); }
 
@@ -1458,6 +1506,8 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('click', e => {
   const t = e.target.closest('[data-toast]'); if (t) return toast(t.dataset.toast);
+  const themeBtn = e.target.closest('[data-theme-choice]');
+  if (themeBtn){ applyTheme(themeBtn.dataset.themeChoice); try { localStorage.setItem(THEME_KEY, themeChoice); } catch (err) {} return; }
   const mode = e.target.closest('[data-mode]'); if (mode){ setMode(mode.dataset.mode); return; }
   if (e.target.closest('#base-sample')){ base = sampleBase(); renderBaseInfo(); renderLayoutPanel(); renderNames(); return; }
   const part = e.target.closest('[data-part]'); if (part){ downloadLayout(+part.dataset.part); return; }

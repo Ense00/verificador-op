@@ -171,6 +171,7 @@ Acordadas durante el diseño del boceto. No son opcionales: son parte de lo que 
   - En el Excel, hoja Verificación: **Estado final**, **Estado detectado** y **Nota de corrección**; el título incluye cuántas se corrigieron.
   - Las correcciones forman parte del progreso guardado.
 - Página instalable (app web) para que funcione sin internet incluso al abrirla.
+- Selector de tema **Claro / Oscuro / Automático** en el encabezado; se recuerda en el navegador. Automático sigue el tema del sistema (o del visor de Claude).
 
 ## Pendiente
 
