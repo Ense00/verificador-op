@@ -71,12 +71,13 @@ Si un archivo trae más de una OP, se renombra con todas sus OP en orden de apar
 ### Nombre de la entidad y nombres de archivo
 
 - La configuración tiene un campo **Nombre de la entidad** (obligatorio para descargar). Se recuerda en el navegador para la siguiente vez.
-- Formato: `[Tipo]_[Entidad]_[Ejercicio]_[Fecha]_[Hora]`
-  - **Tipo:** `Tabla` para el Excel de resultados; *vacío* para la carpeta o comprimido (el nombre empieza directo con la entidad); `Layout` para un archivo que el usuario explicará más adelante.
+- Formato: `[Tipo] ｜ [Entidad] ｜ [Ejercicio] ｜ [Fecha] ｜ [Hora]`
+  - **Separador:** ` ｜ ` (espacio, barra de ancho completo U+FF5C, espacio). El usuario pidió `|`, pero Windows no lo permite en nombres de archivo; U+FF5C se ve igual y sí está permitido. Contras aceptados: no se puede teclear para buscar y algún programa viejo podría mostrarlo raro.
+  - **Tipo:** `Tabla` para el Excel de resultados; *vacío* para la carpeta o comprimido (el nombre empieza directo con la entidad, sin separador inicial); `Layout` para un archivo que el usuario explicará más adelante.
   - **Ejercicio:** el del Excel de entrada; si trae varios, rango `2021-2022`.
   - **Fecha y hora:** momento en que se crea el archivo. Formato `DD-MM-AAAA` y `HH-MM` (24 h). Día primero para que el año de la fecha no se confunda con el ejercicio que va justo antes; la hora con guion porque Windows no permite `:` en nombres. *Confirmado.*
-  - Se quitan de la entidad los caracteres que Windows no permite: `\ / : * ? " < > |`.
-- Ejemplos: `Tabla_Entidad de Ejemplo_2021_14-09-2026_16-05.xlsx` y `Entidad de Ejemplo_2021_14-09-2026_16-05.zip`.
+  - Se quitan de la entidad los caracteres que Windows no permite: `\ / : * ? " < > |`, y también `｜` para no confundir el separador.
+- Ejemplos: `Tabla ｜ Entidad de Ejemplo ｜ 2021 ｜ 14-09-2026 ｜ 16-05.xlsx` y `Entidad de Ejemplo ｜ 2021 ｜ 14-09-2026 ｜ 16-05.zip`.
 
 ### Excel de resultados
 

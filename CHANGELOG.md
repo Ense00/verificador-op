@@ -2,6 +2,9 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.4.3 — 2026-09-14
+- Separador en nombres de archivo: ` ｜ ` (barra de ancho completo, porque Windows no permite `|`) en lugar de `_`.
+
 ## v0.4.2 — 2026-09-14
 - Fecha en nombres de archivo como `DD-MM-AAAA` (antes `AAAA-MM-DD`) para no confundirla con el ejercicio.
 
