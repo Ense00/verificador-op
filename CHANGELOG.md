@@ -2,6 +2,9 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.6.1 — 2026-09-14
+- Corrige el color del texto de la nota de corrección (salía negro en modo oscuro).
+
 ## v0.6.0 — 2026-09-14
 - Corrección manual de estado: elegir estado nuevo + nota obligatoria, aplicar a todas las filas de la orden, editar o deshacer. Marca ✎ en la tabla, filtro "Corregidas a mano", conteos actualizados.
 - Excel: columnas Estado final, Estado detectado y Nota de corrección.
