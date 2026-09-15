@@ -294,7 +294,7 @@ tbody tr.sel[aria-selected="true"] td.sticky{box-shadow:inset 4px 0 0 var(--acce
   <header class="top">
     <div class="brand">
       <h1>Verificador de Órdenes de Pago</h1>
-      <span class="stamp">Boceto · v0.4.3</span>
+      <span class="stamp">Boceto · v0.4.4</span>
     </div>
     <div class="privacy">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" stroke="currentColor" stroke-width="1.4"/></svg>
@@ -396,7 +396,7 @@ tbody tr.sel[aria-selected="true"] td.sticky{box-shadow:inset 4px 0 0 var(--acce
 </div>
 <div class="toast" id="toast" hidden role="status"></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script>
 const K = [
   {k:'op', label:'Orden', short:'Núm.', xl:'Valida orden'},
@@ -835,43 +835,152 @@ setInterval(renderNames, 30000);
 /* ---------- Exportar Excel de prueba ---------- */
 const downloadsReady = window.claude && typeof window.claude.use === 'function' ? window.claude.use('downloads').catch(() => null) : Promise.resolve(null);
 
-function buildWorkbook(){
+// Paleta del Excel: la misma identidad de la página (ARGB)
+const XL = {
+  band:'FF1C2659', band2:'FF2B3782', val:'FF3346A8', white:'FFFFFFFF', soft:'FFE3E7F7',
+  zebra:'FFF6F8FB', line:'FFD8DEE8', ink:'FF151C2A', muted:'FF586377',
+  state:{
+    'Correcto':['FFE2F3EA','FF1C7248'], 'Incorrecto':['FFFBE6E3','FFB0281C'],
+    'Revisar':['FFFCEFD9','FF9A5608'], 'Ilegible':['FFE7EAF0','FF56607A'], 'No aplica':['FFF2F4F8','FF8A93A3']
+  }
+};
+const xlFill = (argb) => ({type:'pattern', pattern:'solid', fgColor:{argb}});
+const xlLine = {style:'thin', color:{argb:XL.line}};
+const XL_BORDER = {top:xlLine, bottom:xlLine, left:xlLine, right:xlLine};
+const XL_FONT = 'Calibri', XL_MONO = 'Consolas';
+
+function addStyledSheet(wb, name, opts){
+  const {title, meta, columns, data, tab, freezeCol = 0} = opts;
+  const n = columns.length, HEAD = 4;
+  const ws = wb.addWorksheet(name, {
+    properties:{tabColor:{argb:tab}},
+    views:[{state:'frozen', xSplit:freezeCol, ySplit:HEAD, showGridLines:false}]
+  });
+  columns.forEach((c, i) => { ws.getColumn(i + 1).width = c.width; });
+
+  // Fila 1: título en banda azul tinta
+  ws.mergeCells(1, 1, 1, n);
+  const t = ws.getCell(1, 1);
+  t.value = title;
+  t.font = {name:XL_FONT, size:15, bold:true, color:{argb:XL.white}};
+  t.fill = xlFill(XL.band);
+  t.alignment = {vertical:'middle', indent:1};
+  ws.getRow(1).height = 32;
+
+  // Fila 2: datos de la corrida
+  ws.mergeCells(2, 1, 2, n);
+  const m = ws.getCell(2, 1);
+  m.value = meta;
+  m.font = {name:XL_FONT, size:10, color:{argb:XL.soft}};
+  m.fill = xlFill(XL.band2);
+  m.alignment = {vertical:'middle', indent:1};
+  ws.getRow(2).height = 20;
+  ws.getRow(3).height = 6;
+
+  // Fila 4: encabezados
+  const head = ws.getRow(HEAD);
+  head.height = 34;
+  columns.forEach((c, i) => {
+    const cell = head.getCell(i + 1);
+    cell.value = c.header;
+    cell.font = {name:XL_FONT, size:10, bold:true, color:{argb:XL.white}};
+    cell.fill = xlFill(c.validation ? XL.val : XL.band);
+    cell.alignment = {vertical:'middle', horizontal: c.align || 'left', wrapText:true, indent: c.align ? 0 : 1};
+    cell.border = {bottom:{style:'medium', color:{argb:XL.band}}};
+  });
+
+  // Datos: filas alternadas, bordes finos y estados con color
+  data.forEach((values, r) => {
+    const row = ws.getRow(HEAD + 1 + r);
+    row.height = 18;
+    const zebra = r % 2 === 1;
+    columns.forEach((c, i) => {
+      const cell = row.getCell(i + 1);
+      const v = values[i];
+      cell.value = v === '' || v == null ? null : v;
+      cell.border = XL_BORDER;
+      cell.alignment = {vertical:'middle', horizontal: c.align || 'left', indent: c.align ? 0 : 1};
+      const st = c.state && XL.state[v];
+      if (st){
+        cell.fill = xlFill(st[0]);
+        cell.font = {name:XL_FONT, size:10, bold:true, color:{argb:st[1]}};
+      } else {
+        if (zebra) cell.fill = xlFill(XL.zebra);
+        cell.font = {name: c.mono ? XL_MONO : XL_FONT, size:10, color:{argb: c.muted ? XL.muted : XL.ink}};
+      }
+      if (c.money) cell.numFmt = '"$"#,##0.00';
+      if (c.int) cell.numFmt = '#,##0';
+    });
+  });
+
+  ws.autoFilter = {from:{row:HEAD, column:1}, to:{row:HEAD + Math.max(1, data.length), column:n}};
+  return ws;
+}
+
+async function buildWorkbook(){
   const act = active();
-  const wb = XLSX.utils.book_new();
-  const addSheet = (name, aoa, widths, moneyCols = []) => {
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws['!cols'] = widths.map(w => ({wch:w}));
-    const range = XLSX.utils.decode_range(ws['!ref']);
-    ws['!autofilter'] = {ref: XLSX.utils.encode_range({s:{r:0, c:0}, e:{r:range.e.r, c:range.e.c}})};
-    for (let r = 1; r <= range.e.r; r++) for (const c of moneyCols){
-      const cell = ws[XLSX.utils.encode_cell({r, c})];
-      if (cell && cell.t === 'n') cell.z = '#,##0.00';
-    }
-    XLSX.utils.book_append_sheet(wb, ws, name);
-  };
-  addSheet('Verificación', [
-    ['Orden de pago', 'Ejercicio', 'Monto solicitado', ...act.map(x => x.xl), 'Estado', 'Motivo', 'Archivo', 'Página'],
-    ...rows.map((r, i) => [r.op, r.ej, r.montoNum == null ? '' : r.montoNum, ...act.map(x => XL_STATE[r.r[x.k][0]]), LABEL[stateCache[i]], motivoText(r), r.file, r.pag])
-  ], [14, 10, 16, ...act.map(() => 15), 12, 60, 44, 8], [2]);
-  addSheet('No encontradas', [['Orden de pago', 'Ejercicio', 'Monto solicitado'], ...notFound.map(r => [r[0], r[1], r[2] == null ? '' : r[2]])], [14, 10, 16], [2]);
-  addSheet('Revisión manual', [['Orden de pago', 'Ejercicio', 'Archivos', 'Motivo'], ...manual], [14, 10, 60, 44]);
-  addSheet('Duplicados omitidos', [['Archivo omitido', 'Es copia de', 'Páginas', 'Motivo'], ...dups], [48, 44, 10, 34]);
-  if ($('#chk-renombres').checked) addSheet('Renombres', [['Nombre original', 'Nombre nuevo', 'Órdenes'], ...renames], [16, 48, 10]);
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Verificador de Órdenes de Pago';
+  wb.created = new Date();
+  const entidad = cleanName($('#entity').value);
+  const d = new Date(), p2 = (x) => String(x).padStart(2, '0');
+  const generado = `${p2(d.getDate())}-${p2(d.getMonth() + 1)}-${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+  const meta = (extra) => `Entidad: ${entidad}     ·     Ejercicio: ${ejercicioLabel()}     ·     Generado: ${generado}${extra ? '     ·     ' + extra : ''}     ·     Boceto con datos ficticios`;
+  const counts = {Correcto:0, Incorrecto:0, Revisar:0, Ilegible:0};
+  stateCache.forEach(s => counts[LABEL[s]]++);
+  const conteo = Object.entries(counts).map(([k, v]) => `${k} ${fmtInt(v)}`).join('  ·  ');
+
+  addStyledSheet(wb, 'Verificación', {
+    title:'Verificación de Órdenes de Pago', meta:meta(conteo), tab:XL.band, freezeCol:1,
+    columns:[
+      {header:'Orden de pago', width:15, mono:true},
+      {header:'Ejercicio', width:10, align:'center'},
+      {header:'Monto solicitado', width:17, money:true, mono:true, align:'right'},
+      ...act.map(x => ({header:x.xl, width:13, state:true, validation:true, align:'center'})),
+      {header:'Estado', width:13, state:true, align:'center'},
+      {header:'Motivo', width:70},
+      {header:'Archivo', width:46, muted:true},
+      {header:'Página', width:9, align:'center', muted:true}
+    ],
+    data: rows.map((r, i) => [r.op, r.ej, r.montoNum == null ? '' : r.montoNum, ...act.map(x => XL_STATE[r.r[x.k][0]]), LABEL[stateCache[i]], motivoText(r) || 'Cumple todo lo revisado', r.file, r.pag])
+  });
+  addStyledSheet(wb, 'No encontradas', {
+    title:'Órdenes no encontradas en los PDFs', meta:meta(`${notFound.length} órdenes`), tab:'FFB0281C',
+    columns:[{header:'Orden de pago', width:15, mono:true}, {header:'Ejercicio', width:10, align:'center'}, {header:'Monto solicitado', width:17, money:true, mono:true, align:'right'}],
+    data: notFound.map(r => [r[0], r[1], r[2] == null ? '' : r[2]])
+  });
+  addStyledSheet(wb, 'Revisión manual', {
+    title:'Órdenes para revisión manual', meta:meta(`${manual.length} órdenes`), tab:'FF9A5608',
+    columns:[{header:'Orden de pago', width:15, mono:true}, {header:'Ejercicio', width:10, align:'center'}, {header:'Archivos', width:62, muted:true}, {header:'Motivo', width:46}],
+    data: manual
+  });
+  addStyledSheet(wb, 'Duplicados omitidos', {
+    title:'Archivos duplicados omitidos', meta:meta(`${dups.length} archivos`), tab:'FF56607A',
+    columns:[{header:'Archivo omitido', width:50, muted:true}, {header:'Es copia de', width:46}, {header:'Páginas', width:10, int:true, align:'right', mono:true}, {header:'Motivo', width:34}],
+    data: dups
+  });
+  if ($('#chk-renombres').checked) addStyledSheet(wb, 'Renombres', {
+    title:'Archivos renombrados', meta:meta(`${fmtInt(renames.length)} archivos`), tab:'FF1C7248',
+    columns:[{header:'Nombre original', width:18, mono:true}, {header:'Nombre nuevo', width:52, mono:true}, {header:'Órdenes', width:10, int:true, align:'right'}],
+    data: renames
+  });
   return wb;
 }
 
 async function exportExcel(){
-  if (!window.XLSX){ toast('No se pudo cargar el generador de Excel. Revisa la conexión a internet y recarga la página.'); return; }
+  if (!window.ExcelJS){ toast('No se pudo cargar el generador de Excel. Revisa la conexión a internet y recarga la página.'); return; }
   if (!requireEntity()) return;
-  const btn = $('#dl-xlsx');
+  const btn = $('#dl-xlsx'), label = btn.lastChild, original = label.textContent;
   btn.disabled = true;
+  label.textContent = ' Generando…';
   const filename = fileName('Tabla', '.xlsx');
   try {
-    const wb = buildWorkbook();
+    const wb = await buildWorkbook();
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
     const dl = await downloadsReady;
     if (dl){
-      const buf = XLSX.write(wb, {bookType:'xlsx', type:'array', compression:true});
-      try { await dl.save({filename, data: new Blob([buf])}); toast('Excel descargado.'); }
+      try { await dl.save({filename, data: blob}); toast('Excel descargado.'); }
       catch (e){
         if (e && e.code === 'declined') return;
         if (e && e.code === 'rate_limited') toast('Ya hay una descarga esperando confirmación.');
@@ -880,9 +989,15 @@ async function exportExcel(){
       return;
     }
     if (window.claude){ toast('La descarga no está disponible en esta vista. Abre el boceto desde la página de GitHub.'); return; }
-    XLSX.writeFile(wb, filename, {compression:true});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
     toast('Excel descargado.');
-  } finally { btn.disabled = false; }
+  } catch (err){
+    toast('No se pudo generar el Excel: ' + (err && err.message ? err.message : 'error desconocido'));
+  } finally { btn.disabled = false; label.textContent = original; }
 }
 
 /* ---------- Eventos ---------- */

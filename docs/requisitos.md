@@ -81,6 +81,8 @@ Si un archivo trae más de una OP, se renombra con todas sus OP en orden de apar
 
 ### Excel de resultados
 
+- **Con diseño**, misma identidad que la página: título en banda azul tinta, fila con entidad/ejercicio/fecha de generación/conteos, encabezados con color (validaciones en otro tono), filas alternadas, bordes finos, Estado y validaciones con color por estado, montos con formato `$#,##0.00`, filtros, encabezado y primera columna fijos, sin cuadrícula y color de pestaña por hoja. (La librería gratuita SheetJS no escribe estilos; se usa ExcelJS.)
+
 - **Verificación:** columnas de lo marcado en "Qué revisar" + Estado + Motivo + Archivo (nombre nuevo) + Página.
 - **No encontradas.**
 - **Duplicados omitidos:** archivo omitido y de cuál es copia.

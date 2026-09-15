@@ -2,6 +2,9 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.4.4 — 2026-09-14
+- Excel de prueba con diseño (ExcelJS en lugar de SheetJS): título y datos de la corrida en banda azul, encabezados de color, filas alternadas, estados con color, formato de moneda, filtros, paneles fijos, sin cuadrícula y pestañas de color.
+
 ## v0.4.3 — 2026-09-14
 - Separador en nombres de archivo: ` ｜ ` (barra de ancho completo, porque Windows no permite `|`) en lugar de `_`.
 
