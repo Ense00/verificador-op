@@ -2,6 +2,9 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.6.5 — 2026-09-15
+- Se quita del encabezado el aviso "Los archivos se procesan en esta computadora…".
+
 ## v0.6.4 — 2026-09-15
 - Encabezado: el aviso de privacidad y el selector de tema van juntos a la derecha, apilados; ya no bajan debajo del título en ventanas medianas.
 
