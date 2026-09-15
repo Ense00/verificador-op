@@ -2,6 +2,9 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.1.2 — 2026-09-14
+- Regla de firmas: basta con que sean 3 firmas en total; los cargos varían y no se valida quién firma. Motivo: "Solo 2 de 3 firmas".
+
 ## v0.1.1 — 2026-09-14
 - Filtros por estado visibles arriba de la tabla (Todos, Correcto, Incorrecto, Revisar, Ilegible).
 - Archivo y Página en columnas separadas; se corrige la columna de archivo aplastada.

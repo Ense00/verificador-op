@@ -183,7 +183,7 @@ td.c{text-align:center}
 <header class="top">
   <div class="brand">
     <h1>Verificador de Órdenes de Pago</h1>
-    <span class="stamp">Boceto · v0.1.1</span>
+    <span class="stamp">Boceto · v0.1.2</span>
   </div>
   <div class="privacy">
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" stroke="currentColor" stroke-width="1.4"/></svg>
@@ -216,7 +216,7 @@ td.c{text-align:center}
         <label class="check"><input type="checkbox" id="chk-op" data-k="op" checked> Orden de pago</label>
         <label class="check"><input type="checkbox" id="chk-ej" data-k="ej" checked> Ejercicio <small>solo el año</small></label>
         <label class="check"><input type="checkbox" id="chk-monto" data-k="monto" checked> Monto <small>en la lista o total</small></label>
-        <label class="check"><input type="checkbox" id="chk-firmas" data-k="firmas" checked> Firmas <small>3 al pie</small></label>
+        <label class="check"><input type="checkbox" id="chk-firmas" data-k="firmas" checked> Firmas <small>3 en total</small></label>
         <label class="check"><input type="checkbox" id="chk-sellos" data-k="sellos" checked> Sellos</label>
       </div>
       <p class="fixed">Buscar las órdenes y detectar duplicados se hace siempre.</p>
@@ -293,12 +293,12 @@ const ok = (m) => ['ok', m];
 // Datos ficticios
 const rows = [
   {op:'1900000101', ej:2021, monto:'189,945.00', file:'1900000101.pdf', pag:'1', sheet:{}, r:{op:ok('Coincide'), ej:ok('2021'), monto:ok('Es el total de la orden'), firmas:ok('3 de 3'), sellos:ok('Sello presente')}},
-  {op:'1900000102', ej:2021, monto:'910,085.52', file:F1, pag:'1–2', sheet:{firmas:['ok','ok','bad'], hit:0}, r:{op:ok('Coincide'), ej:ok('2021'), monto:ok('Línea 1 de la lista'), firmas:['bad','Sin firma Tesorero'], sellos:ok('Sello presente')}},
-  {op:'1900000102', ej:2021, monto:'267,049.86', file:F1, pag:'1–2', sheet:{firmas:['ok','ok','bad'], hit:1}, r:{op:ok('Coincide'), ej:ok('2021'), monto:ok('Línea 2 de la lista'), firmas:['bad','Sin firma Tesorero'], sellos:ok('Sello presente')}},
+  {op:'1900000102', ej:2021, monto:'910,085.52', file:F1, pag:'1–2', sheet:{firmas:['ok','ok','bad'], hit:0}, r:{op:ok('Coincide'), ej:ok('2021'), monto:ok('Línea 1 de la lista'), firmas:['bad','Solo 2 de 3 firmas'], sellos:ok('Sello presente')}},
+  {op:'1900000102', ej:2021, monto:'267,049.86', file:F1, pag:'1–2', sheet:{firmas:['ok','ok','bad'], hit:1}, r:{op:ok('Coincide'), ej:ok('2021'), monto:ok('Línea 2 de la lista'), firmas:['bad','Solo 2 de 3 firmas'], sellos:ok('Sello presente')}},
   {op:'1900000103', ej:2021, monto:'2,500,000.00', file:F1, pag:'3', sheet:{}, r:{op:ok('Coincide'), ej:ok('2021'), monto:ok('Es el total de la orden'), firmas:ok('3 de 3'), sellos:ok('Sello presente')}},
   {op:'1900000104', ej:2021, monto:'583,000.00', file:F1, pag:'4', sheet:{year:'2022', yearBad:true}, r:{op:ok('Coincide'), ej:['bad','Año 2022, se esperaba 2021'], monto:ok('Es el total de la orden'), firmas:ok('3 de 3'), sellos:ok('Sello presente')}},
   {op:'1900000105', ej:2021, monto:'125,892.48', file:F2, pag:'12', sheet:{hit:-1}, r:{op:ok('Coincide'), ej:ok('2021'), monto:['bad','No aparece en la lista. El más cercano es $125,892.47 (difiere por $0.01)'], firmas:ok('3 de 3'), sellos:ok('Sello presente')}},
-  {op:'1900000106', ej:2021, monto:'', file:F2, pag:'13', sheet:{stampOn:1, firmas:['ok','rev','ok']}, r:{op:ok('Coincide'), ej:ok('2021'), monto:['na','El Excel no pide monto'], firmas:['rev','La firma 2 está tapada por un sello'], sellos:['rev','Sello encima de la firma 2']}},
+  {op:'1900000106', ej:2021, monto:'', file:F2, pag:'13', sheet:{stampOn:1, firmas:['ok','rev','ok']}, r:{op:ok('Coincide'), ej:ok('2021'), monto:['na','El Excel no pide monto'], firmas:['rev','Un sello tapa una firma: no se puede confirmar que sean 3'], sellos:['rev','Sello encima de una firma']}},
   {op:'1900000107', ej:2021, monto:'8,727.84', file:F2, pag:'14', sheet:{blurTable:true}, r:{op:ok('Coincide'), ej:ok('2021'), monto:['ile','La tabla de montos no se pudo leer (la lista no suma el total)'], firmas:ok('3 de 3'), sellos:ok('Sello presente')}},
   {op:'1900000108', ej:2021, monto:'16,666.00', file:F2, pag:'15', sheet:{opBody:'1900000180'}, r:{op:['bad','El encabezado dice 1900000108 pero el documento muestra 1900000180'], ej:ok('2021'), monto:ok('Es el total de la orden'), firmas:ok('3 de 3'), sellos:ok('Sello presente')}},
   {op:'1900000109', ej:2021, monto:'3,301,100.00', file:F2, pag:'16', sheet:{}, r:{op:ok('Coincide'), ej:ok('2021'), monto:ok('Es el total de la orden'), firmas:ok('3 de 3'), sellos:ok('Sello presente')}},
@@ -496,7 +496,7 @@ function sheetSVG(r){
     if (montoOn && hit === undefined && r.monto) t += `<rect x="208" y="${tableY+77}" width="78" height="15" rx="2" fill="none" stroke="var(--ok)" stroke-width="1.6"/>`;
   }
   // firmas
-  const labels = ['Firma 1','Firma 2','Tesorero'];
+  const labels = ['Nombre y cargo','Nombre y cargo','Nombre y cargo'];
   const fy = 318;
   if (sh.blurFoot) t += `<rect x="12" y="${fy-36}" width="276" height="70" fill="url(#hatch)"/>`;
   labels.forEach((l,i)=>{

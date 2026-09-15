@@ -26,7 +26,7 @@ Se descarga una carpeta de PDFs **escaneados** con Órdenes de Pago (OP). Un PDF
 | Orden de pago | El número mencionado y el mostrado en el documento coinciden, y corresponden al Excel |
 | Ejercicio | Solo importa el **año**; debe ser el del Excel |
 | Monto | El monto solicitado debe aparecer **en algún lugar de la lista** de montos de la OP (una línea o el total), al centavo. Si hay uno casi igual, se menciona (p. ej. "difiere por $0.01") |
-| Firmas | Normalmente 3 firmas a mano, siempre en la parte inferior, en posición fija. Se reporta cuál falta (p. ej. Tesorero). Solo se detecta presencia, no autenticidad |
+| Firmas | Deben ser **3 firmas en total**, a mano, en la parte inferior. Los cargos de quienes firman varían, así que no se valida quién firma, solo que sean 3 (p. ej. "Solo 2 de 3 firmas"). Solo se detecta presencia, no autenticidad |
 | Sellos | Azules o negros, en cualquier posición, a veces encima de firmas. Sello encima de firma = *Revisar* |
 
 Localizar la OP en los PDFs se hace siempre (es la base de todo). Lo no marcado sale como "No revisado".
