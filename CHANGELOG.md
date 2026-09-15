@@ -2,6 +2,13 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.5.0 — 2026-09-14
+- **Primera parte funcional:** etapa "Preparar Layout". Lee el documento base real (.xlsx) en el navegador, localiza columnas por nombre, ignora filas sin orden (totales), toma el ejercicio del año de la Fecha Contable, quita órdenes repetidas y genera el Layout con la plantilla de la plataforma (números enteros).
+- Partir Layout en N partes iguales, descarga por parte o todas en ZIP, con ` ｜ Parte K` en el nombre.
+- Resumen del documento: filas, órdenes únicas, ejercicio, filas ignoradas, columnas encontradas y avisos (repetidas, negativos, sin fecha, años mezclados).
+- Página organizada en dos etapas (1 Preparar Layout, 2 Verificar órdenes); el nombre de la entidad queda arriba para ambas.
+- Verificación (boceto): "Documento base" en lugar de "Excel de órdenes", selector de parte a verificar y montos negativos marcados como Revisar.
+
 ## v0.4.4 — 2026-09-14
 - Excel de prueba con diseño (ExcelJS en lugar de SheetJS): título y datos de la corrida en banda azul, encabezados de color, filas alternadas, estados con color, formato de moneda, filtros, paneles fijos, sin cuadrícula y pestañas de color.
 

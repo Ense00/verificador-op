@@ -18,9 +18,12 @@ Se descarga una carpeta de PDFs **escaneados** con Órdenes de Pago (OP). Un PDF
 - Una hoja, encabezados en la fila 1. Columnas relevantes: `Contribución` (nombre de la entidad), `Orden de Pago` (10 dígitos, guardada como texto), `Fecha Contable` (fecha), `Importe en moneda de la entidad CP` (monto). Otras columnas (`DocReferencia`, `Período`, `Status Actual`, `Centro gestor`, etc.) no se usan para verificar.
 - `DocReferencia` **no** es la orden de pago; no usarla.
 - La última fila puede ser un **total con fórmula** sin orden de pago: se ignora toda fila sin orden de pago.
-- Puede haber **montos negativos**.
+- Puede haber **montos negativos**: se verifican y se marcan como *Revisar* ("Monto negativo en el documento base").
 - Una orden de pago puede repetirse en varias filas con montos distintos.
 - Hay series de orden que empiezan con `19` y con `71`.
+- **Ejercicio = año de la `Fecha Contable`** de cada fila.
+- **Las columnas pueden cambiar de posición, pero no de nombre:** se localizan por el nombre del encabezado (sin distinguir mayúsculas, acentos ni espacios extra).
+- El nombre de la entidad se escribe **a mano** en la página (la columna `Contribución` no siempre trae el nombre completo).
 
 ### Layout para la plataforma
 
@@ -40,6 +43,9 @@ Plantilla: hoja `Hoja1`, 8 columnas con estos encabezados exactos. La plataforma
 - **Todo en formato número, sin decimales** (enteros).
 - **Sin órdenes repetidas:** la plataforma marca error. Una fila por orden de pago única. (En la verificación sí se conservan las repeticiones con montos distintos.)
 - Nombre de archivo: `Layout ｜ [Entidad] ｜ [Ejercicio] ｜ [Fecha] ｜ [Hora].xlsx`.
+- La plataforma no tiene límite práctico de filas.
+- **Partir Layout** (opcional): N partes iguales (difieren en máximo 1 orden), sin órdenes repetidas, en el orden en que aparecen en el documento base. Cada archivo termina en ` ｜ Parte K` y se pueden descargar juntas en un ZIP o una por una. Mismo documento + mismo N = mismas partes.
+- En la verificación se puede elegir **qué parte se está verificando**, para que las órdenes de otras partes no salgan como "No encontradas".
 
 ## Principios
 
@@ -162,6 +168,5 @@ Acordadas durante el diseño del boceto. No son opcionales: son parte de lo que 
 
 ## Pendiente
 
-- Layout: de dónde sale el ejercicio, montos negativos, límite de filas de la plataforma, autollenar entidad desde `Contribución`.
 
 - PDF de ejemplo (con una OP válida, una con solo 2 de 3 firmas, una con varios montos y una con sello sobre firma) para la fase 0: medir lectura, enderezado, detección de firmas/sellos y velocidad en navegador.
