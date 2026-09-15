@@ -7,4 +7,7 @@ Herramienta web para verificar Órdenes de Pago escaneadas (PDF) contra un Excel
 - Requisitos y reglas: [`docs/requisitos.md`](docs/requisitos.md)
 - Historial de cambios: [`CHANGELOG.md`](CHANGELOG.md)
 
-> Regla del repositorio: nunca subir PDFs, Excels ni ZIPs reales (bloqueados en `.gitignore`).
+> Reglas del repositorio (es público):
+> - Nunca subir PDFs, Excels ni ZIPs reales (bloqueados en `.gitignore`).
+> - Nunca poner números de orden, montos, nombres de personas ni de la institución reales en código, pruebas, documentación o mensajes de commit. Usar datos ficticios (p. ej. `1900000001`).
+> - La plantilla de alineación sale de un escaneo real, así que no vive en el repo: el usuario la carga en la página.
