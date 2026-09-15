@@ -2,6 +2,12 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.2.0 — 2026-09-14
+- Nuevo acomodo: configuración arriba en horizontal (se puede ocultar y deja un resumen de lo elegido), resumen compacto, tabla abajo y vista previa a la derecha siempre visible.
+- Vista previa compacta: orden, estado, archivo/página/monto, resultado de cada validación, hoja con zonas detectadas y botones.
+- Navegar entre órdenes con ↑ ↓ (teclado o botones de la vista previa).
+- Se quita "Ampliar tabla" (ya no hace falta).
+
 ## v0.1.2 — 2026-09-14
 - Regla de firmas: basta con que sean 3 firmas en total; los cargos varían y no se valida quién firma. Motivo: "Solo 2 de 3 firmas".
 
