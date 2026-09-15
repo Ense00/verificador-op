@@ -2,6 +2,10 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.5.1 — 2026-09-14
+- La casilla se llama "Partir Layout".
+- Preparación de Layout probada por el usuario con un documento base real: funciona.
+
 ## v0.5.0 — 2026-09-14
 - **Primera parte funcional:** etapa "Preparar Layout". Lee el documento base real (.xlsx) en el navegador, localiza columnas por nombre, ignora filas sin orden (totales), toma el ejercicio del año de la Fecha Contable, quita órdenes repetidas y genera el Layout con la plantilla de la plataforma (números enteros).
 - Partir Layout en N partes iguales, descarga por parte o todas en ZIP, con ` ｜ Parte K` en el nombre.
