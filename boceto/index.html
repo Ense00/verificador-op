@@ -294,7 +294,7 @@ tbody tr.sel[aria-selected="true"] td.sticky{box-shadow:inset 4px 0 0 var(--acce
   <header class="top">
     <div class="brand">
       <h1>Verificador de Órdenes de Pago</h1>
-      <span class="stamp">Boceto · v0.4.2</span>
+      <span class="stamp">Boceto · v0.4.3</span>
     </div>
     <div class="privacy">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" stroke="currentColor" stroke-width="1.4"/></svg>
@@ -796,10 +796,12 @@ window.addEventListener('pointerup', () => {
 });
 
 
-/* ---------- Nombres de archivo: [Tipo]_[Entidad]_[Ejercicio]_[Fecha]_[Hora] ---------- */
+/* ---------- Nombres de archivo: [Tipo] ｜ [Entidad] ｜ [Ejercicio] ｜ [Fecha] ｜ [Hora] ---------- */
 const ENTITY_KEY = 'verificador-op:entidad';
 const EXT = {zip:'.zip', '7z':'.7z', tgz:'.tar.gz', folder:''};
-const cleanName = (t) => t.replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim();
+// "|" no se permite en Windows: se usa la barra de ancho completo U+FF5C, que se ve igual
+const SEP = ' \uFF5C ';
+const cleanName = (t) => t.replace(/[\\/:*?"<>|\uFF5C]+/g, '').replace(/\s+/g, ' ').trim();
 function ejercicioLabel(){
   const ys = [...new Set(rows.map(r => r.ej))].sort();
   return ys.length === 1 ? String(ys[0]) : `${ys[0]}-${ys[ys.length - 1]}`;
@@ -808,7 +810,7 @@ function fileName(tipo, ext, d = new Date()){
   const p = (n) => String(n).padStart(2, '0');
   const fecha = `${p(d.getDate())}-${p(d.getMonth() + 1)}-${d.getFullYear()}`;
   const hora = `${p(d.getHours())}-${p(d.getMinutes())}`;
-  return [tipo, cleanName($('#entity').value) || '[Entidad]', ejercicioLabel(), fecha, hora].filter(Boolean).join('_') + ext;
+  return [tipo, cleanName($('#entity').value) || '[Entidad]', ejercicioLabel(), fecha, hora].filter(Boolean).join(SEP) + ext;
 }
 function renderNames(){
   $('#entity-help').innerHTML = `<span>Excel</span><code>${esc(fileName('Tabla', '.xlsx'))}</code><span>Carpeta</span><code>${esc(fileName('', EXT[$('#fmt').value]))}</code>`;
