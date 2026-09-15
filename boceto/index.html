@@ -272,6 +272,18 @@ tbody tr.sel[aria-selected="true"] td.sticky{box-shadow:inset 4px 0 0 var(--acce
 .names{margin:0;display:flex;flex-direction:column;gap:3px}
 .names span{font-size:11px;color:var(--muted)}
 .names code{display:block;font-family:var(--mono);font-size:11px;color:var(--ink);background:var(--sunken);border:1px solid var(--line-soft);border-radius:4px;padding:2px 6px;overflow-wrap:anywhere}
+.entitybar{grid-column:1/-1;display:grid;grid-template-columns:minmax(260px,480px) minmax(0,1fr);gap:10px 28px;align-items:end;padding:14px 16px;background:var(--accent-soft);border-bottom:1px solid var(--line)}
+@media (max-width:800px){.entitybar{grid-template-columns:minmax(0,1fr)}}
+.entitybar .entity{gap:6px}
+.entitybar .entity label{display:flex;align-items:center;gap:8px;font-family:var(--display);font-stretch:112%;font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink)}
+.entitybar .entity label em{font-style:normal;font-family:var(--sans);font-size:11px;font-weight:600;letter-spacing:.02em;text-transform:none;color:var(--accent);background:var(--surface);border:1px solid var(--accent);border-radius:10px;padding:0 7px}
+.stepnum{display:inline-grid;place-items:center;width:19px;height:19px;border-radius:50%;background:var(--accent);color:var(--on-accent);font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:0}
+.entitybar .entity input{font-family:var(--display);font-stretch:106%;font-size:18px;font-weight:650;padding:9px 12px;border:2px solid var(--accent);border-radius:8px;background:var(--surface);color:var(--ink)}
+.entitybar .entity input::placeholder{color:var(--muted);font-weight:500}
+.entitybar .entity input:focus{box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 25%,transparent)}
+.entitybar .names{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 10px;align-items:center}
+.entitybar .names span{font-size:12px;color:var(--muted);text-align:right}
+.entitybar .names code{background:var(--surface)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
@@ -282,7 +294,7 @@ tbody tr.sel[aria-selected="true"] td.sticky{box-shadow:inset 4px 0 0 var(--acce
   <header class="top">
     <div class="brand">
       <h1>Verificador de Órdenes de Pago</h1>
-      <span class="stamp">Boceto · v0.4.0</span>
+      <span class="stamp">Boceto · v0.4.1</span>
     </div>
     <div class="privacy">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" stroke="currentColor" stroke-width="1.4"/></svg>
@@ -298,12 +310,15 @@ tbody tr.sel[aria-selected="true"] td.sticky{box-shadow:inset 4px 0 0 var(--acce
       <button type="button" class="btn small ghost" id="toggle-config" aria-expanded="true" aria-controls="configbody">Ocultar</button>
     </div>
     <div class="configbody" id="configbody">
-      <div class="cgroup">
-        <h3><span>1</span> Entidad y archivos</h3>
+      <div class="entitybar">
         <div class="entity">
-          <label for="entity">Nombre de la entidad</label>
-          <input id="entity" type="text" autocomplete="off" spellcheck="false" placeholder="Ej. Entidad de Ejemplo" aria-describedby="entity-help">
+          <label for="entity"><span class="stepnum">1</span> Nombre de la entidad <em>Obligatorio</em></label>
+          <input id="entity" type="text" autocomplete="off" spellcheck="false" placeholder="Escribe el nombre de la entidad" aria-describedby="entity-help" aria-required="true">
         </div>
+        <div class="names" id="entity-help" aria-live="polite"></div>
+      </div>
+      <div class="cgroup">
+        <h3><span>2</span> Archivos</h3>
         <div class="files">
           <button class="file" type="button" id="f-pdfs" data-toast="Boceto: Aquí eliges la carpeta con los PDFs.">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" stroke="currentColor" stroke-width="1.8"/></svg>
@@ -320,7 +335,7 @@ tbody tr.sel[aria-selected="true"] td.sticky{box-shadow:inset 4px 0 0 var(--acce
         </div>
       </div>
       <div class="cgroup">
-        <h3><span>2</span> Qué revisar</h3>
+        <h3><span>3</span> Qué revisar</h3>
         <div class="checks" id="checks">
           <label class="check"><input type="checkbox" id="chk-op" data-k="op" checked> Orden de pago</label>
           <label class="check"><input type="checkbox" id="chk-ej" data-k="ej" checked> Ejercicio <small>año</small></label>
@@ -331,7 +346,7 @@ tbody tr.sel[aria-selected="true"] td.sticky{box-shadow:inset 4px 0 0 var(--acce
         <p class="fixed">Buscar las órdenes y detectar duplicados se hace siempre.</p>
       </div>
       <div class="cgroup">
-        <h3><span>3</span> Resultados</h3>
+        <h3><span>4</span> Resultados</h3>
         <label class="check"><input type="checkbox" id="chk-renombres" checked> Incluir hoja "Renombres"</label>
         <div class="field">
           <label for="fmt">Formato de la carpeta</label>
@@ -342,7 +357,6 @@ tbody tr.sel[aria-selected="true"] td.sticky{box-shadow:inset 4px 0 0 var(--acce
             <option value="folder">Sin comprimir (carpeta)</option>
           </select>
         </div>
-        <p class="names" id="entity-help" aria-live="polite"></p>
       </div>
       <div class="cgroup runbox">
         <button class="btn primary" type="button" id="run" data-toast="Boceto: En el boceto no se procesan archivos. En la versión real verás el avance y la configuración se oculta sola al terminar.">Verificar de nuevo</button>
@@ -797,7 +811,7 @@ function fileName(tipo, ext, d = new Date()){
   return [tipo, cleanName($('#entity').value) || '[Entidad]', ejercicioLabel(), fecha, hora].filter(Boolean).join('_') + ext;
 }
 function renderNames(){
-  $('#entity-help').innerHTML = `<span>Excel:</span><code>${esc(fileName('Tabla', '.xlsx'))}</code><span>Carpeta:</span><code>${esc(fileName('', EXT[$('#fmt').value]))}</code>`;
+  $('#entity-help').innerHTML = `<span>Excel</span><code>${esc(fileName('Tabla', '.xlsx'))}</code><span>Carpeta</span><code>${esc(fileName('', EXT[$('#fmt').value]))}</code>`;
 }
 function requireEntity(){
   const input = $('#entity');
