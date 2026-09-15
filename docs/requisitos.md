@@ -47,6 +47,14 @@ Plantilla: hoja `Hoja1`, 8 columnas con estos encabezados exactos. La plataforma
 - **Partir Layout** (opcional): N partes iguales (difieren en máximo 1 orden), sin órdenes repetidas, en el orden en que aparecen en el documento base. Cada archivo termina en ` ｜ Parte K` y se pueden descargar juntas en un ZIP o una por una. Mismo documento + mismo N = mismas partes.
 - En la verificación se puede elegir **qué parte se está verificando**, para que las órdenes de otras partes no salgan como "No encontradas".
 
+### PDFs: órdenes de pago mezcladas con documentos de soporte
+
+- Los PDFs **no traen solo órdenes de pago**: cada orden va acompañada de su documentación de soporte (transferencias bancarias, detalles, etc.), todo en el mismo archivo.
+- La herramienta debe **distinguir qué páginas son orden de pago** y cuáles son soporte, y validar solo las de orden de pago.
+- Riesgo a cuidar: el soporte puede mencionar el número de orden (p. ej. la referencia de una transferencia). El número, el ejercicio, los montos, las firmas y los sellos se leen **solo de la página de la orden**, nunca del soporte.
+- Ventaja: identificar las páginas de soporte antes de leerlas permite **saltarse su OCR** y acelerar el análisis.
+- *Pendiente de definir con el usuario:* orden de las páginas (orden → soporte), si una orden ocupa varias hojas, si se valida algo del soporte y qué hacer con órdenes sin soporte o soporte sin orden.
+
 ## Principios
 
 - **Privacidad:** los PDFs y el Excel se procesan en la computadora del usuario (en el navegador). Nada se sube a servidores ni a servicios de IA.
@@ -176,4 +184,4 @@ Acordadas durante el diseño del boceto. No son opcionales: son parte de lo que 
 ## Pendiente
 
 
-- PDF de ejemplo (con una OP válida, una con 3 firmas, una con 2 y, si hay, una sin firmas, una con varios montos y una con sello sobre firma) para la fase 0: medir lectura, enderezado, detección de firmas/sellos y velocidad en navegador.
+- PDF de ejemplo que incluya también páginas de soporte (con una OP válida, una con 3 firmas, una con 2 y, si hay, una sin firmas, una con varios montos y una con sello sobre firma) para la fase 0: medir lectura, enderezado, detección de firmas/sellos y velocidad en navegador.
