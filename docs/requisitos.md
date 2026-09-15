@@ -196,5 +196,13 @@ Acordadas durante el diseño del boceto. No son opcionales: son parte de lo que 
 
 ## Pendiente
 
+Estado al 2026-09-14 (v0.6.3):
 
-- PDF de ejemplo que incluya también páginas de soporte (con una OP válida, una con 3 firmas, una con 2 y, si hay, una sin firmas, una con varios montos y una con sello sobre firma) para la fase 0: medir lectura, enderezado, detección de firmas/sellos y velocidad en navegador.
+- **Etapa 1, Preparar Layout: funcional** y probada por el usuario con un documento base real.
+- **Etapa 2, Verificar órdenes: boceto** con 3,000 órdenes ficticias (interfaz, filtros, vista previa, corrección manual, Excel con diseño). No procesa PDFs todavía.
+
+Siguiente paso:
+
+1. **Conseguir un PDF de ejemplo tal cual sale de la plataforma**, con datos sensibles tapados pero zonas de firmas y sellos visibles. Idealmente: varias órdenes en un archivo, páginas de soporte, una orden de 3 firmas, una de 2, una sin firmas si hay, una con varios montos, una de varias hojas, una con sello sobre firma, una con folio arriba y una ADEFA (`-A`).
+2. **Fase 0 (medición):** con ese PDF medir en el navegador: separación orden/soporte, lectura del número (incluido `-A`), ejercicio y montos, conteo de firmas, detección de sellos, enderezado y tiempo por página.
+3. Con los números de la fase 0, decidir cómo construir la verificación real (página web vs. programa instalable si el navegador se queda corto).

@@ -6,6 +6,7 @@ Herramienta web para verificar Órdenes de Pago escaneadas (PDF) contra un Excel
 
 - Requisitos y reglas: [`docs/requisitos.md`](docs/requisitos.md)
 - Historial de cambios: [`CHANGELOG.md`](CHANGELOG.md)
+- Página: [`boceto/index.html`](boceto/index.html) (publicada en GitHub Pages). `boceto/fuente-artifact.html` es la misma página sin `<!doctype>/<head>/<body>`, para republicarla como artifact de Claude; editar esa y regenerar `index.html`.
 
 > Reglas del repositorio (es público):
 > - Nunca subir PDFs, Excels ni ZIPs reales (bloqueados en `.gitignore`).
