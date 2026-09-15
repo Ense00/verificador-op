@@ -2,6 +2,9 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.6.3 — 2026-09-14
+- Layout: incluye órdenes ADEFA (`-A`) como texto con formato General (antes se omitían); acepta variantes como `1900000000 - a`. Aviso con cuántas hay. Documento de ejemplo con algunas ADEFA.
+
 ## v0.6.2 — 2026-09-14
 - Selector de tema Claro / Oscuro / Automático en el encabezado, recordado en el navegador.
 - Los controles nativos (casillas, listas, barras de desplazamiento) siguen el tema.

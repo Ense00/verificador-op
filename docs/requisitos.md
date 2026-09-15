@@ -21,6 +21,7 @@ Se descarga una carpeta de PDFs **escaneados** con Órdenes de Pago (OP). Un PDF
 - Puede haber **montos negativos**: se verifican y se marcan como *Revisar* ("Monto negativo en el documento base").
 - Una orden de pago puede repetirse en varias filas con montos distintos.
 - Hay series de orden que empiezan con `19` y con `71`.
+- Pueden aparecer órdenes **con y sin** sufijo `-A` (ADEFA).
 - **Ejercicio = año de la `Fecha Contable`** de cada fila.
 - **Las columnas pueden cambiar de posición, pero no de nombre:** se localizan por el nombre del encabezado (sin distinguir mayúsculas, acentos ni espacios extra).
 - El nombre de la entidad se escribe **a mano** en la página (la columna `Contribución` no siempre trae el nombre completo).
@@ -40,8 +41,8 @@ Plantilla: hoja `Hoja1`, 8 columnas con estos encabezados exactos. La plataforma
 | `Importe` | vacío |
 | `PartidaGasto` | vacío |
 
-- **Todo en formato número, sin decimales** (enteros).
-- **Sin órdenes repetidas:** la plataforma marca error. Una fila por orden de pago única. (En la verificación sí se conservan las repeticiones con montos distintos.)
+- **Todo en formato número, sin decimales** (enteros). **Excepción:** las órdenes ADEFA (`-A`) van tal cual como texto, con formato **General**.
+- **Sin órdenes repetidas:** la plataforma marca error. Una fila por orden de pago única (la original y su `-A` cuentan como órdenes distintas; ambas van). (En la verificación sí se conservan las repeticiones con montos distintos.)
 - Nombre de archivo: `Layout ｜ [Entidad] ｜ [Ejercicio] ｜ [Fecha] ｜ [Hora].xlsx`.
 - La plataforma no tiene límite práctico de filas.
 - **Partir Layout** (opcional): N partes iguales (difieren en máximo 1 orden), sin órdenes repetidas, en el orden en que aparecen en el documento base. Cada archivo termina en ` ｜ Parte K` y se pueden descargar juntas en un ZIP o una por una. Mismo documento + mismo N = mismas partes.
@@ -57,7 +58,13 @@ Plantilla: hoja `Hoja1`, 8 columnas con estos encabezados exactos. La plataforma
 - **Una orden puede ocupar varias hojas:** listas de montos largas que continúan en otras páginas y firmas en una página aparte. La orden se arma como un solo documento (primera hoja + continuaciones + hoja de firmas); montos se buscan en todas sus hojas y firmas en la hoja de firmas.
 - **Orden partida y desordenada** (sus hojas regadas entre la documentación, sin orden): poco común. No se intenta rearmar: **Incorrecto** con motivo "Orden partida y desordenada en el PDF: revisar manualmente".
 - **Ubicación del número:** no siempre está en la esquina superior. Puede haber un **número de folio** arriba (que no es la orden) y el número de orden debajo o cerca del centro. Se busca en toda la página y solo cuenta un número que corresponda a una orden del documento base; el folio se ignora y no genera "número distinto".
-- **Órdenes con sufijo `-A`** (p. ej. `1900000000-A`): suelen venir varias con el mismo número y, entre ellas, la original sin sufijo. *Pendiente: cómo aparecen en el documento base y cómo se verifican.*
+- **Órdenes ADEFA** (Adeudos de Ejercicios Fiscales Anteriores), con sufijo `-A` (p. ej. `1900000000-A`): continuación de una orden original cuyo monto no se pagó completo; se siguen pagando en ejercicios posteriores. Solo existe el sufijo `-A` (no `-B`, `-C`).
+  - Son **órdenes distintas** de su original: montos propios y pueden tener firmas diferentes.
+  - En los PDFs suelen venir junto a la original sin sufijo.
+  - **Verificación exacta:** si se pide `…-A` se busca la `-A`; si se pide la original, la original. Nunca se cruzan.
+  - La original y su `-A` **no** son duplicados (son números distintos): no van a Revisión manual por eso.
+  - Que una página de `-A` muestre también el número original **no** es "número distinto".
+  - Riesgo de lectura: si no se puede confirmar si el sufijo `-A` está o no, el resultado es *Ilegible*, nunca se asume.
 - **Soporte:** no se valida (solo en casos extraordinarios de datos incorrectos, que se revisan a mano).
 - **Orden sin soporte** o **soporte sin orden:** **Revisar**.
 

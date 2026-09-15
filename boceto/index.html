@@ -375,7 +375,7 @@ table.parts td{vertical-align:middle}
   <header class="top">
     <div class="brand">
       <h1>Verificador de Órdenes de Pago</h1>
-      <span class="stamp">Boceto · v0.6.2</span>
+      <span class="stamp">Boceto · v0.6.3</span>
     </div>
     <div class="privacy">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" stroke="currentColor" stroke-width="1.4"/></svg>
@@ -1255,9 +1255,11 @@ function yearOf(raw){
 function opOf(raw){
   const v = cellValue(raw);
   if (v == null) return '';
-  if (typeof v === 'number') return Number.isInteger(v) ? String(v) : String(v);
-  return String(v).trim();
+  if (typeof v === 'number') return String(v);
+  // ADEFA: "1900000000-A", también con espacios o minúscula ("1900000000 - a")
+  return String(v).trim().replace(/\s*-\s*([aA])$/, '-A');
 }
+const isAdefa = (op) => op.endsWith('-A');
 function amountOf(raw){
   const v = cellValue(raw);
   if (typeof v === 'number') return v;
@@ -1281,6 +1283,7 @@ function summarizeBase(name, list, extra){
   return {
     name, rows:list, uniques, years, noYear, negatives,
     repeated: uniques.filter(u => u.count > 1).length,
+    adefa: uniques.filter(u => isAdefa(u.op)).length,
     mixedYear: uniques.filter(u => u.years.size > 1).length,
     ...extra
   };
@@ -1312,7 +1315,7 @@ async function readBase(file){
     const row = ws.getRow(r);
     const op = opOf(row.getCell(map.op).value);
     if (!op){ if (row.actualCellCount > 0) ignored++; continue; }
-    if (!/^\d+$/.test(op)){ badOp++; continue; }
+    if (!/^\d+(-A)?$/.test(op)){ badOp++; continue; }
     list.push({op, year: yearOf(row.getCell(map.fecha).value), importe: map.importe ? amountOf(row.getCell(map.importe).value) : null});
   }
   if (!list.length) throw new Error('El documento no tiene órdenes de pago debajo de la columna "Orden de Pago".');
@@ -1321,7 +1324,12 @@ async function readBase(file){
 }
 
 function sampleBase(){
-  const list = rows.map(r => ({op:r.op, year:r.ej, importe: r.montoNum == null ? cents(1000 + R() * 90000) : r.montoNum}));
+  const list = [];
+  rows.forEach((r, i) => {
+    list.push({op:r.op, year:r.ej, importe: r.montoNum == null ? cents(1000 + R() * 90000) : r.montoNum});
+    // Algunas ADEFA ficticias: continuación de la orden en el ejercicio siguiente
+    if (i % 97 === 5) list.push({op:r.op + '-A', year:r.ej + 1, importe: cents(1000 + R() * 50000)});
+  });
   return summarizeBase('Documento base de ejemplo (ficticio)', list, {
     sheet:'Hoja1', ignored:1, badOp:0, sample:true,
     cols:[{label:BASE_COLS.op, letter:'C'}, {label:BASE_COLS.fecha, letter:'D'}, {label:BASE_COLS.importe, letter:'P'}]
@@ -1350,9 +1358,12 @@ async function layoutBlob(list){
   ws.addRow(LAYOUT_HEADERS);
   [22, 14, 15, 10, 14, 20, 12, 14].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
   for (const u of list){
-    const op = Number(u.op), y = u.year == null ? null : Number(u.year);
+    const y = u.year == null ? null : Number(u.year);
+    // Número entero con formato 0; las ADEFA (-A) van como texto con formato General
+    const op = isAdefa(u.op) ? u.op : Number(u.op);
     const row = ws.addRow([op, op, null, y, null, y, null, null]);
-    [1, 2, 4, 6].forEach(c => { row.getCell(c).numFmt = '0'; });
+    [1, 2].forEach(c => { row.getCell(c).numFmt = isAdefa(u.op) ? 'General' : '0'; });
+    [4, 6].forEach(c => { row.getCell(c).numFmt = '0'; });
   }
   return new Blob([await wb.xlsx.writeBuffer()], {type: XLSX_TYPE});
 }
@@ -1368,7 +1379,8 @@ function renderBaseInfo(){
   if (base.negatives) warn.push(['rev', `${fmtInt(base.negatives)} montos negativos: se verificarán y se marcarán para revisión.`]);
   if (base.noYear) warn.push(['bad', `${fmtInt(base.noYear)} filas sin fecha contable válida: esas órdenes quedan sin año en el Layout.`]);
   if (base.mixedYear) warn.push(['rev', `${fmtInt(base.mixedYear)} órdenes tienen filas con distinto año: el Layout usa el de su primera fila.`]);
-  if (base.badOp) warn.push(['bad', `${fmtInt(base.badOp)} filas con una orden de pago que no es solo números: se omitieron.`]);
+  if (base.adefa) warn.push(['info', `${fmtInt(base.adefa)} órdenes ADEFA (con -A): van en el Layout tal cual, con formato General. Son órdenes distintas de su original.`]);
+  if (base.badOp) warn.push(['bad', `${fmtInt(base.badOp)} filas con una orden de pago que no es un número ni un número con -A: se omitieron.`]);
   el.innerHTML = `
     <div class="basefile"><b>${esc(base.name)}</b><span>Hoja "${esc(base.sheet)}"</span></div>
     <dl class="stats">
@@ -1406,7 +1418,7 @@ function renderLayoutPanel(){
   const first = parts[0].slice(0, 15);
   $('#layout-preview').innerHTML = `<div class="tablewrap"><table><thead><tr>${LAYOUT_HEADERS.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>
     ${first.map(u => `<tr><td class="num">${u.op}</td><td class="num">${u.op}</td><td></td><td class="num">${u.year ?? ''}</td><td></td><td class="num">${u.year ?? ''}</td><td></td><td></td></tr>`).join('')}
-  </tbody></table></div><p class="hint">Mostrando ${first.length} de ${fmtInt(parts[0].length)} filas${total > 1 ? ' de la parte 1' : ''}. Todo en formato número, sin decimales.</p>`;
+  </tbody></table></div><p class="hint">Mostrando ${first.length} de ${fmtInt(parts[0].length)} filas${total > 1 ? ' de la parte 1' : ''}. Números enteros sin decimales; las ADEFA (-A) con formato General.</p>`;
 }
 
 async function loadBaseFile(file){
