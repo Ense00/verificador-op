@@ -2,6 +2,10 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.4.0 — 2026-09-14
+- Identidad visual: encabezado en banda azul tinta con sello de fondo, fondo cuadriculado tipo papel contable, tipografía Archivo en títulos, paneles con sombra, pestañas tipo carpeta, filas alternadas, franja de color por estado en cada fila, conteos con fondo de color y vista previa como hoja sobre escritorio.
+- Campo "Nombre de la entidad" en la configuración (se recuerda en el navegador) y nombres de archivo `[Tipo]_[Entidad]_[Ejercicio]_[Fecha]_[Hora]` con vista previa; el Excel de prueba ya se descarga con ese nombre.
+
 ## v0.3.0 — 2026-09-14
 - 3,000 órdenes ficticias generadas (semilla fija, siempre los mismos datos): varios montos por orden, archivos con 1 a 400 órdenes, todos los estados y casos (firmas, año, número, sello sobre firma, escaneo borroso, tabla ilegible, 1 centavo, revisión manual).
 - Tabla virtualizada: solo dibuja las filas visibles; encabezado y columna Orden fijos; contador de filas filtradas.
