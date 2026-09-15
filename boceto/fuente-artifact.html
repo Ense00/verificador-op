@@ -305,7 +305,6 @@ tbody tr.sel[aria-selected="true"] td.sticky{box-shadow:inset 4px 0 0 var(--acce
 .drop small{font-size:12px;max-width:52ch}
 .drop:hover,.drop.over{border-color:var(--accent);background:var(--accent-soft)}
 .drop:focus-within{outline:2px solid var(--accent);outline-offset:2px}
-#base-sample{align-self:flex-start}
 .basefile{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline}
 .basefile b{font-size:14px;overflow-wrap:anywhere}
 .basefile span{color:var(--muted);font-size:12px}
@@ -363,6 +362,13 @@ table.parts td{vertical-align:middle}
 .theme button[aria-checked="true"]{background:rgba(255,255,255,.16);color:var(--band-ink);box-shadow:inset 0 0 0 1px var(--band-line)}
 .theme button:focus-visible{outline:2px solid var(--band-ink);outline-offset:1px}
 @media (max-width:520px){.theme button{font-size:0;gap:0;padding:5px 8px}}
+/* ---------- Estado vacío y demostración ---------- */
+.verify-empty{align-items:center;text-align:center;padding:40px 16px;color:var(--muted)}
+.verify-empty svg{color:var(--accent)}
+.verify-empty h2{margin:0;font-family:var(--display);font-stretch:110%;font-size:17px;color:var(--ink)}
+.verify-empty p{margin:0;max-width:52ch}
+.demo-chip{font-family:var(--sans);font-size:11px;font-weight:600;color:var(--accent);background:var(--accent-soft);border-radius:10px;padding:1px 8px;vertical-align:middle}
+.sumtitle h2 .btn{vertical-align:middle;margin-left:2px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
@@ -370,7 +376,7 @@ table.parts td{vertical-align:middle}
   <header class="top">
     <div class="brand">
       <h1>Verificador de Órdenes de Pago</h1>
-      <span class="stamp">Boceto · v0.6.5</span>
+      <span class="stamp">v0.7.0</span>
     </div>
     <div class="topright">
     <div class="theme" role="radiogroup" aria-label="Tema de la página">
@@ -400,7 +406,6 @@ table.parts td{vertical-align:middle}
   </section>
 
   <div id="mode-layout">
-    <p class="notice"><b>Esta etapa ya funciona con archivos reales.</b> El documento base se lee en esta computadora; no se sube a ningún lado.</p>
     <div class="lgrid">
       <section class="card" aria-label="Documento base">
         <h2 class="cardtitle">Documento base</h2>
@@ -410,7 +415,6 @@ table.parts td{vertical-align:middle}
           <small>Excel .xlsx del sistema · se leen las columnas "Orden de Pago", "Fecha Contable" e "Importe en moneda de la entidad CP", estén donde estén</small>
           <input type="file" id="base-file" accept=".xlsx" class="visually-hidden">
         </label>
-        <button type="button" class="btn small ghost" id="base-sample">Probar con un documento de ejemplo (ficticio, 3,000 órdenes)</button>
         <div id="base-info" aria-live="polite"></div>
       </section>
       <section class="card" id="layout-card" aria-label="Layout">
@@ -433,7 +437,6 @@ table.parts td{vertical-align:middle}
   </div>
 
   <div id="mode-verify" hidden>
-  <p class="notice"><b>Boceto con 3,000 órdenes ficticias.</b> Esta etapa todavía no procesa PDFs. Prueba las casillas, los filtros, navega con <kbd>↑</kbd> <kbd>↓</kbd> <kbd>RePág</kbd> <kbd>AvPág</kbd> y descarga el Excel de prueba.</p>
 
   <section class="config" id="config" aria-label="Configuración">
     <div class="confighead">
@@ -445,15 +448,15 @@ table.parts td{vertical-align:middle}
       <div class="cgroup">
         <h3><span>1</span> Archivos</h3>
         <div class="files">
-          <button class="file" type="button" id="f-pdfs" data-toast="Boceto: Aquí eliges la carpeta con los PDFs.">
+          <button class="file" type="button" id="f-pdfs" data-toast="Próximamente.">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" stroke="currentColor" stroke-width="1.8"/></svg>
             <b>Carpeta de PDFs</b><small class="num" id="s-files"></small>
           </button>
-          <button class="file" type="button" id="f-excel" data-toast="Boceto: Aquí eliges el mismo documento base que usaste para el Layout.">
+          <button class="file" type="button" id="f-excel" data-toast="Próximamente.">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M4 9h16M4 15h16M10 3v18" stroke="currentColor" stroke-width="1.5"/></svg>
-            <b>Documento base</b><small><span class="num" id="s-excel"></span> filas</small>
+            <b>Documento base</b><small class="num" id="s-excel"></small>
           </button>
-          <button class="file" type="button" id="f-tpl" data-toast="Boceto: La plantilla es una orden bien escaneada que sirve para enderezar y alinear las demás. Se guarda solo en este navegador.">
+          <button class="file" type="button" id="f-tpl" data-toast="Próximamente.">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3h8l4 4v14H6V3Z" stroke="currentColor" stroke-width="1.8"/><path d="M9 17h6M9 13h6" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2 2"/></svg>
             <b>Plantilla</b><small>Guardada en este navegador</small>
           </button>
@@ -491,15 +494,22 @@ table.parts td{vertical-align:middle}
         </div>
       </div>
       <div class="cgroup runbox">
-        <button class="btn primary" type="button" id="run" data-toast="Boceto: En el boceto no se procesan archivos. En la versión real verás el avance y la configuración se oculta sola al terminar.">Verificar de nuevo</button>
-        <p class="runmeta num">Última verificación: 14 min 22 s</p>
+        <button class="btn primary" type="button" id="run" data-toast="Próximamente.">Verificar</button>
+        <p class="runmeta num" id="runmeta" hidden>Última verificación: 14 min 22 s</p>
       </div>
     </div>
   </section>
 
-  <section class="summary" aria-label="Resumen">
+  <section class="card verify-empty" id="verify-empty" aria-label="Sin resultados">
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3h8l4 4v14H6V3Z" stroke="currentColor" stroke-width="1.5"/><path d="M14 3v4h4M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <h2>Todavía no hay resultados</h2>
+    <p>Elige la carpeta de PDFs y el documento base, marca qué revisar y pulsa <b>Verificar</b>.</p>
+    <button type="button" class="btn small ghost" id="demo-on">Ver demostración</button>
+  </section>
+
+  <section class="summary" id="summary" aria-label="Resumen" hidden>
     <div class="sumtitle">
-      <h2>Verificación terminada</h2>
+      <h2>Verificación terminada <span class="demo-chip">Demostración</span> <button type="button" class="btn small ghost" id="demo-off">Salir</button></h2>
       <p class="num" id="s-pages"></p>
     </div>
     <div class="sumcenter">
@@ -518,7 +528,7 @@ table.parts td{vertical-align:middle}
     </div>
   </section>
 
-  <div class="work" id="work">
+  <div class="work" id="work" hidden>
     <section class="panel">
       <div class="tabs" role="tablist" id="tabs"></div>
       <div id="tabbody"></div>
@@ -642,12 +652,12 @@ const TOTAL_PAGES = uniquePages + dupPages;
 const $ = (s, el=document) => el.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmtInt = (n) => n.toLocaleString('en-US');
-const state = {mode:'layout', editing:null, focusNote:false, tab:'ver', filter:null, q:'', sel: Math.max(0, rows.findIndex(r => r.r.firmas[0] === 'bad'))};
+const state = {demo:false, mode:'layout', editing:null, focusNote:false, tab:'ver', filter:null, q:'', sel: Math.max(0, rows.findIndex(r => r.r.firmas[0] === 'bad'))};
 let view = [];   // filas visibles tras filtro y búsqueda: [{i, s}]
 let stateCache = [];
 
 function active(){ return K.filter(x => $('#chk-'+x.k).checked); }
-// Correcciones manuales: índice de fila → {to, note, at}. Se recuerdan en este navegador (los datos ficticios son siempre los mismos).
+// Correcciones manuales: índice de fila → {to, note, at}. Se recuerdan en este navegador.
 const OVERRIDE_KEY = 'verificador-op:correcciones';
 let overrides = new Map();
 try { overrides = new Map(JSON.parse(localStorage.getItem(OVERRIDE_KEY) || '[]')); } catch (e) {}
@@ -678,14 +688,14 @@ function toast(msg){
 
 /* ---------- Encabezados y resumen ---------- */
 function renderStatic(){
-  $('#s-files').textContent = `${fmtInt(TOTAL_FILES)} archivos · ${fmtInt(TOTAL_PAGES)} págs.`;
-  $('#s-excel').textContent = fmtInt(rows.length);
+  $('#s-files').textContent = state.demo ? `${fmtInt(TOTAL_FILES)} archivos · ${fmtInt(TOTAL_PAGES)} págs.` : 'Sin elegir';
+  $('#s-excel').textContent = state.demo ? `${fmtInt(rows.length)} filas` : 'Sin elegir';
   $('#s-pages').textContent = `${fmtInt(TOTAL_PAGES)} págs. · ${fmtInt(TOTAL_FILES)} PDFs · ${fmtInt(dupPages)} omitidas`;
 }
 function renderConfigSum(){
   const act = active();
   const fmt = $('#fmt').selectedOptions[0].textContent.replace(' (recomendado)', '');
-  $('#configsum').innerHTML = `<span>Entidad: <b>${esc(cleanName($('#entity').value) || 'sin nombre')}</b></span><span><b class="num">${fmtInt(TOTAL_FILES)}</b> PDFs</span><span>Excel <b class="num">${fmtInt(rows.length)}</b> filas · <b class="num">${fmtInt(N_ORDERS)}</b> órdenes</span><span>Revisa: <b>${act.length ? act.map(x=>x.label).join(', ') : 'nada'}</b></span><span>${esc(fmt)}${$('#chk-renombres').checked ? ' + Renombres' : ''}</span>`;
+  $('#configsum').innerHTML = `${state.demo ? `<span><b class="num">${fmtInt(TOTAL_FILES)}</b> PDFs</span><span>Documento base <b class="num">${fmtInt(rows.length)}</b> filas</span>` : ''}<span>Revisa: <b>${act.length ? act.map(x=>x.label).join(', ') : 'nada'}</b></span><span>${esc(fmt)}${$('#chk-renombres').checked ? ' + Renombres' : ''}</span>`;
 }
 function renderSummary(){
   const c = {ok:0, bad:0, rev:0, ile:0};
@@ -835,10 +845,10 @@ function renderPreview(){
       <div class="pmeta">${esc(r.file)} · Pág. <b class="num">${r.pag}</b> · Monto <b class="num">${r.montoNum == null ? 'no se pidió' : '$' + money(r.montoNum)}</b></div>
     </div>
     <ul class="results">${items}</ul>
-    <figure class="sheet">${sheetSVG(r)}<figcaption>Zonas detectadas. En la versión real es la imagen del escaneo.</figcaption></figure>
+    <figure class="sheet">${sheetSVG(r)}<figcaption>Zonas detectadas</figcaption></figure>
     ${overrideHTML(state.sel)}
     <div class="pactions">
-      <button type="button" class="btn small" id="open-page" data-toast="Boceto: aquí se abre la página del PDF a tamaño completo.">Abrir página</button>
+      <button type="button" class="btn small" id="open-page" data-toast="Próximamente.">Abrir página</button>
       ${state.editing === state.sel || overrides.has(state.sel) ? '' : '<button type="button" class="btn small" id="ov-open">Corregir estado</button>'}
     </div>`;
   if (state.editing === state.sel){ const note = $('#ov-note'); if (note && state.focusNote){ note.focus(); state.focusNote = false; } }
@@ -1137,7 +1147,7 @@ async function buildWorkbook(){
   const entidad = cleanName($('#entity').value);
   const d = new Date(), p2 = (x) => String(x).padStart(2, '0');
   const generado = `${p2(d.getDate())}-${p2(d.getMonth() + 1)}-${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
-  const meta = (extra) => `Entidad: ${entidad}     ·     Ejercicio: ${ejercicioLabel()}     ·     Generado: ${generado}${extra ? '     ·     ' + extra : ''}     ·     Boceto con datos ficticios`;
+  const meta = (extra) => `Entidad: ${entidad}     ·     Ejercicio: ${ejercicioLabel()}     ·     Generado: ${generado}${extra ? '     ·     ' + extra : ''}${state.demo ? '     ·     Demostración' : ''}`;
   const counts = {Correcto:0, Incorrecto:0, Revisar:0, Ilegible:0};
   stateCache.forEach(s => counts[LABEL[s]]++);
   const conteo = Object.entries(counts).map(([k, v]) => `${k} ${fmtInt(v)}`).join('  ·  ') + (overrides.size ? `  ·  Corregidas a mano ${fmtInt(overrides.size)}` : '');
@@ -1313,21 +1323,9 @@ async function readBase(file){
   }
   if (!list.length) throw new Error('El documento no tiene órdenes de pago debajo de la columna "Orden de Pago".');
   const cols = Object.entries(BASE_COLS).map(([k, label]) => ({label, letter: map[k] ? colLetter(map[k]) : null}));
-  return summarizeBase(file.name, list, {sheet: ws.name, ignored, badOp, cols, sample:false});
+  return summarizeBase(file.name, list, {sheet: ws.name, ignored, badOp, cols});
 }
 
-function sampleBase(){
-  const list = [];
-  rows.forEach((r, i) => {
-    list.push({op:r.op, year:r.ej, importe: r.montoNum == null ? cents(1000 + R() * 90000) : r.montoNum});
-    // Algunas ADEFA ficticias: continuación de la orden en el ejercicio siguiente
-    if (i % 97 === 5) list.push({op:r.op + '-A', year:r.ej + 1, importe: cents(1000 + R() * 50000)});
-  });
-  return summarizeBase('Documento base de ejemplo (ficticio)', list, {
-    sheet:'Hoja1', ignored:1, badOp:0, sample:true,
-    cols:[{label:BASE_COLS.op, letter:'C'}, {label:BASE_COLS.fecha, letter:'D'}, {label:BASE_COLS.importe, letter:'P'}]
-  });
-}
 
 function splitParts(list, n){
   const parts = [], size = Math.floor(list.length / n), extra = list.length % n;
@@ -1367,7 +1365,6 @@ function renderBaseInfo(){
   const el = $('#base-info');
   if (!base){ el.innerHTML = ''; return; }
   const warn = [];
-  if (base.sample) warn.push(['info', 'Datos ficticios para probar. Carga tu documento base real para generar un Layout de verdad.']);
   if (base.repeated) warn.push(['info', `${fmtInt(base.repeated)} órdenes aparecen en varias filas: en el Layout van una sola vez. En la verificación se revisa cada monto.`]);
   if (base.negatives) warn.push(['rev', `${fmtInt(base.negatives)} montos negativos: se verificarán y se marcarán para revisión.`]);
   if (base.noYear) warn.push(['bad', `${fmtInt(base.noYear)} filas sin fecha contable válida: esas órdenes quedan sin año en el Layout.`]);
@@ -1484,6 +1481,19 @@ new MutationObserver(() => {
   applyTheme(saved === 'light' || saved === 'dark' ? saved : 'auto');
 })();
 
+
+/* ---------- Demostración de resultados ---------- */
+function setDemo(on){
+  state.demo = on;
+  $('#verify-empty').hidden = on;
+  $('#summary').hidden = !on;
+  $('#work').hidden = !on;
+  $('#runmeta').hidden = !on;
+  $('#run').textContent = on ? 'Verificar de nuevo' : 'Verificar';
+  renderStatic(); renderConfigSum();
+  if (on){ renderAll(); queuePaint(); }
+}
+
 /* ---------- Eventos ---------- */
 function renderAll(){ computeStates(); renderConfigSum(); renderSummary(); renderTabs(); renderBody(); }
 
@@ -1491,7 +1501,6 @@ document.addEventListener('change', e => {
   if (e.target.matches('#checks input, #chk-renombres')) renderAll();
   if (e.target.id === 'base-file' && e.target.files[0]){ loadBaseFile(e.target.files[0]); e.target.value = ''; }
   if (e.target.id === 'split' || e.target.id === 'parts'){ renderLayoutPanel(); renderNames(); }
-  if (e.target.id === 'verify-part' && e.target.value !== 'all') toast(`Boceto: solo se esperarán las órdenes de la ${e.target.selectedOptions[0].textContent.toLowerCase()}; las de otras partes no cuentan como "No encontradas".`);
   if (e.target.id === 'fmt'){
     const names = {zip:'Carpeta (ZIP)', '7z':'Carpeta (7z)', tgz:'Carpeta (TAR.GZ)', folder:'Guardar carpeta'};
     $('#dl-zip-label').textContent = names[e.target.value];
@@ -1514,7 +1523,8 @@ document.addEventListener('click', e => {
   const themeBtn = e.target.closest('[data-theme-choice]');
   if (themeBtn){ applyTheme(themeBtn.dataset.themeChoice); try { localStorage.setItem(THEME_KEY, themeChoice); } catch (err) {} return; }
   const mode = e.target.closest('[data-mode]'); if (mode){ setMode(mode.dataset.mode); return; }
-  if (e.target.closest('#base-sample')){ base = sampleBase(); renderBaseInfo(); renderLayoutPanel(); renderNames(); return; }
+  if (e.target.closest('#demo-on')){ setDemo(true); return; }
+  if (e.target.closest('#demo-off')){ setDemo(false); return; }
   const part = e.target.closest('[data-part]'); if (part){ downloadLayout(+part.dataset.part); return; }
   if (e.target.closest('#dl-layout') || e.target.closest('#dl-layout-zip')){ downloadLayout(null); return; }
   if (e.target.closest('#toggle-config')){
@@ -1534,7 +1544,7 @@ document.addEventListener('click', e => {
   if (e.target.closest('#next-row')) return step(1);
   const tr = e.target.closest('tr.sel'); if (tr){ if (suppressClick) return; select(+tr.dataset.i, true); return; }
   if (e.target.closest('#dl-xlsx')){ exportExcel(); return; }
-  if (e.target.closest('#dl-zip')){ if (!requireEntity()) return; toast(`Boceto: aquí se descarga "${fileName('', EXT[$('#fmt').value])}" con los PDFs sin duplicados, ya renombrados, y la subcarpeta "Revisión manual".`); return; }
+  if (e.target.closest('#dl-zip')){ if (!requireEntity()) return; toast('Próximamente.'); return; }
 });
 document.addEventListener('submit', e => {
   if (e.target.id === 'ov-form'){ e.preventDefault(); saveOverride(); }

@@ -2,6 +2,11 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.7.0 — 2026-09-15
+- Limpieza para parecerse a la versión final: se quitan el sello "Boceto", los avisos de boceto/privacidad, el documento de ejemplo del Layout y las explicaciones en mensajes.
+- Verificar órdenes arranca vacía ("Todavía no hay resultados"); un botón discreto "Ver demostración" carga los datos de muestra, marcados con "Demostración" y botón "Salir".
+- Acciones aún no disponibles (elegir PDFs, verificar, abrir página, descargar carpeta) muestran "Próximamente.".
+
 ## v0.6.5 — 2026-09-15
 - Se quita del encabezado el aviso "Los archivos se procesan en esta computadora…".
 

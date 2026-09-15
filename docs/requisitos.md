@@ -199,7 +199,8 @@ Acordadas durante el diseño del boceto. No son opcionales: son parte de lo que 
 Estado al 2026-09-14 (v0.6.3):
 
 - **Etapa 1, Preparar Layout: funcional** y probada por el usuario con un documento base real.
-- **Etapa 2, Verificar órdenes: boceto** con 3,000 órdenes ficticias (interfaz, filtros, vista previa, corrección manual, Excel con diseño). No procesa PDFs todavía.
+- **Etapa 2, Verificar órdenes:** interfaz lista; arranca vacía y ofrece "Ver demostración" con 3,000 órdenes de muestra (filtros, vista previa, corrección manual, Excel con diseño). No procesa PDFs todavía.
+- La página ya no muestra avisos de boceto: el usuario pidió que se parezca lo más posible a la versión final.
 
 Siguiente paso:
 
