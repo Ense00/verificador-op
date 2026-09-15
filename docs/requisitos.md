@@ -79,6 +79,13 @@ Si un archivo trae más de una OP, se renombra con todas sus OP en orden de apar
 
 PDFs sin duplicados y ya renombrados, más la subcarpeta de revisión manual. Formato elegible, **ZIP por defecto**; otras opciones de formatos universales (por definir tras medir). RAR descartado: formato propietario que no se puede generar libremente.
 
+## Volumen
+
+- Casos especiales de hasta **3,000 órdenes** por corrida (y archivos de 3,000+ páginas).
+- Tabla virtualizada: solo se dibujan las filas visibles, para que filtrar, buscar y navegar sigan siendo instantáneos.
+- No se guardan imágenes de páginas en memoria: la vista previa vuelve a dibujar la página desde el PDF al seleccionarla.
+- Progreso guardado en el navegador para poder reanudar si se cierra la pestaña; avance con tiempo estimado; evitar que la computadora se suspenda durante el análisis.
+
 ## Pendiente
 
 - PDF de ejemplo (con una OP válida, una sin firma de Tesorero, una con varios montos y una con sello sobre firma) para la fase 0: medir lectura, enderezado, detección de firmas/sellos y velocidad en navegador.
