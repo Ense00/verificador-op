@@ -2,6 +2,9 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.4.2 — 2026-09-14
+- Fecha en nombres de archivo como `DD-MM-AAAA` (antes `AAAA-MM-DD`) para no confundirla con el ejercicio.
+
 ## v0.4.1 — 2026-09-14
 - "Nombre de la entidad" pasa a una franja destacada de ancho completo al inicio de la configuración: paso 1, etiqueta "Obligatorio", campo grande con borde azul y vista previa de los nombres de archivo al lado.
 

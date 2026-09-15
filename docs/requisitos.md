@@ -74,9 +74,9 @@ Si un archivo trae más de una OP, se renombra con todas sus OP en orden de apar
 - Formato: `[Tipo]_[Entidad]_[Ejercicio]_[Fecha]_[Hora]`
   - **Tipo:** `Tabla` para el Excel de resultados; *vacío* para la carpeta o comprimido (el nombre empieza directo con la entidad); `Layout` para un archivo que el usuario explicará más adelante.
   - **Ejercicio:** el del Excel de entrada; si trae varios, rango `2021-2022`.
-  - **Fecha y hora:** momento en que se crea el archivo. Formato `AAAA-MM-DD` y `HH-MM` (24 h), porque Windows no permite `:` en nombres y así se ordenan solos por fecha. *Confirmado.*
+  - **Fecha y hora:** momento en que se crea el archivo. Formato `DD-MM-AAAA` y `HH-MM` (24 h). Día primero para que el año de la fecha no se confunda con el ejercicio que va justo antes; la hora con guion porque Windows no permite `:` en nombres. *Confirmado.*
   - Se quitan de la entidad los caracteres que Windows no permite: `\ / : * ? " < > |`.
-- Ejemplos: `Tabla_Entidad de Ejemplo_2021_2026-09-14_16-05.xlsx` y `Entidad de Ejemplo_2021_2026-09-14_16-05.zip`.
+- Ejemplos: `Tabla_Entidad de Ejemplo_2021_14-09-2026_16-05.xlsx` y `Entidad de Ejemplo_2021_14-09-2026_16-05.zip`.
 
 ### Excel de resultados
 
