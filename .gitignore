@@ -1,0 +1,19 @@
+# NUNCA subir documentos reales: datos sensibles
+*.pdf
+*.PDF
+*.xlsx
+*.xls
+*.csv
+*.zip
+*.7z
+*.rar
+*.tar
+*.gz
+muestras/
+salida/
+
+# Sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+node_modules/
