@@ -79,13 +79,39 @@ Si un archivo trae más de una OP, se renombra con todas sus OP en orden de apar
 
 PDFs sin duplicados y ya renombrados, más la subcarpeta de revisión manual. Formato elegible, **ZIP por defecto**; otras opciones de formatos universales (por definir tras medir). RAR descartado: formato propietario que no se puede generar libremente.
 
-## Volumen
+## Recomendaciones para la versión real
 
-- Casos especiales de hasta **3,000 órdenes** por corrida (y archivos de 3,000+ páginas).
-- Tabla virtualizada: solo se dibujan las filas visibles, para que filtrar, buscar y navegar sigan siendo instantáneos.
-- No se guardan imágenes de páginas en memoria: la vista previa vuelve a dibujar la página desde el PDF al seleccionarla.
-- Progreso guardado en el navegador para poder reanudar si se cierra la pestaña; avance con tiempo estimado; evitar que la computadora se suspenda durante el análisis.
+Acordadas durante el diseño del boceto. No son opcionales: son parte de lo que la herramienta debe cumplir.
+
+### Volumen
+
+- Debe soportar corridas especiales de hasta **3,000 órdenes** (estimado: 6,000–15,000 páginas únicas) y archivos individuales de 3,000+ páginas.
+
+### Tabla
+
+- **Tabla virtualizada:** solo se dibujan las filas visibles (~40) y se reemplazan al desplazarse. Filtrar, buscar, cambiar casillas y navegar con ↑ ↓ debe sentirse instantáneo con 3,000 filas o más.
+- La vista previa y la navegación con teclado funcionan igual sin importar la cantidad de filas.
+
+### Velocidad del análisis
+
+- **Duplicados primero:** descartar archivos idénticos por huella antes de leer cualquier página.
+- **Leer solo zonas de interés** (número, año, tabla de montos) en lugar de la página completa; firmas y sellos se revisan por análisis de imagen, sin OCR.
+- **Procesamiento en paralelo:** usar varios núcleos del procesador a la vez (Web Workers).
+- **Medir antes de prometer:** el tiempo por página se mide con escaneos reales en la computadora del trabajo. Estimación inicial muy gruesa para 10,000 páginas: 20 min a 1 h.
+
+### Corridas largas sin fragilidad
+
+- **Progreso guardado en el navegador:** si se cierra la pestaña, se reinicia la computadora o se va la luz, el análisis se reanuda donde se quedó.
+- **Avance con tiempo estimado:** p. ej. "Página 4,210 de 11,380 · faltan ~18 min".
+- **Evitar que la computadora se suspenda** mientras analiza (Wake Lock).
+- **Memoria bajo control:** no guardar imágenes de páginas; la vista previa vuelve a dibujar la página desde el PDF al seleccionarla.
+
+### Uso
+
+- La configuración se oculta sola al terminar la verificación y deja una línea con lo elegido.
+- "Marcar revisado": corregir a mano el resultado de una orden después de revisarla; queda anotado en el Excel.
+- Página instalable (app web) para que funcione sin internet incluso al abrirla.
 
 ## Pendiente
 
-- PDF de ejemplo (con una OP válida, una sin firma de Tesorero, una con varios montos y una con sello sobre firma) para la fase 0: medir lectura, enderezado, detección de firmas/sellos y velocidad en navegador.
+- PDF de ejemplo (con una OP válida, una con solo 2 de 3 firmas, una con varios montos y una con sello sobre firma) para la fase 0: medir lectura, enderezado, detección de firmas/sellos y velocidad en navegador.
