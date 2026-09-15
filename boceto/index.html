@@ -345,7 +345,7 @@ table.parts td{vertical-align:middle}
   <header class="top">
     <div class="brand">
       <h1>Verificador de Órdenes de Pago</h1>
-      <span class="stamp">Boceto · v0.5.2</span>
+      <span class="stamp">Boceto · v0.5.3</span>
     </div>
     <div class="privacy">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" stroke="currentColor" stroke-width="1.4"/></svg>
@@ -550,7 +550,7 @@ while (made < N_ORDERS){
     else { const pool = [...lines.keys()].sort(() => R() - .5); asks = pool.slice(0, int(1, Math.min(3, nLines))); }
 
     const miss = int(0, 2);
-    const fr = R(), missing = fr < .6 ? 1 : fr < .85 ? 2 : 3;   // firmas faltantes cuando el caso es de firmas
+    const fr = R(), missing = fr < .9 ? 1 : fr < .98 ? 3 : 2;   // lo común: falta 1 firma; sin firmas es raro; 1 de 3 casi no pasa
     asks.forEach(ask => {
       const row = {op, ej:2021, file:name, pag, lines, total, sheet:{}, r:{}};
       const r = row.r;
