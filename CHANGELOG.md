@@ -2,6 +2,9 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.7.1 — 2026-09-15
+- Se quita "Plantilla" de la configuración: las órdenes no respetan un acomodo fijo (varias hojas, firmas aparte, folio o no), así que el análisis se basará en el contenido de cada página y no en posiciones de una plantilla.
+
 ## v0.7.0 — 2026-09-15
 - Limpieza para parecerse a la versión final: se quitan el sello "Boceto", los avisos de boceto/privacidad, el documento de ejemplo del Layout y las explicaciones en mensajes.
 - Verificar órdenes arranca vacía ("Todavía no hay resultados"); un botón discreto "Ver demostración" carga los datos de muestra, marcados con "Demostración" y botón "Salir".

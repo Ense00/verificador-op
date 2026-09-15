@@ -106,13 +106,17 @@ Señales de ilegibilidad: confianza del OCR, que la lista de montos no sume el t
 
 ## Procesamiento de imagen
 
-Por página: enderezar → alinear contra plantilla → limpiar → leer → validar.
+Se **descarta la plantilla fija** (una orden bien escaneada como referencia de posiciones): las órdenes no respetan un solo acomodo (hojas de continuación, firmas en hoja aparte, folio arriba o no, número en distintas posiciones). Nada depende de coordenadas fijas.
 
-1. Detección de rotación 90°/180°.
-2. Alineación contra plantilla (mismo formato): corrige inclinación, desplazamiento, escala y perspectiva; fija las zonas de firmas.
-3. Respaldo: enderezado (deskew) por perfil de proyección.
-4. Binarización adaptativa y limpieza.
-5. OCR solo de las zonas de interés (número, año, montos) para acelerar.
+Por página: enderezar → limpiar → clasificar → leer → validar.
+
+1. **Enderezar sin plantilla:** rotación 90°/180° y corrección de inclinación a partir de las líneas de texto y los bordes de tablas de la propia página.
+2. **Limpiar:** binarización adaptativa, contraste.
+3. **Clasificar la página por su contenido**, no por posición: orden de pago (primera hoja), continuación de lista de montos, hoja de firmas o soporte. Señales: textos que siempre aparecen (título, etiquetas de campos, "TOTAL"), estructura de tabla, líneas de firma con nombre y cargo debajo.
+4. **Leer buscando, no en zonas fijas:** número de orden = cualquier número de la página que coincida con una orden del documento base (incluido `-A`); montos = importes en la tabla/lista; firmas = trazos sobre las líneas de firma que se detecten, estén donde estén; sellos = manchas circulares/rectangulares de tinta azul o negra.
+5. **OCR completo de la página** cuando haga falta (las zonas ya no son fijas); para compensar velocidad, primero una clasificación barata para saltarse el soporte.
+
+*A validar en la fase 0 con PDFs reales:* qué elementos aparecen siempre en todas las variantes (para clasificar) y si alguna variante sí conviene tratarla con plantilla.
 
 ## Duplicados
 
@@ -170,7 +174,7 @@ Acordadas durante el diseño del boceto. No son opcionales: son parte de lo que 
 ### Velocidad del análisis
 
 - **Duplicados primero:** descartar archivos idénticos por huella antes de leer cualquier página.
-- **Leer solo zonas de interés** (número, año, tabla de montos) en lugar de la página completa; firmas y sellos se revisan por análisis de imagen, sin OCR.
+- **Clasificar primero** con un análisis barato para no leer a detalle las páginas de soporte; firmas y sellos se revisan por análisis de imagen, sin OCR.
 - **Procesamiento en paralelo:** usar varios núcleos del procesador a la vez (Web Workers).
 - **Medir antes de prometer:** el tiempo por página se mide con escaneos reales en la computadora del trabajo. Estimación inicial muy gruesa para 10,000 páginas: 20 min a 1 h.
 
