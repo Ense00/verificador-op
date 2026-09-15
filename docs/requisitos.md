@@ -53,7 +53,13 @@ Plantilla: hoja `Hoja1`, 8 columnas con estos encabezados exactos. La plataforma
 - La herramienta debe **distinguir qué páginas son orden de pago** y cuáles son soporte, y validar solo las de orden de pago.
 - Riesgo a cuidar: el soporte puede mencionar el número de orden (p. ej. la referencia de una transferencia). El número, el ejercicio, los montos, las firmas y los sellos se leen **solo de la página de la orden**, nunca del soporte.
 - Ventaja: identificar las páginas de soporte antes de leerlas permite **saltarse su OCR** y acelerar el análisis.
-- *Pendiente de definir con el usuario:* orden de las páginas (orden → soporte), si una orden ocupa varias hojas, si se valida algo del soporte y qué hacer con órdenes sin soporte o soporte sin orden.
+- **El orden de las páginas varía:** el soporte puede ir antes, después o entre páginas de la orden. No se puede asumir "orden → soporte".
+- **Una orden puede ocupar varias hojas:** listas de montos largas que continúan en otras páginas y firmas en una página aparte. La orden se arma como un solo documento (primera hoja + continuaciones + hoja de firmas); montos se buscan en todas sus hojas y firmas en la hoja de firmas.
+- **Orden partida y desordenada** (sus hojas regadas entre la documentación, sin orden): poco común. No se intenta rearmar: **Incorrecto** con motivo "Orden partida y desordenada en el PDF: revisar manualmente".
+- **Ubicación del número:** no siempre está en la esquina superior. Puede haber un **número de folio** arriba (que no es la orden) y el número de orden debajo o cerca del centro. Se busca en toda la página y solo cuenta un número que corresponda a una orden del documento base; el folio se ignora y no genera "número distinto".
+- **Órdenes con sufijo `-A`** (p. ej. `1900000000-A`): suelen venir varias con el mismo número y, entre ellas, la original sin sufijo. *Pendiente: cómo aparecen en el documento base y cómo se verifican.*
+- **Soporte:** no se valida (solo en casos extraordinarios de datos incorrectos, que se revisan a mano).
+- **Orden sin soporte** o **soporte sin orden:** **Revisar**.
 
 ## Principios
 
