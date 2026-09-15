@@ -335,6 +335,25 @@ table.parts td{vertical-align:middle}
 .card .names span{font-size:12px;color:var(--muted)}
 .card .names code{font-family:var(--mono);font-size:11px;background:var(--sunken);border:1px solid var(--line-soft);border-radius:4px;padding:2px 6px;overflow-wrap:anywhere}
 .downloads.start{justify-content:flex-start}
+/* ---------- Corrección manual ---------- */
+.manual{display:inline-grid;place-items:center;width:18px;height:18px;margin-left:4px;border-radius:50%;background:var(--accent);color:var(--on-accent);font-size:11px;vertical-align:middle}
+.ovbox{margin:10px 12px 0;padding:10px 12px;background:var(--surface);border:1px solid var(--accent);border-radius:8px;display:flex;flex-direction:column;gap:8px}
+.ovbox p{margin:0}
+.ovtitle{font-family:var(--display);font-stretch:110%;font-weight:700;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+.ovchange{display:flex;align-items:center;gap:6px;flex-wrap:wrap;color:var(--muted)}
+.ovnote{font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere}
+.ovmeta{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ovactions{display:flex;gap:6px;flex-wrap:wrap}
+.ovstates{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.ovstate{display:flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid var(--line);border-radius:6px;cursor:pointer;font-size:12px;font-weight:600}
+.ovstate input{accent-color:var(--accent);margin:0}
+.ovstate.ok{color:var(--ok)} .ovstate.bad{color:var(--bad)} .ovstate.rev{color:var(--rev)} .ovstate.ile{color:var(--ile)}
+.ovstate:has(input:checked){border-color:currentColor;background:var(--sunken);box-shadow:inset 0 0 0 1px currentColor}
+.ovlabel{font-size:12px;font-weight:600}
+.ovlabel em{font-style:normal;font-weight:500;color:var(--muted)}
+#ov-note{width:100%;resize:vertical;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface);font:inherit;font-size:13px}
+#ov-note:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+#ov-note[aria-invalid="true"]{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
@@ -345,7 +364,7 @@ table.parts td{vertical-align:middle}
   <header class="top">
     <div class="brand">
       <h1>Verificador de Órdenes de Pago</h1>
-      <span class="stamp">Boceto · v0.5.3</span>
+      <span class="stamp">Boceto · v0.6.0</span>
     </div>
     <div class="privacy">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" stroke="currentColor" stroke-width="1.4"/></svg>
@@ -608,18 +627,25 @@ const TOTAL_PAGES = uniquePages + dupPages;
 const $ = (s, el=document) => el.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmtInt = (n) => n.toLocaleString('en-US');
-const state = {mode:'layout', tab:'ver', filter:null, q:'', sel: Math.max(0, rows.findIndex(r => r.r.firmas[0] === 'bad'))};
+const state = {mode:'layout', editing:null, focusNote:false, tab:'ver', filter:null, q:'', sel: Math.max(0, rows.findIndex(r => r.r.firmas[0] === 'bad'))};
 let view = [];   // filas visibles tras filtro y búsqueda: [{i, s}]
 let stateCache = [];
 
 function active(){ return K.filter(x => $('#chk-'+x.k).checked); }
+// Correcciones manuales: índice de fila → {to, note, at}. Se recuerdan en este navegador (los datos ficticios son siempre los mismos).
+const OVERRIDE_KEY = 'verificador-op:correcciones';
+let overrides = new Map();
+try { overrides = new Map(JSON.parse(localStorage.getItem(OVERRIDE_KEY) || '[]')); } catch (e) {}
+const saveOverrides = () => { try { localStorage.setItem(OVERRIDE_KEY, JSON.stringify([...overrides])); } catch (e) {} };
+let autoCache = [];
 function computeStates(){
   const act = active();
-  stateCache = rows.map(row => {
+  autoCache = rows.map(row => {
     let best = 'na';
     for (const {k} of act){ const s = row.r[k][0]; if (RANK[s] > RANK[best]) best = s; }
     return best === 'na' ? 'ok' : best;
   });
+  stateCache = autoCache.map((s, i) => overrides.has(i) ? overrides.get(i).to : s);
 }
 const overall = (i) => stateCache[i];
 function motivoText(row){
@@ -652,7 +678,7 @@ function renderSummary(){
   $('#bar').innerHTML = ['ok','rev','ile','bad'].map(s => `<i style="flex-grow:${c[s]};background:var(--${s})"></i>`).join('');
   $('#tallies').innerHTML = ['ok','bad','rev','ile'].map(s =>
     `<button type="button" class="tally ${s}" id="tally-${s}" data-s="${s}" aria-pressed="${state.filter===s}"><b>${fmtInt(c[s])}</b><span>${LABEL[s]}</span></button>`).join('') +
-    `<span class="extras"><span><b>${notFound.length}</b> no encontradas</span><span><b>${dups.length}</b> duplicados omitidos</span><span><b>${manual.length}</b> a revisión manual</span><span><b>${fmtInt(renames.length)}</b> renombrados</span></span>`;
+    `<span class="extras"><span><b>${fmtInt(overrides.size)}</b> corregidas a mano</span><span><b>${notFound.length}</b> no encontradas</span><span><b>${dups.length}</b> duplicados omitidos</span><span><b>${manual.length}</b> a revisión manual</span><span><b>${fmtInt(renames.length)}</b> renombrados</span></span>`;
 }
 function renderTabs(){
   const tabs = [['ver','Verificación', rows.length],['nf','No encontradas', notFound.length],['man','Revisión manual', manual.length],['dup','Duplicados omitidos', dups.length]];
@@ -684,7 +710,7 @@ function computeView(){
   view = [];
   for (let i = 0; i < rows.length; i++){
     const s = stateCache[i];
-    if (state.filter && s !== state.filter) continue;
+    if (state.filter === 'manual' ? !overrides.has(i) : state.filter && s !== state.filter) continue;
     if (q && !rows[i].op.includes(q)) continue;
     view.push(i);
   }
@@ -694,14 +720,14 @@ function renderVer(b){
   const act = active();
   colCount = 7 + act.length;
   const count = (s) => stateCache.filter(x => x === s).length;
-  const chip = (s, label, n) => `<button type="button" class="chip" id="chip-${s||'todos'}" data-filter="${s}" aria-pressed="${(state.filter||'')===s}">${s ? `<i style="background:var(--${s})"></i>` : ''}${label} <em>${fmtInt(n)}</em></button>`;
-  const cols = `<col style="width:118px"><col style="width:84px"><col style="width:132px">${act.map(() => '<col style="width:58px">').join('')}<col style="width:112px"><col><col style="width:250px"><col style="width:70px">`;
-  const minW = 118 + 84 + 132 + act.length * 58 + 112 + 300 + 250 + 70;
+  const chip = (s, label, n) => `<button type="button" class="chip" id="chip-${s||'todos'}" data-filter="${s}" aria-pressed="${(state.filter||'')===s}">${s && s !== 'manual' ? `<i style="background:var(--${s})"></i>` : ''}${label} <em>${fmtInt(n)}</em></button>`;
+  const cols = `<col style="width:118px"><col style="width:84px"><col style="width:132px">${act.map(() => '<col style="width:58px">').join('')}<col style="width:136px"><col><col style="width:250px"><col style="width:70px">`;
+  const minW = 118 + 84 + 132 + act.length * 58 + 136 + 300 + 250 + 70;
   const head = `<tr><th class="sticky">Orden</th><th>Ejercicio</th><th class="r">Monto</th>${act.map(x=>`<th class="c val" title="Validación: ${x.label}">${x.short}</th>`).join('')}<th>Estado</th><th>Motivo</th><th>Archivo</th><th class="r">Pág.</th></tr>`;
   b.innerHTML = `<div class="toolbar">
       <input class="search num" id="q" type="search" placeholder="Buscar orden…" value="${esc(state.q)}" aria-label="Buscar orden">
       <div class="chips" role="group" aria-label="Filtrar por estado">
-        ${chip('', 'Todos', rows.length)}${['ok','bad','rev','ile'].map(s => chip(s, LABEL[s], count(s))).join('')}
+        ${chip('', 'Todos', rows.length)}${['ok','bad','rev','ile'].map(s => chip(s, LABEL[s], count(s))).join('')}${overrides.size ? chip('manual', '✎ Corregidas a mano', overrides.size) : ''}
       </div>
       <span class="hint end" id="vcount"></span>
     </div>
@@ -714,11 +740,12 @@ function renderVer(b){
 
 function rowHTML(i, odd){
   const r = rows[i], s = stateCache[i], act = active();
-  const mot = motivoText(r);
+  const ov = overrides.get(i);
+  const mot = ov ? `Corregido a mano (${LABEL[autoCache[i]]} → ${LABEL[s]}): ${ov.note}` : motivoText(r);
   return `<tr class="sel${odd ? ' odd' : ''}" tabindex="-1" id="row-${i}" data-i="${i}" data-s="${s}" aria-selected="${state.sel===i}">
     <td class="num sticky">${r.op}</td><td class="num">${r.ej}</td><td class="r num">${r.montoNum == null ? '<span class="muted">—</span>' : '$' + money(r.montoNum)}</td>
     ${act.map(x=>`<td class="c">${dot(r.r[x.k][0], x.label+': '+r.r[x.k][1])}</td>`).join('')}
-    <td>${pill(s)}</td><td class="clip" title="${esc(mot)}">${mot ? esc(mot) : '<span class="muted">Cumple todo lo revisado</span>'}</td><td class="clip archivo" title="${esc(r.file)}">${esc(r.file)}</td><td class="r num muted">${r.pag}</td></tr>`;
+    <td>${pill(s)}${ov ? '<span class="manual" title="Corregido a mano">✎</span>' : ''}</td><td class="clip" title="${esc(mot)}">${mot ? esc(mot) : '<span class="muted">Cumple todo lo revisado</span>'}</td><td class="clip archivo" title="${esc(r.file)}">${esc(r.file)}</td><td class="r num muted">${r.pag}</td></tr>`;
 }
 
 let paintQueued = false;
@@ -754,6 +781,7 @@ function refreshTable(resetScroll){
 
 /* ---------- Selección y vista previa ---------- */
 function select(i, focus){
+  if (state.sel !== i) state.editing = null;
   state.sel = i;
   const wrap = $('#tw');
   const p = view.indexOf(i);
@@ -793,10 +821,68 @@ function renderPreview(){
     </div>
     <ul class="results">${items}</ul>
     <figure class="sheet">${sheetSVG(r)}<figcaption>Zonas detectadas. En la versión real es la imagen del escaneo.</figcaption></figure>
+    ${overrideHTML(state.sel)}
     <div class="pactions">
       <button type="button" class="btn small" id="open-page" data-toast="Boceto: aquí se abre la página del PDF a tamaño completo.">Abrir página</button>
-      <button type="button" class="btn small" id="mark-ok" data-toast="Boceto: aquí podrás corregir el resultado a mano después de revisarlo. Queda anotado en el Excel.">Marcar revisado</button>
+      ${state.editing === state.sel || overrides.has(state.sel) ? '' : '<button type="button" class="btn small" id="ov-open">Corregir estado</button>'}
     </div>`;
+  if (state.editing === state.sel){ const note = $('#ov-note'); if (note && state.focusNote){ note.focus(); state.focusNote = false; } }
+}
+
+function sameOpRows(i){ const op = rows[i].op; const out = []; for (let j = 0; j < rows.length; j++) if (rows[j].op === op) out.push(j); return out; }
+
+function overrideHTML(i){
+  const ov = overrides.get(i);
+  if (state.editing !== i){
+    if (!ov) return '';
+    const d = new Date(ov.at), p = (n) => String(n).padStart(2, '0');
+    return `<div class="ovbox">
+      <p class="ovtitle">✎ Corregido a mano</p>
+      <p class="ovchange">${pill(autoCache[i])}<span aria-hidden="true">→</span>${pill(ov.to)}</p>
+      <p class="ovnote">${esc(ov.note)}</p>
+      <p class="ovmeta">${p(d.getDate())}-${p(d.getMonth() + 1)}-${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}</p>
+      <div class="ovactions"><button type="button" class="btn small" id="ov-edit">Editar</button><button type="button" class="btn small ghost" id="ov-undo">Deshacer corrección</button></div>
+    </div>`;
+  }
+  const current = ov ? ov.to : autoCache[i];
+  const siblings = sameOpRows(i).length;
+  return `<form class="ovbox editing" id="ov-form" novalidate>
+    <p class="ovtitle">Corregir estado</p>
+    <p class="ovmeta">Detectado por el programa: ${pill(autoCache[i])}</p>
+    <div class="ovstates" role="radiogroup" aria-label="Nuevo estado">
+      ${['ok','bad','rev','ile'].map(s => `<label class="ovstate ${s}"><input type="radio" name="ov-to" id="ov-to-${s}" value="${s}" ${s === current ? 'checked' : ''}><span>${LABEL[s]}</span></label>`).join('')}
+    </div>
+    <label for="ov-note" class="ovlabel">Nota <em>Obligatoria</em></label>
+    <textarea id="ov-note" rows="2" placeholder="Ej. Sin firmas, justificado por oficio 123/2021">${ov ? esc(ov.note) : ''}</textarea>
+    ${siblings > 1 ? `<label class="check"><input type="checkbox" id="ov-all"> Aplicar a las ${siblings} filas de la orden ${rows[i].op}</label>` : ''}
+    <div class="ovactions"><button type="submit" class="btn small primary">Guardar corrección</button><button type="button" class="btn small ghost" id="ov-cancel">Cancelar</button></div>
+  </form>`;
+}
+
+function refreshAfterOverride(){
+  computeStates(); renderSummary(); renderTabs();
+  const wrap = $('#tw'), top = wrap ? wrap.scrollTop : 0;
+  renderBody();
+  const w = $('#tw'); if (w){ w.scrollTop = top; paintRows(); }
+}
+
+function saveOverride(){
+  const i = state.sel;
+  const to = (document.querySelector('input[name="ov-to"]:checked') || {}).value;
+  const noteEl = $('#ov-note'), note = noteEl.value.trim();
+  if (!note){ noteEl.setAttribute('aria-invalid', 'true'); noteEl.focus(); toast('Escribe una nota que explique la corrección.'); return; }
+  const targets = $('#ov-all') && $('#ov-all').checked ? sameOpRows(i) : [i];
+  const at = Date.now();
+  let changed = 0;
+  for (const j of targets){
+    if (to === autoCache[j]) { if (overrides.delete(j)) changed++; continue; }
+    overrides.set(j, {to, note, at}); changed++;
+  }
+  if (!changed){ toast('Elige un estado distinto al que detectó el programa.'); return; }
+  saveOverrides();
+  state.editing = null;
+  refreshAfterOverride();
+  toast(targets.length > 1 ? `Corrección guardada en ${targets.length} filas.` : 'Corrección guardada.');
 }
 
 function sheetSVG(r){
@@ -1039,7 +1125,7 @@ async function buildWorkbook(){
   const meta = (extra) => `Entidad: ${entidad}     ·     Ejercicio: ${ejercicioLabel()}     ·     Generado: ${generado}${extra ? '     ·     ' + extra : ''}     ·     Boceto con datos ficticios`;
   const counts = {Correcto:0, Incorrecto:0, Revisar:0, Ilegible:0};
   stateCache.forEach(s => counts[LABEL[s]]++);
-  const conteo = Object.entries(counts).map(([k, v]) => `${k} ${fmtInt(v)}`).join('  ·  ');
+  const conteo = Object.entries(counts).map(([k, v]) => `${k} ${fmtInt(v)}`).join('  ·  ') + (overrides.size ? `  ·  Corregidas a mano ${fmtInt(overrides.size)}` : '');
 
   addStyledSheet(wb, 'Verificación', {
     title:'Verificación de Órdenes de Pago', meta:meta(conteo), tab:XL.band, freezeCol:1,
@@ -1048,12 +1134,14 @@ async function buildWorkbook(){
       {header:'Ejercicio', width:10, align:'center'},
       {header:'Monto solicitado', width:17, money:true, mono:true, align:'right'},
       ...act.map(x => ({header:x.xl, width:13, state:true, validation:true, align:'center'})),
-      {header:'Estado', width:13, state:true, align:'center'},
+      {header:'Estado final', width:13, state:true, align:'center'},
       {header:'Motivo', width:70},
+      {header:'Estado detectado', width:13, state:true, align:'center'},
+      {header:'Nota de corrección', width:46},
       {header:'Archivo', width:46, muted:true},
       {header:'Página', width:9, align:'center', muted:true}
     ],
-    data: rows.map((r, i) => [r.op, r.ej, r.montoNum == null ? '' : r.montoNum, ...act.map(x => XL_STATE[r.r[x.k][0]]), LABEL[stateCache[i]], motivoText(r) || 'Cumple todo lo revisado', r.file, r.pag])
+    data: rows.map((r, i) => [r.op, r.ej, r.montoNum == null ? '' : r.montoNum, ...act.map(x => XL_STATE[r.r[x.k][0]]), LABEL[stateCache[i]], motivoText(r) || 'Cumple todo lo revisado', LABEL[autoCache[i]], overrides.has(i) ? overrides.get(i).note : '', r.file, r.pag])
   });
   addStyledSheet(wb, 'No encontradas', {
     title:'Órdenes no encontradas en los PDFs', meta:meta(`${notFound.length} órdenes`), tab:'FFB0281C',
@@ -1360,6 +1448,7 @@ document.addEventListener('change', e => {
 document.addEventListener('input', e => {
   if (e.target.id === 'q'){ state.q = e.target.value; refreshTable(true); }
   if (e.target.id === 'parts' && base){ renderLayoutPanel(); renderNames(); }
+  if (e.target.id === 'ov-note' && e.target.value.trim()) e.target.removeAttribute('aria-invalid');
   if (e.target.id === 'entity'){
     if (cleanName(e.target.value)) e.target.removeAttribute('aria-invalid');
     try { localStorage.setItem(ENTITY_KEY, e.target.value); } catch (err) {}
@@ -1382,14 +1471,21 @@ document.addEventListener('click', e => {
   const tab = e.target.closest('[data-tab]'); if (tab){ state.tab = tab.dataset.tab; renderTabs(); renderBody(); return; }
   const tally = e.target.closest('.tally'); if (tally){ const s = tally.dataset.s; state.filter = state.filter === s ? null : s; state.tab = 'ver'; renderSummary(); renderTabs(); renderBody(); return; }
   const chip = e.target.closest('[data-filter]'); if (chip){ state.filter = chip.dataset.filter || null; renderSummary(); renderBody(); return; }
+  if (e.target.closest('#ov-open') || e.target.closest('#ov-edit')){ state.editing = state.sel; state.focusNote = true; renderPreview(); return; }
+  if (e.target.closest('#ov-cancel')){ state.editing = null; renderPreview(); return; }
+  if (e.target.closest('#ov-undo')){ overrides.delete(state.sel); saveOverrides(); refreshAfterOverride(); toast('Corrección deshecha: vuelve el estado detectado.'); return; }
   if (e.target.closest('#prev-row')) return step(-1);
   if (e.target.closest('#next-row')) return step(1);
   const tr = e.target.closest('tr.sel'); if (tr){ if (suppressClick) return; select(+tr.dataset.i, true); return; }
   if (e.target.closest('#dl-xlsx')){ exportExcel(); return; }
   if (e.target.closest('#dl-zip')){ if (!requireEntity()) return; toast(`Boceto: aquí se descarga "${fileName('', EXT[$('#fmt').value])}" con los PDFs sin duplicados, ya renombrados, y la subcarpeta "Revisión manual".`); return; }
 });
+document.addEventListener('submit', e => {
+  if (e.target.id === 'ov-form'){ e.preventDefault(); saveOverride(); }
+});
 document.addEventListener('keydown', e => {
   if (!e.target.closest) return;
+  if (e.target.closest('input, textarea, select')) return;
   const inTable = e.target.closest('#tw') || e.target.closest('#preview');
   if (!inTable) return;
   if (e.key === 'ArrowDown'){ e.preventDefault(); step(1); }

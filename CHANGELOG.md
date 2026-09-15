@@ -2,6 +2,11 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.6.0 — 2026-09-14
+- Corrección manual de estado: elegir estado nuevo + nota obligatoria, aplicar a todas las filas de la orden, editar o deshacer. Marca ✎ en la tabla, filtro "Corregidas a mano", conteos actualizados.
+- Excel: columnas Estado final, Estado detectado y Nota de corrección.
+- En el boceto las correcciones se recuerdan en el navegador.
+
 ## v0.5.3 — 2026-09-14
 - Datos ficticios con la frecuencia real de firmas: casi siempre falta 1; sin firmas es raro; 1 de 3 casi nunca.
 
