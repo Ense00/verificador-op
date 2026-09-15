@@ -67,7 +67,7 @@ Plantilla: hoja `Hoja1`, 8 columnas con estos encabezados exactos. La plataforma
 | Orden de pago | El número mencionado y el mostrado en el documento coinciden, y corresponden al Excel |
 | Ejercicio | Solo importa el **año**; debe ser el del Excel |
 | Monto | El monto solicitado debe aparecer **en algún lugar de la lista** de montos de la OP (una línea o el total), al centavo. Si hay uno casi igual, se menciona (p. ej. "difiere por $0.01") |
-| Firmas | Deben ser **3 firmas en total**, a mano, en la parte inferior. Los cargos de quienes firman varían, así que no se valida quién firma, solo que sean 3. Una orden puede traer **0, 1, 2 o 3 firmas**: se reporta el conteo ("Sin firmas (0 de 3)", "Solo 1 de 3 firmas", "Solo 2 de 3 firmas"). Frecuencia real: lo común es que **falte 1 firma**; **sin firmas** es raro y suele estar justificado, pero se marca; **1 de 3** prácticamente no ocurre. Solo se detecta presencia, no autenticidad |
+| Firmas | Deben ser **3 firmas en total**, a mano, en la parte inferior. Los cargos de quienes firman varían, así que no se valida quién firma, solo que sean 3. Una orden puede traer **0, 1, 2 o 3 firmas**: se reporta el conteo ("Sin firmas (0 de 3)", "Solo 1 de 3 firmas", "Solo 2 de 3 firmas"). Frecuencia real: lo común es que **falte 1 firma**; **sin firmas** es raro y suele estar justificado, pero se marca como **Incorrecto** con su motivo (el usuario lo corrige a mano si está justificado); **1 de 3** prácticamente no ocurre. Solo se detecta presencia, no autenticidad |
 | Sellos | Azules o negros, en cualquier posición, a veces encima de firmas. Sello encima de firma = *Revisar* |
 
 Localizar la OP en los PDFs se hace siempre (es la base de todo). Lo no marcado sale como "No revisado".
