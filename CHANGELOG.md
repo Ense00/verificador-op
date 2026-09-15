@@ -2,6 +2,9 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.5.2 — 2026-09-14
+- Firmas: se contempla 0, 1, 2 o 3 firmas; el motivo dice el conteo ("Sin firmas (0 de 3)", "Solo 1 de 3 firmas"…). Datos ficticios con los tres casos.
+
 ## v0.5.1 — 2026-09-14
 - La casilla se llama "Partir Layout".
 - Preparación de Layout probada por el usuario con un documento base real: funciona.

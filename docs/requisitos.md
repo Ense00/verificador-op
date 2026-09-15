@@ -67,7 +67,7 @@ Plantilla: hoja `Hoja1`, 8 columnas con estos encabezados exactos. La plataforma
 | Orden de pago | El número mencionado y el mostrado en el documento coinciden, y corresponden al Excel |
 | Ejercicio | Solo importa el **año**; debe ser el del Excel |
 | Monto | El monto solicitado debe aparecer **en algún lugar de la lista** de montos de la OP (una línea o el total), al centavo. Si hay uno casi igual, se menciona (p. ej. "difiere por $0.01") |
-| Firmas | Deben ser **3 firmas en total**, a mano, en la parte inferior. Los cargos de quienes firman varían, así que no se valida quién firma, solo que sean 3 (p. ej. "Solo 2 de 3 firmas"). Solo se detecta presencia, no autenticidad |
+| Firmas | Deben ser **3 firmas en total**, a mano, en la parte inferior. Los cargos de quienes firman varían, así que no se valida quién firma, solo que sean 3. Una orden puede traer **0, 1, 2 o 3 firmas**: se reporta el conteo ("Sin firmas (0 de 3)", "Solo 1 de 3 firmas", "Solo 2 de 3 firmas"). Solo se detecta presencia, no autenticidad |
 | Sellos | Azules o negros, en cualquier posición, a veces encima de firmas. Sello encima de firma = *Revisar* |
 
 Localizar la OP en los PDFs se hace siempre (es la base de todo). Lo no marcado sale como "No revisado".
@@ -169,4 +169,4 @@ Acordadas durante el diseño del boceto. No son opcionales: son parte de lo que 
 ## Pendiente
 
 
-- PDF de ejemplo (con una OP válida, una con solo 2 de 3 firmas, una con varios montos y una con sello sobre firma) para la fase 0: medir lectura, enderezado, detección de firmas/sellos y velocidad en navegador.
+- PDF de ejemplo (con una OP válida, una con 3 firmas, una con 2, una con 1 y una sin firmas, una con varios montos y una con sello sobre firma) para la fase 0: medir lectura, enderezado, detección de firmas/sellos y velocidad en navegador.
