@@ -388,7 +388,7 @@ table.parts td{vertical-align:middle}
   <header class="top">
     <div class="brand">
       <h1>Verificador de Órdenes de Pago</h1>
-      <span class="stamp">v0.7.2</span>
+      <span class="stamp">v0.7.3</span>
     </div>
     <div class="topright">
     <div class="theme" role="radiogroup" aria-label="Tema de la página">
@@ -1053,7 +1053,7 @@ function renderNames(){
       : `<span>Layout</span><code>${esc(layoutName(1, 1))}</code>`;
     return;
   }
-  $('#entity-help').innerHTML = `<span>Excel</span><code>${esc(fileName('Tabla', '.xlsx'))}</code><span>Carpeta</span><code>${esc(fileName('', EXT[$('#fmt').value]))}</code>`;
+  $('#entity-help').innerHTML = `<span>Excel</span><code>${esc(fileName('Tabla', '.xlsx', verifyPartName()))}</code><span>Carpeta</span><code>${esc(fileName('', EXT[$('#fmt').value], verifyPartName()))}</code>`;
 }
 function requireEntity(){
   const input = $('#entity');
@@ -1164,7 +1164,7 @@ async function buildWorkbook(){
   const entidad = cleanName($('#entity').value);
   const d = new Date(), p2 = (x) => String(x).padStart(2, '0');
   const generado = `${p2(d.getDate())}-${p2(d.getMonth() + 1)}-${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
-  const meta = (extra) => `Entidad: ${entidad}     ·     Ejercicio: ${ejercicioLabel()}     ·     Generado: ${generado}${extra ? '     ·     ' + extra : ''}${state.demo ? '     ·     Demostración' : ''}`;
+  const meta = (extra) => `Entidad: ${entidad}     ·     Ejercicio: ${ejercicioLabel()}     ·     Generado: ${generado}${verifyPartName() ? `     ·     ${verifyPartName()} de ${layoutPartsCount()}` : ''}${extra ? '     ·     ' + extra : ''}${state.demo ? '     ·     Demostración' : ''}`;
   const counts = {Correcto:0, Incorrecto:0, Revisar:0, Ilegible:0};
   stateCache.forEach(s => counts[LABEL[s]]++);
   const conteo = Object.entries(counts).map(([k, v]) => `${k} ${fmtInt(v)}`).join('  ·  ') + (overrides.size ? `  ·  Corregidas a mano ${fmtInt(overrides.size)}` : '');
@@ -1214,7 +1214,7 @@ async function exportExcel(){
   const btn = $('#dl-xlsx'), label = btn.lastChild, original = label.textContent;
   btn.disabled = true;
   label.textContent = ' Generando…';
-  const filename = fileName('Tabla', '.xlsx');
+  const filename = fileName('Tabla', '.xlsx', verifyPartName());
   try {
     const wb = await buildWorkbook();
     const buf = await wb.xlsx.writeBuffer();
@@ -1393,11 +1393,18 @@ function renderVerifyPart(){
     info.textContent = 'Solo se esperan las órdenes de esta parte; las demás no cuentan como no encontradas.';
   }
 }
+/* Al verificar una parte, el Excel y la carpeta llevan " ｜ Parte K" al final,
+   igual que el Layout de esa parte: si no, no se distinguen de una verificación
+   del documento completo. */
+function verifyPartName(){
+  const sel = $('#verify-part');
+  return sel && sel.value !== 'all' && layoutPartsCount() > 1 ? `Parte ${sel.value}` : '';
+}
 function setLayoutParts(n){
   n = Number.isFinite(n) ? Math.max(1, Math.min(500, Math.round(n))) : 1;
   $('#split').checked = n > 1;
   if (n > 1) $('#parts').value = n;
-  renderLayoutPanel(); renderNames(); renderVerifyPart(); renderConfigSum();
+  renderLayoutPanel(); renderVerifyPart(); renderNames(); renderConfigSum();
 }
 
 async function layoutBlob(list){
@@ -1557,9 +1564,9 @@ function renderAll(){ computeStates(); renderConfigSum(); renderSummary(); rende
 document.addEventListener('change', e => {
   if (e.target.matches('#checks input, #chk-renombres')) renderAll();
   if (e.target.id === 'base-file' && e.target.files[0]){ loadBaseFile(e.target.files[0]); e.target.value = ''; }
-  if (e.target.id === 'split' || e.target.id === 'parts'){ renderLayoutPanel(); renderNames(); renderVerifyPart(); renderConfigSum(); }
+  if (e.target.id === 'split' || e.target.id === 'parts'){ renderLayoutPanel(); renderVerifyPart(); renderNames(); renderConfigSum(); }
   if (e.target.id === 'verify-parts'){ setLayoutParts(parseInt(e.target.value, 10)); }
-  if (e.target.id === 'verify-part'){ renderVerifyPart(); renderConfigSum(); }
+  if (e.target.id === 'verify-part'){ renderVerifyPart(); renderNames(); renderConfigSum(); }
   if (e.target.id === 'fmt'){
     const names = {zip:'Carpeta (ZIP)', '7z':'Carpeta (7z)', tgz:'Carpeta (TAR.GZ)', folder:'Guardar carpeta'};
     $('#dl-zip-label').textContent = names[e.target.value];
@@ -1569,7 +1576,7 @@ document.addEventListener('change', e => {
 });
 document.addEventListener('input', e => {
   if (e.target.id === 'q'){ state.q = e.target.value; refreshTable(true); }
-  if (e.target.id === 'parts' && base){ renderLayoutPanel(); renderNames(); renderVerifyPart(); }
+  if (e.target.id === 'parts' && base){ renderLayoutPanel(); renderVerifyPart(); renderNames(); }
   if (e.target.id === 'verify-parts'){ const n = parseInt(e.target.value, 10); if (Number.isFinite(n) && n >= 1) setLayoutParts(n); }
   if (e.target.id === 'ov-note' && e.target.value.trim()) e.target.removeAttribute('aria-invalid');
   if (e.target.id === 'entity'){
