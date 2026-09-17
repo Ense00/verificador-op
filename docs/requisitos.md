@@ -209,7 +209,7 @@ Acordadas durante el diseño del boceto. No son opcionales: son parte de lo que 
 - Botón **Guía** en el encabezado (junto al tema): abre una vista con índice lateral y 10 secciones para compañeros que nunca han usado la herramienta: qué es, antes de empezar, Preparar Layout, subir a la plataforma, Verificar órdenes, leer resultados, corregir estado, descargas, reglas y preguntas frecuentes. Botones para ir directo a cada etapa y "Volver a la herramienta".
 - Lo que depende de la fase 0 (elegir PDFs y documento base en la etapa 2, Verificar, carpeta de archivos) va marcado **Próximamente**; la guía remite a "Ver demostración".
 - **Mantenerla al día:** todo cambio de interfaz o de reglas se refleja también en la guía.
-- Si al usuario no le convence cómo se ve, alternativa pedida: un Word descargable desde un botón.
+- Aprobada por el usuario tal cual (2026-09-16): "Está muy bien, déjalo así". No hace falta el Word descargable.
 
 ## Pendiente
 
