@@ -51,6 +51,7 @@ Plantilla: hoja `Hoja1`, 8 columnas con estos encabezados exactos. La plataforma
   - "Parte a verificar": Todas las órdenes, o Parte K de N (la lista sale de N, no es fija).
   - Las órdenes de cada parte se calculan con el **mismo reparto** que "Partir Layout" sobre el documento base, así que coinciden con el Layout que se subió a la plataforma. Si el documento base está cargado, se muestra cuántas órdenes se esperan y de cuál a cuál.
   - Requisito: usar el mismo documento base con el que se generó el Layout; con otro documento las partes no coinciden.
+  - Las partes se reparten por **órdenes únicas** (cada orden en la parte de su primera aparición). Al verificar una parte se toman esas órdenes **con todas sus filas** del documento base (todos sus montos), aunque las filas repetidas estén lejos en el Excel. Ejemplo: 10 órdenes con repeticiones partidas en 10 → cada parte es 1 orden con todas sus filas.
 
 ### PDFs: órdenes de pago mezcladas con documentos de soporte
 
