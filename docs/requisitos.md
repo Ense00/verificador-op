@@ -204,9 +204,16 @@ Acordadas durante el diseño del boceto. No son opcionales: son parte de lo que 
 - Página instalable (app web) para que funcione sin internet incluso al abrirla.
 - Selector de tema **Claro / Oscuro / Automático** en el encabezado; se recuerda en el navegador. Automático sigue el tema del sistema (o del visor de Claude).
 
+## Guía de uso
+
+- Botón **Guía** en el encabezado (junto al tema): abre una vista con índice lateral y 10 secciones para compañeros que nunca han usado la herramienta: qué es, antes de empezar, Preparar Layout, subir a la plataforma, Verificar órdenes, leer resultados, corregir estado, descargas, reglas y preguntas frecuentes. Botones para ir directo a cada etapa y "Volver a la herramienta".
+- Lo que depende de la fase 0 (elegir PDFs y documento base en la etapa 2, Verificar, carpeta de archivos) va marcado **Próximamente**; la guía remite a "Ver demostración".
+- **Mantenerla al día:** todo cambio de interfaz o de reglas se refleja también en la guía.
+- Si al usuario no le convence cómo se ve, alternativa pedida: un Word descargable desde un botón.
+
 ## Pendiente
 
-Estado al 2026-09-16 (v0.7.2), en pausa hasta tener un PDF de órdenes:
+Estado al 2026-09-16 (v0.8.0), en pausa hasta tener un PDF de órdenes:
 
 - **Etapa 1, Preparar Layout: funcional** y probada por el usuario con un documento base real.
 - **Etapa 2, Verificar órdenes:** interfaz lista; arranca vacía y ofrece "Ver demostración" con 3,000 órdenes de muestra (filtros, vista previa, corrección manual, Excel con diseño). No procesa PDFs todavía.

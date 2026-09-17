@@ -2,6 +2,9 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.8.0 — 2026-09-16
+- Guía de uso dentro de la página: botón **Guía** en el encabezado, índice lateral que marca la sección en lectura, 10 secciones para quien nunca ha usado la herramienta, accesos directos a cada etapa. Lo que aún no funciona va marcado "Próximamente".
+
 ## v0.7.3 — 2026-09-16
 - Al verificar una parte, el Excel y la carpeta de resultados terminan en ` ｜ Parte K` (como el Layout de esa parte) y la fila de datos del Excel indica `Parte K de N`. Antes se llamaban igual que una verificación completa.
 
