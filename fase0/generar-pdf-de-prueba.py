@@ -44,12 +44,13 @@ def lineas_firma(d,y,firmas):
         d.text((x0+40,y+46),"Nombre y firma",font=F(20),fill=(90,95,110))
         if i<firmas: firma(d,x0+60,y-8,x1-x0-140)
 
-def pagina_op(num,montos,firmas,hoja=None,sello=False,folio=False):
+def pagina_op(num,montos,firmas,hoja=None,sello=False,folio=False,folio_es_op=False):
     im=papel(); d=ImageDraw.Draw(im)
-    if folio: d.text((1380,60),"FOLIO 0%03d"%random.randint(1,999),font=F(26),fill=(120,30,30))
+    if folio_es_op: d.text((1180,60),"FOLIO %s"%num,font=F(28),fill=(120,30,30))
+    elif folio: d.text((1380,60),"FOLIO 0%03d"%random.randint(1,999),font=F(26),fill=(120,30,30))
     d.text((150,150),"INSTITUTO DEMOSTRATIVO DE PRUEBA",font=F(34,True),fill=(20,28,56))
     d.text((150,200),"ORDEN DE PAGO",font=F(44,True),fill=(20,28,56))
-    d.text((1150,205),"No. %s"%num,font=F(32,True),fill=(20,28,56))
+    if not folio_es_op: d.text((1150,205),"No. %s"%num,font=F(32,True),fill=(20,28,56))
     d.text((150,270),"Fecha contable:  15/07/2021",font=F(26),fill=(40,45,60))
     d.text((700,270),"Ejercicio:  2021",font=F(26),fill=(40,45,60))
     if hoja: d.text((1150,270),"Hoja %s"%hoja,font=F(26),fill=(40,45,60))
@@ -93,6 +94,7 @@ pgs=[
  pagina_op("1900000003",["2,000.00"],0,hoja="2 de 2"),
  pagina_soporte(2),
  pagina_op("7100000123-A",["18,750.00"],3),
+ pagina_op("1900000004",["6,400.00"],3,folio_es_op=True),  # aquí el folio ES la orden
 ]
 import os
 os.chdir(os.path.dirname(os.path.abspath(__file__)))

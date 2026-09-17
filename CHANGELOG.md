@@ -2,6 +2,19 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.9.1 — 2026-09-17
+
+- **El folio ya no se ignora** (aclaración del usuario): hay órdenes que usan el
+  folio como número de orden. Ahora todos los números de la página, folio
+  incluido, se comparan contra el documento base: si el folio coincide con la
+  orden buscada, la orden queda identificada; si no coincide, no concluye nada y
+  se sigue buscando el número en el resto de la hoja. La etiqueta "Folio" deja de
+  tener efecto propio.
+- El medidor muestra el folio de cada página y marca si tiene forma de número de
+  orden; el resumen dice cuántas páginas se identificaron por el folio.
+- El PDF de prueba trae una orden que usa el folio como número de orden.
+- Guía de la página y `docs/requisitos.md` actualizados con la regla nueva.
+
 ## v0.9.0 — 2026-09-17
 
 - **Medidor de la fase 0** (`fase0/medidor.html`): abre un PDF y reporta, página

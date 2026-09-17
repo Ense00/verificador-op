@@ -839,7 +839,7 @@ table.parts td{vertical-align:middle}
           <table class="gtable">
             <thead><tr><th>Dato</th><th>Cuándo es correcto</th></tr></thead>
             <tbody>
-              <tr><td>Orden de pago</td><td>El número que aparece en la orden coincide con una orden del documento base. Un número de folio en la parte de arriba no cuenta como número de orden.</td></tr>
+              <tr><td>Orden de pago</td><td>El número que aparece en la orden coincide con una orden del documento base. Se busca en toda la hoja, incluido el folio de arriba: en algunas órdenes el folio <b>es</b> el número de orden. Si el folio no coincide, no se descarta la orden: se sigue buscando el número en el resto de la hoja.</td></tr>
               <tr><td>Ejercicio</td><td>El año de la orden es el año de la Fecha Contable del documento base.</td></tr>
               <tr><td>Monto</td><td>El monto solicitado aparece <b>al centavo</b> en la lista de montos de la orden, ya sea en una línea o en el total. Si hay uno casi igual, el motivo lo menciona (por ejemplo, "difiere por $0.01"). Los montos negativos van a Revisar.</td></tr>
               <tr><td>Firmas</td><td>Hay <b>3 firmas</b>, sin importar el cargo de quien firma. Se reporta cuántas hay: 0, 1, 2 o 3. Solo se detecta que exista la firma, no si es auténtica.</td></tr>

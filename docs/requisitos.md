@@ -62,7 +62,13 @@ Plantilla: hoja `Hoja1`, 8 columnas con estos encabezados exactos. La plataforma
 - **El orden de las páginas varía:** el soporte puede ir antes, después o entre páginas de la orden. No se puede asumir "orden → soporte".
 - **Una orden puede ocupar varias hojas:** listas de montos largas que continúan en otras páginas y firmas en una página aparte. La orden se arma como un solo documento (primera hoja + continuaciones + hoja de firmas); montos se buscan en todas sus hojas y firmas en la hoja de firmas.
 - **Orden partida y desordenada** (sus hojas regadas entre la documentación, sin orden): poco común. No se intenta rearmar: **Incorrecto** con motivo "Orden partida y desordenada en el PDF: revisar manualmente".
-- **Ubicación del número:** no siempre está en la esquina superior. Puede haber un **número de folio** arriba (que no es la orden) y el número de orden debajo o cerca del centro. Se busca en toda la página y solo cuenta un número que corresponda a una orden del documento base; el folio se ignora y no genera "número distinto".
+- **Ubicación del número:** no siempre está en la esquina superior. Puede haber un **número de folio** arriba y el número de orden debajo o cerca del centro.
+- **El folio cuenta como candidato** (aclaración del usuario, 2026-09-17): hay órdenes que usan el folio *como* número de orden. Entonces no se descarta ningún número por venir etiquetado como folio:
+  - Se juntan **todos** los números de la página (folio incluido) y se comparan contra las órdenes del documento base.
+  - Si el folio coincide con la orden buscada, la orden queda identificada y el número se da por **Correcto**.
+  - Si el folio **no** coincide, no concluye nada: no genera "número distinto", solo se sigue buscando el número en el resto de la hoja y en las demás hojas de la orden.
+  - Solo cuando ningún número de la orden coincide con el documento base se reporta que no se encontró.
+  - En la práctica la etiqueta "Folio" deja de importar: lo que decide es si el número corresponde a una orden solicitada.
 - **Órdenes ADEFA** (Adeudos de Ejercicios Fiscales Anteriores), con sufijo `-A` (p. ej. `1900000000-A`): continuación de una orden original cuyo monto no se pagó completo; se siguen pagando en ejercicios posteriores. Solo existe el sufijo `-A` (no `-B`, `-C`).
   - Son **órdenes distintas** de su original: montos propios y pueden tener firmas diferentes.
   - En los PDFs suelen venir junto a la original sin sufijo.
