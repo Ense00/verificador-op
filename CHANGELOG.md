@@ -2,6 +2,23 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.9.0 — 2026-09-17
+
+- **Medidor de la fase 0** (`fase0/medidor.html`): abre un PDF y reporta, página
+  por página, si ya trae texto, tiempo de render y de OCR, número de orden leído
+  (incluido `-A`), montos, fechas, clase de página (orden / soporte / dudosa),
+  líneas de firma y cuáles traen tinta, tinta, color e inclinación. Resumen con
+  la proyección a 500 y 3,000 páginas y exportación a JSON. Todo en el navegador.
+- Vista de revisión: muestra la página **ya enderezada** con las líneas
+  detectadas y la franja donde se busca la firma, para ver dónde se equivoca.
+- `fase0/servir.sh` levanta el servidor local y abre el medidor;
+  `fase0/generar-pdf-de-prueba.py` genera un PDF sintético con datos inventados
+  para probarlo sin documentos reales.
+- Detección de líneas: se endereza la página antes de buscarlas (si no, una raya
+  inclinada 1.5° no cae en una sola fila y no se detecta ninguna), se toman todas
+  las corridas de cada fila (las tres líneas de firma están a la misma altura) y
+  se exige que sean sólidas, para no confundir renglones de texto con rayas.
+
 ## v0.8.0 — 2026-09-16
 - Guía de uso dentro de la página: botón **Guía** en el encabezado, índice lateral que marca la sección en lectura, 10 secciones para quien nunca ha usado la herramienta, accesos directos a cada etapa. Lo que aún no funciona va marcado "Próximamente".
 

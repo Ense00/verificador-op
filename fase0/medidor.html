@@ -1,0 +1,551 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Medidor — Fase 0</title>
+<style>
+:root{
+  color-scheme:light;
+  --ground:#E6EAF1; --surface:#FFFFFF; --sunken:#F2F4F8; --head:#EBEEF5; --zebra:#F7F8FB;
+  --ink:#151C2A; --muted:#586377; --line:#D2D8E2; --line-soft:#E4E8EF;
+  --band:#1C2659; --band-ink:#F3F5FC; --band-muted:#B7BFE0; --band-line:rgba(255,255,255,.14);
+  --accent:#3346A8; --accent-soft:#E2E6F7; --on-accent:#FFFFFF;
+  --ok:#1C7248; --ok-bg:#E2F3EA; --bad:#B0281C; --bad-bg:#FBE6E3; --rev:#9A5608; --rev-bg:#FCEFD9;
+  --shadow:0 1px 2px rgba(20,28,56,.07),0 6px 18px rgba(20,28,56,.06);
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
+  --r:6px;
+}
+:root:not([data-theme="light"]){
+  color-scheme:dark;
+  --ground:#0D1117; --surface:#151B24; --sunken:#1A212C; --head:#1C2431; --zebra:#171E28;
+  --ink:#E4E8EF; --muted:#95A1B3; --line:#2A3441; --line-soft:#212A35;
+  --band:#161E47; --band-ink:#E8EBF7; --band-muted:#9EA7CF; --band-line:rgba(255,255,255,.11);
+  --accent:#93A2F5; --accent-soft:#242D50; --on-accent:#0D1117;
+  --ok:#6FD19E; --ok-bg:#16301F; --bad:#F08A7E; --bad-bg:#3A1C19; --rev:#EDB25A; --rev-bg:#3A2A12;
+  --shadow:0 1px 2px rgba(0,0,0,.35),0 6px 18px rgba(0,0,0,.2);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font:15px/1.5 var(--sans)}
+header{background:var(--band);color:var(--band-ink);padding:14px 20px;display:flex;gap:14px;align-items:baseline;flex-wrap:wrap;border-bottom:1px solid var(--band-line)}
+header h1{margin:0;font-size:17px;letter-spacing:.2px}
+header .sub{color:var(--band-muted);font-size:13px}
+main{max-width:1200px;margin:0 auto;padding:20px 16px 60px}
+section{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);margin-bottom:18px}
+section>h2{margin:0;padding:12px 16px;font-size:14px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);border-bottom:1px solid var(--line-soft);background:var(--head);border-radius:var(--r) var(--r) 0 0}
+.body{padding:16px}
+.row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end}
+label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+input[type=text],input[type=number],select{background:var(--sunken);color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:7px 9px;font:14px var(--sans)}
+input[type=number]{width:92px}
+input[type=text]{width:140px}
+.chk{display:flex;gap:7px;align-items:center;font-size:13px;color:var(--ink);margin:0 0 6px}
+.chk input{margin:0}
+button{background:var(--accent);color:var(--on-accent);border:0;border-radius:4px;padding:9px 16px;font:600 14px var(--sans);cursor:pointer}
+button.ghost{background:transparent;color:var(--accent);border:1px solid var(--line)}
+button:disabled{opacity:.5;cursor:default}
+.hint{color:var(--muted);font-size:12.5px;margin:10px 0 0}
+#log{font:12px/1.55 var(--mono);background:var(--sunken);border:1px solid var(--line-soft);border-radius:4px;padding:10px;max-height:170px;overflow:auto;white-space:pre-wrap}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+th{background:var(--head);color:var(--muted);font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;position:sticky;top:0}
+tbody tr:nth-child(even){background:var(--zebra)}
+tbody tr{cursor:pointer}
+tbody tr.sel{outline:2px solid var(--accent);outline-offset:-2px}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.tw{overflow:auto;max-height:520px}
+.tag{display:inline-block;padding:1px 7px;border-radius:999px;font-size:11.5px;font-weight:600}
+.tag.op{background:var(--ok-bg);color:var(--ok)}
+.tag.sop{background:var(--accent-soft);color:var(--accent)}
+.tag.dud{background:var(--rev-bg);color:var(--rev)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.card{background:var(--sunken);border:1px solid var(--line-soft);border-radius:var(--r);padding:12px 14px}
+.card .k{font-size:11.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.card .v{font:600 22px/1.2 var(--sans);font-variant-numeric:tabular-nums;margin-top:3px}
+.card .n{font-size:12px;color:var(--muted);margin-top:3px}
+.split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+@media (max-width:860px){.split{grid-template-columns:1fr}}
+#lienzo{width:100%;height:auto;background:#fff;border:1px solid var(--line);border-radius:4px}
+pre.txt{font:12px/1.5 var(--mono);background:var(--sunken);border:1px solid var(--line-soft);border-radius:4px;padding:10px;max-height:430px;overflow:auto;white-space:pre-wrap;margin:0}
+.bar{height:6px;background:var(--sunken);border-radius:999px;overflow:hidden;margin-top:10px}
+.bar i{display:block;height:100%;background:var(--accent);width:0}
+</style>
+</head>
+<body>
+<header>
+  <h1>Medidor — Fase 0</h1>
+  <span class="sub">Verificador de Órdenes de Pago · mide en este navegador qué se puede leer de los PDF y a qué velocidad</span>
+</header>
+<main>
+
+<section>
+  <h2>1 · Archivo y ajustes</h2>
+  <div class="body">
+    <div class="row">
+      <div>
+        <label for="arch">PDF a medir</label>
+        <input type="file" id="arch" accept="application/pdf">
+      </div>
+      <div>
+        <label for="desde">Desde página</label>
+        <input type="number" id="desde" value="1" min="1">
+      </div>
+      <div>
+        <label for="hasta">Hasta página</label>
+        <input type="number" id="hasta" value="12" min="1">
+      </div>
+      <div>
+        <label for="dpi">Resolución de render</label>
+        <select id="dpi">
+          <option value="110">110 ppp (rápido)</option>
+          <option value="150" selected>150 ppp</option>
+          <option value="200">200 ppp</option>
+          <option value="300">300 ppp (lento)</option>
+        </select>
+      </div>
+      <div>
+        <label for="idioma">Idioma del OCR</label>
+        <select id="idioma">
+          <option value="spa" selected>Español</option>
+          <option value="spa+eng">Español + inglés</option>
+          <option value="eng">Inglés</option>
+        </select>
+      </div>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <label class="chk"><input type="checkbox" id="ocr" checked> Reconocer texto con OCR</label>
+      <label class="chk"><input type="checkbox" id="saltarOcr" checked> Saltar el OCR si el PDF ya trae texto</label>
+      <label class="chk"><input type="checkbox" id="imagen" checked> Analizar la imagen (líneas de firma, tinta, inclinación)</label>
+      <label class="chk"><input type="checkbox" id="vistas" checked> Guardar vistas para revisar (máx. 80)</label>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button id="correr">Medir</button>
+      <button id="parar" class="ghost" disabled>Parar</button>
+      <button id="expJson" class="ghost" disabled>Exportar medición (JSON)</button>
+      <label class="chk" style="margin-left:auto"><input type="checkbox" id="conTexto"> Incluir el texto leído en la exportación</label>
+    </div>
+    <div class="bar"><i id="prog"></i></div>
+    <p class="hint">Todo corre aquí: el PDF nunca sale de esta computadora. De internet solo se descargan las librerías (pdf.js, Tesseract) y el idioma del OCR la primera vez.</p>
+    <div id="log" style="margin-top:10px">Listo.</div>
+  </div>
+</section>
+
+<section>
+  <h2>2 · Resumen</h2>
+  <div class="body"><div class="cards" id="tarjetas"><div class="card"><div class="k">Sin medición</div><div class="v">—</div><div class="n">Elige un PDF y presiona Medir.</div></div></div></div>
+</section>
+
+<section>
+  <h2>3 · Página por página</h2>
+  <div class="tw"><table>
+    <thead><tr>
+      <th class="num">Pág.</th><th>Clase</th><th class="num">Texto PDF</th><th class="num">Render</th><th class="num">OCR</th>
+      <th class="num">Total</th><th>Órdenes leídas</th><th class="num">Montos</th><th class="num">Líneas</th><th class="num">Firmas</th>
+      <th class="num">Tinta</th><th class="num">Color</th><th class="num">Inclin.</th>
+    </tr></thead>
+    <tbody id="filas"></tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>4 · Revisar una página</h2>
+  <div class="body">
+    <p class="hint" style="margin-top:0">Haz clic en una fila de la tabla. En la vista, las líneas detectadas van en rojo y la franja donde se busca la firma en azul (llena = con tinta suficiente para contar como firma).</p>
+    <div class="split" style="margin-top:12px">
+      <div><canvas id="lienzo"></canvas></div>
+      <div><pre class="txt" id="texto">—</pre></div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.0/tesseract.min.js"></script>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+const $ = s => document.querySelector(s);
+const logEl = $('#log');
+const log = m => { logEl.textContent += '\n' + m; logEl.scrollTop = logEl.scrollHeight; };
+const ms = n => n == null ? '' : (n >= 1000 ? (n/1000).toFixed(2) + ' s' : Math.round(n) + ' ms');
+const pct = n => n == null ? '' : (n*100).toFixed(1) + '%';
+
+let paginas = [], vistas = new Map(), cancelar = false, worker = null, workerIdioma = null;
+
+/* ---------- lectura de candidatos en el texto ---------- */
+const RE_OP      = /\b(?:19|71)\d{8}(?:\s*-\s*A\b)?/g;
+const RE_10DIG   = /\b\d{10}\b/g;
+const RE_MONTO   = /\b\d{1,3}(?:[,  ]\d{3})*[.,]\d{2}\b/g;
+const RE_FECHA   = /\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b/g;
+const PAL_OP     = /orden(?:es)?\s+de\s+pa[gq]o/i;
+const PAL_FIRMA  = /(elabor|revis|autoriz|recib|visto\s+bueno|nombre\s+y\s+firma)/i;
+
+function leerCandidatos(txt){
+  const limpio = (txt || '').replace(/\s+/g, ' ');
+  const ops = [...new Set((limpio.match(RE_OP) || []).map(s => s.replace(/\s*-\s*A$/, '-A').replace(/\s+/g, '')))];
+  const dig = [...new Set(limpio.match(RE_10DIG) || [])];
+  return {
+    ops,
+    otros10: dig.filter(d => !ops.some(o => o.startsWith(d))),
+    montos: [...new Set(limpio.match(RE_MONTO) || [])],
+    fechas: [...new Set(limpio.match(RE_FECHA) || [])],
+    diceOP: PAL_OP.test(limpio),
+    diceFirma: PAL_FIRMA.test(limpio)
+  };
+}
+
+function clasificar(c, img){
+  let p = 0;
+  if (c.diceOP) p += 2;
+  if (c.ops.length) p += 2;
+  if (c.diceFirma) p += 1;
+  if (c.montos.length >= 2) p += 1;
+  if (img && img.firmas >= 2) p += 1;
+  if (p >= 4) return 'orden';
+  if (p >= 2) return 'dudosa';
+  return 'soporte';
+}
+
+/* ---------- análisis de la imagen ---------- */
+function gris(ctx, w, h, anchoDest){
+  const esc = Math.min(1, anchoDest / w);
+  const W = Math.max(60, Math.round(w * esc)), H = Math.max(60, Math.round(h * esc));
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const cx = c.getContext('2d', { willReadFrequently: true });
+  cx.drawImage(ctx.canvas, 0, 0, W, H);
+  const d = cx.getImageData(0, 0, W, H).data;
+  const g = new Uint8Array(W * H); let colorosos = 0;
+  for (let i = 0, j = 0; j < g.length; i += 4, j++){
+    const r = d[i], vv = d[i+1], b = d[i+2];
+    g[j] = (r * 0.299 + vv * 0.587 + b * 0.114) | 0;
+    const mx = Math.max(r, vv, b), mn = Math.min(r, vv, b);
+    if (mx - mn > 40 && mx > 60) colorosos++;
+  }
+  return { g, W, H, color: colorosos / g.length };
+}
+
+function otsu(g){
+  const h = new Array(256).fill(0);
+  for (let i = 0; i < g.length; i++) h[g[i]]++;
+  const tot = g.length; let sum = 0;
+  for (let i = 0; i < 256; i++) sum += i * h[i];
+  let sumB = 0, wB = 0, mejor = 0, umbral = 128;
+  for (let t = 0; t < 256; t++){
+    wB += h[t]; if (!wB) continue;
+    const wF = tot - wB; if (!wF) break;
+    sumB += t * h[t];
+    const d = wB / tot * (wF / tot) * Math.pow(sumB / wB - (sum - sumB) / wF, 2);
+    if (d > mejor){ mejor = d; umbral = t; }
+  }
+  return umbral;
+}
+
+function inclinacion(g, W, H, umbral){
+  let mejorAng = 0, mejorPunt = -1;
+  for (let a = -3; a <= 3.0001; a += 0.25){
+    const t = Math.tan(a * Math.PI / 180); let punt = 0;
+    for (let y = 0; y < H; y++){
+      let n = 0;
+      for (let x = 0; x < W; x += 2){
+        const yy = y + Math.round((x - W / 2) * t);
+        if (yy >= 0 && yy < H && g[yy * W + x] < umbral) n++;
+      }
+      punt += n * n;
+    }
+    if (punt > mejorPunt){ mejorPunt = punt; mejorAng = a; }
+  }
+  return mejorAng;
+}
+
+function enderezar(g, W, H, ang){
+  const t = Math.tan(ang * Math.PI / 180);
+  if (Math.abs(t) < 0.002) return g;
+  const d = new Uint8Array(W * H).fill(255);
+  for (let x = 0; x < W; x++){
+    const off = Math.round((x - W / 2) * t);
+    for (let y = 0; y < H; y++){
+      const yy = y + off;
+      if (yy >= 0 && yy < H) d[y * W + x] = g[yy * W + x];
+    }
+  }
+  return d;
+}
+
+function analizarImagen(ctx, w, h){
+  const { g, W, H, color } = gris(ctx, w, h, 1000);
+  const umbral = otsu(g);
+  let oscuros = 0;
+  for (let i = 0; i < g.length; i++) if (g[i] < umbral) oscuros++;
+
+  // el escaneo viene inclinado: se endereza antes de buscar líneas, si no, ninguna cae en una sola fila
+  const inclin = inclinacion(g, W, H, umbral);
+  const gr = enderezar(g, W, H, inclin);
+  // enderezar redondea a píxel entero y parte las rayas en escalones: se engrosan 1 píxel arriba y abajo
+  const grd = new Uint8Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++){
+    const i = y * W + x;
+    let v = gr[i];
+    if (y > 0) v = Math.min(v, gr[i - W]);
+    if (y < H - 1) v = Math.min(v, gr[i + W]);
+    grd[x + y * W] = v;
+  }
+
+  // líneas horizontales: todas las corridas largas de píxeles oscuros de cada fila
+  // (importa que sean todas: las tres líneas de firma están a la misma altura)
+  const minLargo = Math.round(W * 0.14), tolHueco = 2, minSolidez = 0.8;
+  const abiertas = [], lineas = [];
+  for (let y = 0; y < H; y++){
+    const corridas = [];
+    let ini = -1, ultimo = -1, oscurosRun = 0;
+    for (let x = 0; x < W; x++){
+      if (grd[y * W + x] < umbral){ if (ini < 0) ini = x; ultimo = x; oscurosRun++; }
+      else if (ini >= 0 && x - ultimo > tolHueco){ corridas.push([ini, ultimo, oscurosRun]); ini = -1; oscurosRun = 0; }
+    }
+    if (ini >= 0) corridas.push([ini, ultimo, oscurosRun]);
+    for (const [x0, x1, osc] of corridas){
+      if (x1 - x0 < minLargo) continue;
+      // una raya está casi llena de tinta; un renglón de texto tiene huecos entre letras
+      const solidez = osc / (x1 - x0 + 1);
+      if (solidez < minSolidez) continue;
+      let L = null;
+      for (const A of abiertas){
+        if (y - A.y2 > 3) continue;
+        const sol = Math.min(A.x1, x1) - Math.max(A.x0, x0);
+        if (sol > 0.5 * Math.min(A.x1 - A.x0, x1 - x0)){ L = A; break; }
+      }
+      if (L){ L.y2 = y; L.x0 = Math.min(L.x0, x0); L.x1 = Math.max(L.x1, x1); L.largo = L.x1 - L.x0; L.solidez = Math.max(L.solidez, solidez); }
+      else { const N = { y1: y, y2: y, x0, x1, largo: x1 - x0, solidez }; abiertas.push(N); lineas.push(N); }
+    }
+    for (let i = abiertas.length - 1; i >= 0; i--) if (y - abiertas[i].y2 > 3) abiertas.splice(i, 1);
+  }
+
+  // ¿hay firma sobre la línea? tinta en la franja de arriba
+  const alto = Math.max(12, Math.round(H * 0.035));
+  const tinta = oscuros / g.length;
+  // hay firma si la franja de arriba tiene bastante más tinta que la página en promedio
+  const umbralFirma = Math.max(0.02, tinta * 2.2);
+  for (const L of lineas){
+    const yA = Math.max(0, L.y1 - alto), yB = Math.max(0, L.y1 - 2);
+    let n = 0, tot = 0;
+    for (let y = yA; y < yB; y++) for (let x = L.x0; x < L.x1; x++){ tot++; if (gr[y * W + x] < umbral) n++; }
+    L.franja = { yA, yB, densidad: tot ? n / tot : 0 };
+    L.firma = L.franja.densidad >= umbralFirma;
+  }
+  const largas = lineas.filter(L => L.largo >= W * 0.14 && L.largo <= W * 0.62 && L.y2 - L.y1 <= 7);
+  return {
+    W, H, umbral, color, umbralFirma,
+    tinta,
+    lineas, lineasFirma: largas.length,
+    firmas: largas.filter(L => L.firma).length,
+    lineasAbajo: largas.filter(L => L.y1 > H * 0.55).length,
+    firmasAbajo: largas.filter(L => L.y1 > H * 0.55 && L.firma).length,
+    inclin
+  };
+}
+
+/* ---------- OCR ---------- */
+async function darWorker(idioma){
+  if (worker && workerIdioma === idioma) return worker;
+  if (worker){ await worker.terminate(); worker = null; }
+  log('Preparando OCR (' + idioma + ')… la primera vez baja el idioma, tarda.');
+  worker = await Tesseract.createWorker(idioma, 1, {
+    logger: m => { if (m.status && m.progress === 1) log('  OCR: ' + m.status); }
+  });
+  workerIdioma = idioma;
+  return worker;
+}
+
+/* ---------- corrida ---------- */
+async function medir(){
+  const f = window.__archivoPrueba || $('#arch').files[0]; // el hook permite probar la página automáticamente
+  if (!f){ log('Falta elegir un PDF.'); return; }
+  cancelar = false;
+  $('#correr').disabled = true; $('#parar').disabled = false; $('#expJson').disabled = true;
+  paginas = []; vistas.clear(); $('#filas').innerHTML = ''; $('#texto').textContent = '—';
+  logEl.textContent = 'Archivo: ' + f.name + '  (' + (f.size / 1048576).toFixed(1) + ' MB)';
+
+  const dpi = +$('#dpi').value, escala = dpi / 72;
+  const usarOcr = $('#ocr').checked, saltar = $('#saltarOcr').checked;
+  const conImagen = $('#imagen').checked, guardar = $('#vistas').checked;
+  const idioma = $('#idioma').value;
+
+  const t0 = performance.now();
+  const buf = await f.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  const tAbrir = performance.now() - t0;
+  log('Abierto en ' + ms(tAbrir) + ' · ' + pdf.numPages + ' páginas.');
+
+  const desde = Math.max(1, +$('#desde').value);
+  const hasta = Math.min(pdf.numPages, +$('#hasta').value || pdf.numPages);
+  if (usarOcr) await darWorker(idioma);
+
+  const lienzo = document.createElement('canvas');
+  const ctx = lienzo.getContext('2d', { willReadFrequently: true });
+
+  for (let p = desde; p <= hasta; p++){
+    if (cancelar){ log('Detenido por ti en la página ' + p + '.'); break; }
+    const r = { pagina: p };
+    const page = await pdf.getPage(p);
+
+    let t = performance.now();
+    const tc = await page.getTextContent();
+    const txtPdf = tc.items.map(i => i.str).join(' ').trim();
+    r.tTexto = performance.now() - t;
+    r.charsPdf = txtPdf.length;
+
+    const vp = page.getViewport({ scale: escala });
+    lienzo.width = Math.round(vp.width); lienzo.height = Math.round(vp.height);
+    r.px = lienzo.width + '×' + lienzo.height;
+    t = performance.now();
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, lienzo.width, lienzo.height);
+    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+    r.tRender = performance.now() - t;
+
+    if (conImagen){ t = performance.now(); r.img = analizarImagen(ctx, lienzo.width, lienzo.height); r.tImagen = performance.now() - t; }
+
+    r.fuente = 'pdf';
+    let texto = txtPdf;
+    if (usarOcr && !(saltar && r.charsPdf > 80)){
+      t = performance.now();
+      const { data } = await worker.recognize(lienzo);
+      r.tOcr = performance.now() - t;
+      r.conf = data.confidence;
+      texto = data.text; r.fuente = 'ocr';
+    }
+    r.chars = texto.length;
+    r.cand = leerCandidatos(texto);
+    r.clase = clasificar(r.cand, r.img);
+    r.total = (r.tTexto || 0) + (r.tRender || 0) + (r.tImagen || 0) + (r.tOcr || 0);
+    r.texto = texto;
+
+    if (guardar && vistas.size < 80){
+      const mini = document.createElement('canvas');
+      const esc = Math.min(1, 900 / lienzo.width);
+      mini.width = Math.round(lienzo.width * esc); mini.height = Math.round(lienzo.height * esc);
+      mini.getContext('2d').drawImage(lienzo, 0, 0, mini.width, mini.height);
+      vistas.set(p, mini.toDataURL('image/jpeg', 0.72));
+    }
+    paginas.push(r);
+    pintarFila(r);
+    $('#prog').style.width = ((p - desde + 1) / (hasta - desde + 1) * 100) + '%';
+    resumir(pdf.numPages, tAbrir);
+    await new Promise(res => setTimeout(res, 0));
+  }
+
+  log('Listo: ' + paginas.length + ' páginas medidas.');
+  $('#correr').disabled = false; $('#parar').disabled = true; $('#expJson').disabled = paginas.length === 0;
+}
+
+/* ---------- tabla, resumen, vista ---------- */
+function pintarFila(r){
+  const tr = document.createElement('tr');
+  const cls = r.clase === 'orden' ? 'op' : r.clase === 'soporte' ? 'sop' : 'dud';
+  const nom = r.clase === 'orden' ? 'Orden' : r.clase === 'soporte' ? 'Soporte' : 'Dudosa';
+  const i = r.img || {};
+  tr.innerHTML =
+    '<td class="num">' + r.pagina + '</td>' +
+    '<td><span class="tag ' + cls + '">' + nom + '</span></td>' +
+    '<td class="num">' + r.charsPdf + '</td>' +
+    '<td class="num">' + ms(r.tRender) + '</td>' +
+    '<td class="num">' + (r.tOcr ? ms(r.tOcr) : '—') + '</td>' +
+    '<td class="num">' + ms(r.total) + '</td>' +
+    '<td>' + (r.cand.ops.join(' ') || '<span style="color:var(--muted)">—</span>') + '</td>' +
+    '<td class="num">' + r.cand.montos.length + '</td>' +
+    '<td class="num">' + (i.lineasFirma ?? '') + '</td>' +
+    '<td class="num">' + (i.firmas ?? '') + '</td>' +
+    '<td class="num">' + pct(i.tinta) + '</td>' +
+    '<td class="num">' + pct(i.color) + '</td>' +
+    '<td class="num">' + (i.inclin != null ? i.inclin.toFixed(2) + '°' : '') + '</td>';
+  tr.onclick = () => { document.querySelectorAll('#filas tr.sel').forEach(e => e.classList.remove('sel')); tr.classList.add('sel'); verPagina(r); };
+  $('#filas').appendChild(tr);
+}
+
+function tarjeta(k, v, n){ return '<div class="card"><div class="k">' + k + '</div><div class="v">' + v + '</div><div class="n">' + (n || '') + '</div></div>'; }
+
+function resumir(totPag, tAbrir){
+  const n = paginas.length; if (!n) return;
+  const prom = f => paginas.reduce((a, r) => a + (f(r) || 0), 0) / n;
+  const pTotal = prom(r => r.total);
+  const conTextoPdf = paginas.filter(r => r.charsPdf > 80).length;
+  const conOcr = paginas.filter(r => r.tOcr).length;
+  const ordenes = paginas.filter(r => r.clase === 'orden').length;
+  const leidas = paginas.filter(r => r.cand.ops.length).length;
+  const conf = paginas.filter(r => r.conf != null);
+  const proy = k => { const s = pTotal * k / 1000; return s < 90 ? s.toFixed(0) + ' s' : (s / 60).toFixed(1) + ' min'; };
+  $('#tarjetas').innerHTML =
+    tarjeta('Páginas medidas', n, 'de ' + totPag + ' · abrir el PDF: ' + ms(tAbrir)) +
+    tarjeta('Tiempo por página', ms(pTotal), 'render ' + ms(prom(r => r.tRender)) + (conOcr ? ' · OCR ' + ms(paginas.reduce((a, r) => a + (r.tOcr || 0), 0) / Math.max(1, conOcr)) : '')) +
+    tarjeta('Proyección', proy(500), '500 págs. · 3,000 págs.: ' + proy(3000)) +
+    tarjeta('Ya traen texto', conTextoPdf + ' / ' + n, conTextoPdf === n ? 'no haría falta OCR' : conTextoPdf ? 'mixto: OCR solo donde falta' : 'escaneo puro: OCR obligatorio') +
+    tarjeta('Número de orden leído', leidas + ' / ' + n, 'páginas con al menos una orden 19…/71…') +
+    tarjeta('Clasificadas como orden', ordenes + ' / ' + n, 'el resto: soporte o dudosa') +
+    tarjeta('Firmas detectadas', paginas.reduce((a, r) => a + (r.img ? r.img.firmas : 0), 0), 'sobre ' + paginas.reduce((a, r) => a + (r.img ? r.img.lineasFirma : 0), 0) + ' líneas de firma') +
+    (conf.length ? tarjeta('Confianza del OCR', (conf.reduce((a, r) => a + r.conf, 0) / conf.length).toFixed(0) + '%', 'promedio que reporta Tesseract') : '');
+}
+
+function verPagina(r){
+  const c = $('#lienzo'), cx = c.getContext('2d');
+  const url = vistas.get(r.pagina);
+  const t = r.img ? Math.tan(r.img.inclin * Math.PI / 180) : 0;
+  const dibujar = (w, h, img) => {
+    c.width = w; c.height = h;
+    cx.setTransform(1, 0, 0, 1, 0, 0);
+    cx.fillStyle = '#fff'; cx.fillRect(0, 0, w, h);
+    if (img){ cx.setTransform(1, -t, 0, 1, 0, t * w / 2); cx.drawImage(img, 0, 0, w, h); cx.setTransform(1, 0, 0, 1, 0, 0); }
+    if (r.img){
+      const k = w / r.img.W;
+      for (const L of r.img.lineas){
+        const arriba = (L.franja.yB - L.franja.yA) * k;
+        cx.fillStyle = L.firma ? 'rgba(51,70,168,.22)' : 'rgba(51,70,168,.07)';
+        cx.fillRect(L.x0 * k, L.franja.yA * k, (L.x1 - L.x0) * k, arriba);
+        cx.strokeStyle = 'rgba(176,40,28,.85)'; cx.lineWidth = 2;
+        cx.beginPath(); cx.moveTo(L.x0 * k, L.y1 * k); cx.lineTo(L.x1 * k, L.y1 * k); cx.stroke();
+      }
+    }
+  };
+  if (url){ const im = new Image(); im.onload = () => dibujar(im.width, im.height, im); im.src = url; }
+  else if (r.img) dibujar(r.img.W, r.img.H, null);
+  const i = r.img || {};
+  $('#texto').textContent =
+    'Página ' + r.pagina + '  ·  ' + r.px + ' px  ·  texto de: ' + (r.fuente === 'ocr' ? 'OCR' : 'capa del PDF') +
+    (r.conf != null ? '  ·  confianza ' + r.conf.toFixed(0) + '%' : '') + '\n' +
+    'Órdenes: ' + (r.cand.ops.join(', ') || '—') + '\n' +
+    'Otros números de 10 dígitos: ' + (r.cand.otros10.slice(0, 12).join(', ') || '—') + '\n' +
+    'Montos: ' + (r.cand.montos.slice(0, 14).join(', ') || '—') + '\n' +
+    'Fechas: ' + (r.cand.fechas.slice(0, 10).join(', ') || '—') + '\n' +
+    'Imagen: tinta ' + pct(i.tinta) + ' · color ' + pct(i.color) + ' · inclinación ' + (i.inclin != null ? i.inclin.toFixed(2) + '°' : '—') +
+    ' · líneas de firma ' + (i.lineasFirma ?? '—') + ' (con tinta: ' + (i.firmas ?? '—') + ')\n' +
+    '\n---- texto leído ----\n' + (r.texto || '');
+}
+
+function exportar(){
+  const conTexto = $('#conTexto').checked;
+  const datos = {
+    fecha: new Date().toISOString(),
+    ajustes: { dpi: +$('#dpi').value, idioma: $('#idioma').value, ocr: $('#ocr').checked, saltarSiHayTexto: $('#saltarOcr').checked },
+    navegador: navigator.userAgent,
+    paginas: paginas.map(r => ({
+      pagina: r.pagina, clase: r.clase, px: r.px, charsPdf: r.charsPdf, chars: r.chars, fuente: r.fuente, conf: r.conf,
+      tTexto: r.tTexto, tRender: r.tRender, tImagen: r.tImagen, tOcr: r.tOcr, total: r.total,
+      nOps: r.cand.ops.length, nMontos: r.cand.montos.length, nFechas: r.cand.fechas.length,
+      diceOP: r.cand.diceOP, diceFirma: r.cand.diceFirma,
+      img: r.img ? { tinta: r.img.tinta, color: r.img.color, inclin: r.img.inclin, lineasFirma: r.img.lineasFirma, firmas: r.img.firmas, umbral: r.img.umbral } : null,
+      ops: conTexto ? r.cand.ops : undefined,
+      texto: conTexto ? r.texto : undefined
+    }))
+  };
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(datos, null, 2)], { type: 'application/json' }));
+  a.download = 'fase0-medicion.json'; a.click();
+  log('Exportado' + (conTexto ? ' (incluye el texto leído: trátalo como documento sensible).' : ' (solo métricas, sin texto).'));
+}
+
+$('#correr').onclick = () => medir().catch(e => { log('Error: ' + e.message); console.error(e); $('#correr').disabled = false; $('#parar').disabled = true; });
+$('#parar').onclick = () => { cancelar = true; };
+$('#expJson').onclick = exportar;
+$('#arch').onchange = () => { const f = $('#arch').files[0]; if (f) log('Elegido: ' + f.name); };
+</script>
+</body>
+</html>

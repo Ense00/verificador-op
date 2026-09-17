@@ -211,6 +211,27 @@ Acordadas durante el diseño del boceto. No son opcionales: son parte de lo que 
 - **Mantenerla al día:** todo cambio de interfaz o de reglas se refleja también en la guía.
 - Aprobada por el usuario tal cual (2026-09-16): "Está muy bien, déjalo así". No hace falta el Word descargable.
 
+## Fase 0 — medición (herramienta lista)
+
+`fase0/medidor.html` (se abre con `fase0/servir.sh`) mide un PDF real en el
+navegador y reporta, página por página: si ya trae texto, tiempo de render y de
+OCR, número de orden leído (incluido `-A`), montos y fechas, clase de página
+(orden / soporte / dudosa), líneas de firma y cuáles traen tinta, tinta, color e
+inclinación. Todo local; el PDF no se sube a ningún lado. Detalle en
+[`fase0/README.md`](../fase0/README.md).
+
+Cómo detecta las firmas: gris → Otsu → estimar inclinación (−3° a 3°) →
+**enderezar** → buscar en cada fila todas las corridas oscuras largas y sólidas →
+descartar bordes de tabla (muy largas) → medir la tinta de la franja de arriba de
+cada línea. Enderezar no es opcional: una raya inclinada 1.5° no cae en una sola
+fila de píxeles y no se detecta ninguna.
+
+Probado con un PDF sintético (`fase0/generar-pdf-de-prueba.py`): acierta las 7
+páginas en clase, número de orden, líneas y firmas; ~1.2 s por página a 150 ppp
+(render 170 ms + OCR 900 ms) en la UHD 630, o sea ~60 min por 3,000 páginas. Es
+un escaneo limpio: con papel real hay que esperar peor, y ese es justo el número
+que falta medir.
+
 ## Pendiente
 
 Estado al 2026-09-16 (v0.8.0), en pausa hasta tener un PDF de órdenes:
@@ -221,6 +242,11 @@ Estado al 2026-09-16 (v0.8.0), en pausa hasta tener un PDF de órdenes:
 
 Siguiente paso:
 
-1. **Conseguir un PDF de ejemplo tal cual sale de la plataforma**, con datos sensibles tapados pero zonas de firmas y sellos visibles. Idealmente: varias órdenes en un archivo, páginas de soporte, una orden de 3 firmas, una de 2, una sin firmas si hay, una con varios montos, una de varias hojas, una con sello sobre firma, una con folio arriba y una ADEFA (`-A`).
-2. **Fase 0 (medición):** con ese PDF medir en el navegador: separación orden/soporte, lectura del número (incluido `-A`), ejercicio y montos, conteo de firmas, detección de sellos, enderezado y tiempo por página.
-3. Con los números de la fase 0, decidir cómo construir la verificación real (página web vs. programa instalable si el navegador se queda corto).
+1. **Pasar un PDF real por `fase0/medidor.html`** y revisar: cuántas páginas
+   llevan bien el número de orden, cuántas se clasifican bien como orden o
+   soporte, si el conteo de firmas coincide con lo que se ve, y el tiempo por
+   página.
+2. **Ajustar los umbrales** con esos resultados (largo mínimo de línea, solidez,
+   tinta de la franja de firma, resolución de render).
+3. Con esos números, decidir cómo construir la verificación real (página web vs.
+   programa instalable si el navegador se queda corto).
