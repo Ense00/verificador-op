@@ -2,6 +2,20 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.11.0 — 2026-09-17
+
+- El medidor lee ahora **todos los campos de la orden**, cada uno en su zona: monto
+  (tabla de importes y totales), fecha de expedición (de ahí el ejercicio) y el
+  `Página X / Y` del pie.
+- Validado contra el PDF real, cuyas siete órdenes el usuario confirmó completas y
+  de una sola página: **7 de 7 en número, monto, ejercicio y 3 de 3 firmas**, y
+  ningún falso positivo en las 16 páginas de soporte. Los montos se cotejaron
+  contra el listado de la primera página del propio PDF.
+- El `Página X / Y` solo se lee en 2 de 7: queda como dato extra. Para detectar
+  órdenes de varias hojas basta con que dos páginas de orden seguidas traigan el
+  mismo número.
+- Con todos los campos son 0.95 s por página: 3,000 páginas en ~47 minutos.
+
 ## v0.10.0 — 2026-09-17
 
 Fase 0 terminada: el medidor se rehízo con lo aprendido de un PDF real de la

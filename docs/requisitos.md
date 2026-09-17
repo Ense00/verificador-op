@@ -250,15 +250,31 @@ Medido en un PDF real de 23 páginas (no vive en el repo):
 5. **El documento base decide.** Cada candidato se confirma contra la lista de órdenes solicitadas. Si coincide más de uno (por ejemplo una orden y su `-A`), no se adivina: queda ambiguo, para revisar.
 6. **Firmas por tinta de color** en las tres celdas del pie: la firma es de pluma, el nombre impreso es negro. Umbral de partida 0.8 % de píxeles con color por celda.
 
+### Los demás campos
+
+Cada campo vive en su zona y se lee igual que el número: recorte chico, sin color y
+con la lista de caracteres que le toca.
+
+- **Monto:** banda de la tabla de importes y los totales. Se toma el mayor (el neto a pagar) y se guarda la lista completa, porque la regla permite que el monto pedido esté en una línea o en el total.
+- **Fecha:** caja de `Fecha de expedición`, arriba a la derecha. Lo que importa es el **año**: en una de las siete el OCR erró el día (`65/06/2021`) y el año salió bien en todas.
+- **Hojas:** el `Página X / Y` del pie solo se leyó en 2 de 7 (renglón chico y hoja chueca). **No hace falta:** si dos páginas de orden seguidas traen el mismo número, es una orden de varias hojas. Se deja como dato extra, no como base de la regla.
+
 ### Resultados
+
+El usuario confirmó que las siete órdenes de ese PDF son de **una página y están
+completas** (número, montos, 3 firmas): sirve como caso de prueba con respuesta
+conocida, y el resultado esperado es **Correcto en las siete**.
 
 | Medida | Resultado |
 |---|---|
 | Páginas clasificadas como orden | 7 de 7, sin falsos positivos entre 23 |
-| Número de orden confirmado | **7 de 7** (6 al primer intento) |
-| Celdas de firma con tinta | 21 de 21 |
-| Tiempo por página | **0.55 s** (render 0.20 s + encabezado 0.14 s + número + imagen) |
-| Proyección | 500 páginas ≈ 5 min · **3,000 páginas ≈ 27 min** |
+| Número de orden confirmado | **7 de 7** (5–6 al primer intento) |
+| Monto correcto | **7 de 7**, cotejado contra el listado de la primera página |
+| Ejercicio (año de la fecha) | **7 de 7** |
+| Firmas detectadas | **3 de 3 en las siete** (21 celdas de 21) |
+| `Página X / Y` | 2 de 7 (no se usa; ver arriba) |
+| Tiempo por página | **0.95 s** con todos los campos (0.55 s si solo se clasifica y se lee el número) |
+| Proyección | 500 páginas ≈ 8 min · **3,000 páginas ≈ 47 min** |
 
 Con un PDF sintético del mismo formato (`fase0/generar-pdf-de-prueba.py`) el conteo
 de firmas acierta en las seis órdenes (3, 2, 1, 0, 3 y 2 firmas) y el número sale
