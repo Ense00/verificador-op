@@ -20,7 +20,8 @@ Se descarga una carpeta de PDFs **escaneados** con Órdenes de Pago (OP). Un PDF
 - La última fila puede ser un **total con fórmula** sin orden de pago: se ignora toda fila sin orden de pago.
 - Puede haber **montos negativos**: se verifican y se marcan como *Revisar* ("Monto negativo en el documento base").
 - Una orden de pago puede repetirse en varias filas con montos distintos.
-- Hay series de orden que empiezan con `19` y con `71`.
+- **Formato del número de orden (medido en dos documentos base reales, 2026-09-17): siempre 10 dígitos.** 73 de 73 órdenes en un archivo y 481 de 481 en otro. Las series observadas son varias (`19` la mayoría, también `51`, `71` y `50`): **no se filtra por prefijo**, un número de orden es cualquier grupo de 10 dígitos, con `-A` opcional.
+- En esos dos archivos no apareció ninguna orden con sufijo `-A`.
 - Pueden aparecer órdenes **con y sin** sufijo `-A` (ADEFA).
 - **Ejercicio = año de la `Fecha Contable`** de cada fila.
 - **Las columnas pueden cambiar de posición, pero no de nombre:** se localizan por el nombre del encabezado (sin distinguir mayúsculas, acentos ni espacios extra).

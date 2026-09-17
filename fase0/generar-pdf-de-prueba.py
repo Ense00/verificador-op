@@ -95,6 +95,7 @@ pgs=[
  pagina_soporte(2),
  pagina_op("7100000123-A",["18,750.00"],3),
  pagina_op("1900000004",["6,400.00"],3,folio_es_op=True),  # aquí el folio ES la orden
+ pagina_op("5100000055",["3,900.00"],2),  # otra serie: no todo empieza en 19
 ]
 import os
 os.chdir(os.path.dirname(os.path.abspath(__file__)))

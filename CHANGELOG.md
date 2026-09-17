@@ -2,6 +2,16 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.9.2 — 2026-09-17
+
+- **El número de orden ya no se filtra por prefijo.** Medido en dos documentos
+  base reales: las órdenes son **siempre de 10 dígitos** (73/73 y 481/481), pero
+  las series son varias (`19` la mayoría, también `51`, `71` y `50`). Antes el
+  medidor solo reconocía `19…` y `71…` y se le habrían escapado series enteras.
+- El medidor reporta también los números de 8 a 12 dígitos que no son de 10, que
+  son los que delatan al OCR cuando pierde o inventa un dígito.
+- El PDF de prueba trae una orden de la serie `51`.
+
 ## v0.9.1 — 2026-09-17
 
 - **El folio ya no se ignora** (aclaración del usuario): hay órdenes que usan el

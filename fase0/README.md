@@ -23,7 +23,9 @@ la primera vez.
 |---|---|
 | Si la página ya trae texto | Si el PDF no es puro escaneo, el OCR sobra y todo es 10× más rápido |
 | Tiempo de render y de OCR | Saber si 3,000 páginas se pueden verificar en el navegador o hace falta un programa instalable |
-| Número de orden leído (incluido `-A`) | Es lo mínimo indispensable: sin número no hay verificación |
+| Número de orden leído (incluido `-A`) | Es lo mínimo indispensable: sin número no hay verificación. Un número de orden es cualquier grupo de **10 dígitos**: en los documentos base reales todas lo son, y las series son varias (19, 50, 51, 71) |
+| Folio | Hay órdenes que usan el folio como número de orden; se muestra y se marca si tiene forma de orden |
+| Números de 8 a 12 dígitos | Delatan al OCR cuando pierde o inventa un dígito |
 | Montos y fechas leídos | Para cotejar contra el documento base |
 | Clase de página (orden / soporte / dudosa) | Los PDF mezclan órdenes con facturas y anexos |
 | Líneas de firma y cuáles traen tinta | El conteo de firmas (3 esperadas) es la regla más delicada |
