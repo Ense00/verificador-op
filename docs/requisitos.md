@@ -282,9 +282,42 @@ en 5 de 6; falla la orden que lleva una raya de pluma gruesa encima de los dígi
 que queda como "no se leyó" → Revisar, nunca adivinado.
 
 **Decisión: la página web alcanza.** 27 minutos por 3,000 páginas en esta máquina
-(Intel UHD 630, sin GPU dedicada) no justifica un programa instalable. La clave fue
-dejar de hacer OCR de la página completa (2.9 s por página, y ni así leía el número)
-y leer solo dos zonas chicas.
+(Intel i5-9500, gráficos integrados) no justifica un programa instalable. La clave
+fue dejar de hacer OCR de la página completa (2.9 s por página, y ni así leía el
+número) y leer solo dos zonas chicas.
+
+### ¿Un programa instalable sería más rápido? (medido el 2026-09-17)
+
+| Parte | Navegador | Nativo | Diferencia |
+|---|---|---|---|
+| Decodificar y escalar la página | 193 ms (pdf.js) | 103 ms (C, medido con Pillow sobre el JPEG del propio PDF) | 1.9× |
+| OCR de las zonas, 1 hilo | 235 ms | no medido (falta Tesseract nativo instalado) | ~1.5× estimado |
+
+Lo que sí cambia todo es **usar los seis núcleos**, y el navegador puede hacerlo con
+Web Workers casi tan bien como un programa nativo:
+
+| Hilos de OCR en el navegador | ms por página | Aceleración |
+|---|---|---|
+| 1 | 235 | — |
+| 2 | 122 | 1.93× |
+| 4 | 70 | 3.36× |
+| 6 | 58 | **4.05×** |
+
+Con eso, el render (193 ms, hoy en el hilo principal) pasa a ser el cuello de botella,
+y también se puede repartir en trabajadores.
+
+Proyección para 3,000 páginas con todos los campos:
+
+- Hoy, un solo hilo: **47 min**
+- Navegador con 6 trabajadores de OCR: **~20 min**
+- Navegador con OCR y render repartidos: **~12 min**
+- Programa instalable con 6 hilos: **~5–8 min** (estimado: el OCR nativo es ~1.5× más
+  rápido que el WASM y el render 1.9×, ya medido)
+
+**Conclusión: sí sería más rápido, más o menos el doble que una versión web bien
+hecha, pero la web todavía no gasta el paralelismo que ya tiene disponible.** Primero
+hay que usar los trabajadores; y un programa instalable pide permiso de instalación en
+la computadora del trabajo, que es un costo que este ahorro no paga.
 
 ## Pendiente
 

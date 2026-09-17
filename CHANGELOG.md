@@ -2,6 +2,15 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## Sin versión — 2026-09-17
+
+- Medido si conviene un programa instalable en vez de la página: el navegador
+  reparte el OCR en los seis núcleos casi perfecto (4.05× con 6 trabajadores) y
+  solo pierde ~1.9× contra código nativo al decodificar la página. Un programa
+  instalable saldría más o menos el doble de rápido que una web bien hecha, pero
+  la web todavía no usa el paralelismo que ya tiene. Detalle en
+  `docs/requisitos.md` § ¿Un programa instalable sería más rápido?
+
 ## v0.11.0 — 2026-09-17
 
 - El medidor lee ahora **todos los campos de la orden**, cada uno en su zona: monto
