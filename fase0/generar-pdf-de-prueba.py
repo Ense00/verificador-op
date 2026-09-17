@@ -141,8 +141,8 @@ def pagina_soporte(tipo, n):
 
 pgs = []
 ordenes = [
-    ("1900000001", ["12,500.00", "3,480.50"], 3, None, False, True),   # sello encima de una firma
-    ("1900000002", ["45,000.00"], 2, None, True, False),               # raya de pluma sobre el número
+    ("1900000001", ["13,777.00", "3,481.50"], 3, None, False, True),   # sello encima de una firma
+    ("1900000002", ["44,321.00"], 2, None, True, False),               # raya de pluma sobre el número
     ("1900000003", ["1,200.00", "900.00", "7,315.20"], 1, "1 / 2", False, False),
     ("1900000003", ["2,000.00"], 0, "2 / 2", False, False),            # hoja 2: sin firmas
     ("7100000123-A", ["18,750.00"], 3, None, False, False),            # ADEFA
