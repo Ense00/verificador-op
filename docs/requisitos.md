@@ -205,7 +205,7 @@ Acordadas durante el diseño del boceto. No son opcionales: son parte de lo que 
 
 ## Pendiente
 
-Estado al 2026-09-14 (v0.6.3):
+Estado al 2026-09-16 (v0.7.2), en pausa hasta tener un PDF de órdenes:
 
 - **Etapa 1, Preparar Layout: funcional** y probada por el usuario con un documento base real.
 - **Etapa 2, Verificar órdenes:** interfaz lista; arranca vacía y ofrece "Ver demostración" con 3,000 órdenes de muestra (filtros, vista previa, corrección manual, Excel con diseño). No procesa PDFs todavía.
