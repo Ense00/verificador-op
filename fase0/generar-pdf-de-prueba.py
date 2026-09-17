@@ -93,7 +93,7 @@ def pagina_orden(num, montos, firmas, hoja=None, raya_en_numero=False, tapar_una
     im = papel(); d = ImageDraw.Draw(im)
     d.text((int(W * 0.22), int(H * 0.018)), "GOBIERNO DEL ESTADO DE PRUEBA", font=F(36, True), fill=NEGRO)
     d.text((int(W * 0.30), int(H * 0.048)), "ORDEN DE PAGO", font=F(40, True), fill=NEGRO)
-    d.text((int(W * 0.28), int(H * 0.078)), "SECRETARIA DE HACIENDA", font=F(26), fill=NEGRO)
+    d.text((int(W * 0.28), int(H * 0.078)), "SECRETARIA DE PRUEBA", font=F(26), fill=NEGRO)
     caja = caja_numero(d, num)
     if raya_en_numero:                               # el caso que rompía el OCR
         d.line([(caja[0] - 60, caja[1] - 40), (caja[2] - 40, caja[3] + 60)], fill=ROJO, width=5)
