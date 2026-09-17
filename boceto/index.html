@@ -330,6 +330,10 @@ tbody tr.sel[aria-selected="true"] td.sticky{box-shadow:inset 4px 0 0 var(--acce
 .field.inline{flex-direction:row;align-items:center;gap:8px}
 .field.inline input{width:84px;padding:5px 8px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
 #mode-verify .field.inline select{flex:1;min-width:0}
+.partpick{display:flex;flex-direction:column;gap:8px}
+.partpick label{min-width:118px}
+.partpick .unit{color:var(--muted);font-size:.9em}
+.partpick .hint{margin:0}
 table.parts td{vertical-align:middle}
 .card .tablewrap{border:1px solid var(--line-soft);border-radius:8px;max-height:420px;overflow:auto}
 .card thead th{position:sticky;top:0;z-index:1}
@@ -384,7 +388,7 @@ table.parts td{vertical-align:middle}
   <header class="top">
     <div class="brand">
       <h1>Verificador de Órdenes de Pago</h1>
-      <span class="stamp">v0.7.1</span>
+      <span class="stamp">v0.7.2</span>
     </div>
     <div class="topright">
     <div class="theme" role="radiogroup" aria-label="Tema de la página">
@@ -465,12 +469,17 @@ table.parts td{vertical-align:middle}
             <b>Documento base</b><small class="num" id="s-excel"></small>
           </button>
         </div>
-        <div class="field inline">
-          <label for="verify-part">Parte a verificar</label>
-          <select id="verify-part">
-            <option value="all" selected>Todas las órdenes</option>
-            <option value="1">Parte 1 de 5</option><option value="2">Parte 2 de 5</option><option value="3">Parte 3 de 5</option><option value="4">Parte 4 de 5</option><option value="5">Parte 5 de 5</option>
-          </select>
+        <div class="partpick">
+          <div class="field inline">
+            <label for="verify-parts">Layout partido en</label>
+            <input type="number" id="verify-parts" min="1" max="500" value="1" class="num" aria-describedby="verify-part-info">
+            <span class="unit" id="verify-parts-unit">partes</span>
+          </div>
+          <div class="field inline">
+            <label for="verify-part">Parte a verificar</label>
+            <select id="verify-part"></select>
+          </div>
+          <p class="hint" id="verify-part-info" aria-live="polite"></p>
         </div>
       </div>
       <div class="cgroup">
@@ -696,10 +705,14 @@ function renderStatic(){
   $('#s-excel').textContent = state.demo ? `${fmtInt(rows.length)} filas` : 'Sin elegir';
   $('#s-pages').textContent = `${fmtInt(TOTAL_PAGES)} págs. · ${fmtInt(TOTAL_FILES)} PDFs · ${fmtInt(dupPages)} omitidas`;
 }
+function partSum(){
+  const sel = $('#verify-part');
+  return sel && sel.value !== 'all' ? `<span>Parte <b class="num">${sel.value}</b> de <b class="num">${layoutPartsCount()}</b></span>` : '';
+}
 function renderConfigSum(){
   const act = active();
   const fmt = $('#fmt').selectedOptions[0].textContent.replace(' (recomendado)', '');
-  $('#configsum').innerHTML = `${state.demo ? `<span><b class="num">${fmtInt(TOTAL_FILES)}</b> PDFs</span><span>Documento base <b class="num">${fmtInt(rows.length)}</b> filas</span>` : ''}<span>Revisa: <b>${act.length ? act.map(x=>x.label).join(', ') : 'nada'}</b></span><span>${esc(fmt)}${$('#chk-renombres').checked ? ' + Renombres' : ''}</span>`;
+  $('#configsum').innerHTML = `${state.demo ? `<span><b class="num">${fmtInt(TOTAL_FILES)}</b> PDFs</span><span>Documento base <b class="num">${fmtInt(rows.length)}</b> filas</span>` : ''}${partSum()}<span>Revisa: <b>${act.length ? act.map(x=>x.label).join(', ') : 'nada'}</b></span><span>${esc(fmt)}${$('#chk-renombres').checked ? ' + Renombres' : ''}</span>`;
 }
 function renderSummary(){
   const c = {ok:0, bad:0, rev:0, ile:0};
@@ -1347,6 +1360,46 @@ function currentParts(){
   return splitParts(base.uniques, n);
 }
 
+/* ---------- Parte a verificar ----------
+   El documento base trae TODAS las órdenes; si el Layout se partió, los PDFs de
+   una parte solo contienen las órdenes de esa parte. Para que las demás no salgan
+   como "No encontradas", se elige qué parte se verifica. Las partes se calculan
+   con el MISMO reparto que "Partir Layout" (mismo documento + mismas partes =
+   mismas órdenes), así que este número y el de la etapa 1 son uno solo. */
+function layoutPartsCount(){
+  if (!$('#split').checked) return 1;
+  const n = parseInt($('#parts').value, 10);
+  return Number.isFinite(n) && n >= 2 ? n : 2;
+}
+function renderVerifyPart(){
+  const n = layoutPartsCount();
+  const input = $('#verify-parts'), sel = $('#verify-part');
+  if (document.activeElement !== input) input.value = n;
+  $('#verify-parts-unit').textContent = n === 1 ? 'parte (sin partir)' : 'partes';
+  const prev = sel.value;
+  sel.innerHTML = `<option value="all">Todas las órdenes</option>` +
+    (n > 1 ? Array.from({length:n}, (_, i) => `<option value="${i + 1}">Parte ${i + 1} de ${n}</option>`).join('') : '');
+  sel.value = [...sel.options].some(o => o.value === prev) ? prev : 'all';
+  sel.disabled = n === 1;
+  const info = $('#verify-part-info');
+  if (sel.value === 'all'){
+    info.textContent = n === 1 ? '' : 'Se esperan las órdenes de todas las partes.';
+  } else if (base){
+    const p = currentParts()[+sel.value - 1] || [];
+    info.innerHTML = p.length
+      ? `Solo se esperan <b class="num">${fmtInt(p.length)}</b> órdenes: de <span class="num">${p[0].op}</span> a <span class="num">${p[p.length - 1].op}</span>. Las demás no cuentan como no encontradas.`
+      : '';
+  } else {
+    info.textContent = 'Solo se esperan las órdenes de esta parte; las demás no cuentan como no encontradas.';
+  }
+}
+function setLayoutParts(n){
+  n = Number.isFinite(n) ? Math.max(1, Math.min(500, Math.round(n))) : 1;
+  $('#split').checked = n > 1;
+  if (n > 1) $('#parts').value = n;
+  renderLayoutPanel(); renderNames(); renderVerifyPart(); renderConfigSum();
+}
+
 async function layoutBlob(list){
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Hoja1');
@@ -1420,7 +1473,7 @@ async function loadBaseFile(file){
   info.innerHTML = '<p class="hint">Leyendo el documento…</p>';
   try { base = await readBase(file); }
   catch (err){ base = null; info.innerHTML = `<ul class="warns"><li class="bad">${esc(err.message || 'No se pudo leer el documento.')}</li></ul>`; renderLayoutPanel(); return; }
-  renderBaseInfo(); renderLayoutPanel(); renderNames();
+  renderBaseInfo(); renderLayoutPanel(); renderNames(); renderVerifyPart();
 }
 
 async function downloadLayout(partNumber){
@@ -1504,7 +1557,9 @@ function renderAll(){ computeStates(); renderConfigSum(); renderSummary(); rende
 document.addEventListener('change', e => {
   if (e.target.matches('#checks input, #chk-renombres')) renderAll();
   if (e.target.id === 'base-file' && e.target.files[0]){ loadBaseFile(e.target.files[0]); e.target.value = ''; }
-  if (e.target.id === 'split' || e.target.id === 'parts'){ renderLayoutPanel(); renderNames(); }
+  if (e.target.id === 'split' || e.target.id === 'parts'){ renderLayoutPanel(); renderNames(); renderVerifyPart(); renderConfigSum(); }
+  if (e.target.id === 'verify-parts'){ setLayoutParts(parseInt(e.target.value, 10)); }
+  if (e.target.id === 'verify-part'){ renderVerifyPart(); renderConfigSum(); }
   if (e.target.id === 'fmt'){
     const names = {zip:'Carpeta (ZIP)', '7z':'Carpeta (7z)', tgz:'Carpeta (TAR.GZ)', folder:'Guardar carpeta'};
     $('#dl-zip-label').textContent = names[e.target.value];
@@ -1514,7 +1569,8 @@ document.addEventListener('change', e => {
 });
 document.addEventListener('input', e => {
   if (e.target.id === 'q'){ state.q = e.target.value; refreshTable(true); }
-  if (e.target.id === 'parts' && base){ renderLayoutPanel(); renderNames(); }
+  if (e.target.id === 'parts' && base){ renderLayoutPanel(); renderNames(); renderVerifyPart(); }
+  if (e.target.id === 'verify-parts'){ const n = parseInt(e.target.value, 10); if (Number.isFinite(n) && n >= 1) setLayoutParts(n); }
   if (e.target.id === 'ov-note' && e.target.value.trim()) e.target.removeAttribute('aria-invalid');
   if (e.target.id === 'entity'){
     if (cleanName(e.target.value)) e.target.removeAttribute('aria-invalid');
@@ -1569,6 +1625,7 @@ const drop = $('#drop');
 drop.addEventListener('drop', e => { const f = e.dataTransfer && e.dataTransfer.files[0]; if (f) loadBaseFile(f); });
 
 renderStatic();
+renderVerifyPart();
 renderAll();
 renderLayoutPanel();
 let savedMode = null;

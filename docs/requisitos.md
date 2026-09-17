@@ -46,7 +46,11 @@ Plantilla: hoja `Hoja1`, 8 columnas con estos encabezados exactos. La plataforma
 - Nombre de archivo: `Layout ｜ [Entidad] ｜ [Ejercicio] ｜ [Fecha] ｜ [Hora].xlsx`.
 - La plataforma no tiene límite práctico de filas.
 - **Partir Layout** (opcional): N partes iguales (difieren en máximo 1 orden), sin órdenes repetidas, en el orden en que aparecen en el documento base. Cada archivo termina en ` ｜ Parte K` y se pueden descargar juntas en un ZIP o una por una. Mismo documento + mismo N = mismas partes.
-- En la verificación se puede elegir **qué parte se está verificando**, para que las órdenes de otras partes no salgan como "No encontradas".
+- En la verificación se puede elegir **qué parte se está verificando**, para que las órdenes de otras partes no salgan como "No encontradas" (idea propuesta en v0.5.0, aprobada por el usuario el 2026-09-16):
+  - "Layout partido en N partes" es **el mismo número** que "Partir Layout" en la etapa 1: cambiarlo en una etapa lo cambia en la otra. 1 = sin partir.
+  - "Parte a verificar": Todas las órdenes, o Parte K de N (la lista sale de N, no es fija).
+  - Las órdenes de cada parte se calculan con el **mismo reparto** que "Partir Layout" sobre el documento base, así que coinciden con el Layout que se subió a la plataforma. Si el documento base está cargado, se muestra cuántas órdenes se esperan y de cuál a cuál.
+  - Requisito: usar el mismo documento base con el que se generó el Layout; con otro documento las partes no coinciden.
 
 ### PDFs: órdenes de pago mezcladas con documentos de soporte
 

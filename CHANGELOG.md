@@ -2,6 +2,9 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.7.2 — 2026-09-16
+- "Parte a verificar" rehecho: antes era una lista fija de 5 partes sin relación con nada. Ahora "Layout partido en N partes" usa el mismo número que "Partir Layout" (sincronizados entre etapas) y la lista ofrece Parte 1..N. Con el documento base cargado muestra cuántas órdenes tiene la parte elegida y su rango. El resumen de configuración indica la parte.
+
 ## v0.7.1 — 2026-09-15
 - Se quita "Plantilla" de la configuración: las órdenes no respetan un acomodo fijo (varias hojas, firmas aparte, folio o no), así que el análisis se basará en el contenido de cada página y no en posiciones de una plantilla.
 
