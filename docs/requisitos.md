@@ -218,42 +218,73 @@ Acordadas durante el diseño del boceto. No son opcionales: son parte de lo que 
 - **Mantenerla al día:** todo cambio de interfaz o de reglas se refleja también en la guía.
 - Aprobada por el usuario tal cual (2026-09-16): "Está muy bien, déjalo así". No hace falta el Word descargable.
 
-## Fase 0 — medición (herramienta lista)
+## Fase 0 — medición sobre un PDF real (2026-09-17)
 
-`fase0/medidor.html` (se abre con `fase0/servir.sh`) mide un PDF real en el
-navegador y reporta, página por página: si ya trae texto, tiempo de render y de
-OCR, número de orden leído (incluido `-A`), montos y fechas, clase de página
-(orden / soporte / dudosa), líneas de firma y cuáles traen tinta, tinta, color e
-inclinación. Todo local; el PDF no se sube a ningún lado. Detalle en
+`fase0/medidor.html` (se abre con `fase0/servir.sh`) mide un PDF en el navegador y
+reporta página por página. Todo local; el PDF no se sube a ningún lado. Detalle en
 [`fase0/README.md`](../fase0/README.md).
 
-Cómo detecta las firmas: gris → Otsu → estimar inclinación (−3° a 3°) →
-**enderezar** → buscar en cada fila todas las corridas oscuras largas y sólidas →
-descartar bordes de tabla (muy largas) → medir la tinta de la franja de arriba de
-cada línea. Enderezar no es opcional: una raya inclinada 1.5° no cae en una sola
-fila de píxeles y no se detecta ninguna.
+### Lo que resultó ser el PDF de la plataforma
 
-Probado con un PDF sintético (`fase0/generar-pdf-de-prueba.py`): acierta las 7
-páginas en clase, número de orden, líneas y firmas; ~1.2 s por página a 150 ppp
-(render 170 ms + OCR 900 ms) en la UHD 630, o sea ~60 min por 3,000 páginas. Es
-un escaneo limpio: con papel real hay que esperar peor, y ese es justo el número
-que falta medir.
+Medido en un PDF real de 23 páginas (no vive en el repo):
+
+- Escaneado con PaperStream (escáner Fujitsu), **200 ppp, a color, sin capa de texto**: el OCR es obligatorio.
+- **La orientación cambia entre páginas:** la primera venía apaisada y el resto vertical.
+- **Un PDF puede traer varias órdenes.** Ese archivo, nombrado con una sola orden, traía **siete**, y el patrón se repite: `ORDEN DE PAGO → SOLICITUD DE PAGO → LIBERACIÓN DE TRANSFERENCIAS`, una terna por orden.
+- La primera página es un **listado** que menciona las siete órdenes juntas. Una página de soporte puede nombrar muchas órdenes: por eso "la página trae un número de orden" **no** alcanza para decir que es una orden.
+- La página de la orden se reconoce por el encabezado (`GOBIERNO DEL ESTADO DE …` / `ORDEN DE PAGO`) y trae el número en una caja arriba a la derecha, rotulada `Orden de Pago`, con `ORIGINAL` debajo.
+- Hay muchos números de 10 dígitos que **no** son órdenes: cuenta CME, centro gestor, cuenta contable, documento compensatorio, folio interbancario del banco. Sin el documento base no se puede decidir cuál es la orden.
+- **Las firmas no van sobre una raya:** van en tres celdas al pie (`SOLICITANTE`, `AUTORIZACIÓN DEL TITULAR`, `PÁGUESE`), escritas encima del nombre impreso.
+- Sellos grandes (`REVISADO`, `RECIBIDO`, `PAGADO`) atraviesan el documento, a veces de cabeza o encima de una firma.
+- Hay marcas de pluma a mano por toda la hoja, y en una de las siete **una raya roja cruzaba los dígitos del número**.
+
+### Cómo se lee, y por qué así
+
+1. **Render a 300 ppp.** El escaneo es de 200 ppp; a menos de 300 el número chico no se lee.
+2. **Borrar la tinta de color.** La impresión es negra o gris; pluma y sellos traen color. Se blanquea todo píxel con color y el OCR deja de tropezar: fue lo que destrabó la página con la raya roja encima del número.
+3. **Franja del encabezado** (una tira angosta de arriba, OCR barato) para decidir qué documento es. Clasificó **7 de 7 órdenes sin un solo falso positivo** entre 23 páginas.
+4. **Solo en las páginas de orden**, la caja del número: recorte chico, OCR con `PSM 4` y lista de caracteres `0123456789-A`. Se intenta con hasta cinco recortes/escalas porque la caja se mueve con el escaneo; **6 de 7 salieron al primer intento**.
+   - `PSM 6` **no sirve** aquí: fue lo que hacía fallar todas las lecturas al principio.
+   - Ampliar el recorte al doble ayuda en unas páginas y arruina otras: por eso se prueban varias escalas en vez de buscar una receta única.
+   - La `A` de ADEFA debe ir en la lista de caracteres; si no, `…-A` se lee como su original, que es justo el cruce prohibido. Tiene que venir pegada al número (si no, la `A` de `ORIGINAL` se cuela).
+5. **El documento base decide.** Cada candidato se confirma contra la lista de órdenes solicitadas. Si coincide más de uno (por ejemplo una orden y su `-A`), no se adivina: queda ambiguo, para revisar.
+6. **Firmas por tinta de color** en las tres celdas del pie: la firma es de pluma, el nombre impreso es negro. Umbral de partida 0.8 % de píxeles con color por celda.
+
+### Resultados
+
+| Medida | Resultado |
+|---|---|
+| Páginas clasificadas como orden | 7 de 7, sin falsos positivos entre 23 |
+| Número de orden confirmado | **7 de 7** (6 al primer intento) |
+| Celdas de firma con tinta | 21 de 21 |
+| Tiempo por página | **0.55 s** (render 0.20 s + encabezado 0.14 s + número + imagen) |
+| Proyección | 500 páginas ≈ 5 min · **3,000 páginas ≈ 27 min** |
+
+Con un PDF sintético del mismo formato (`fase0/generar-pdf-de-prueba.py`) el conteo
+de firmas acierta en las seis órdenes (3, 2, 1, 0, 3 y 2 firmas) y el número sale
+en 5 de 6; falla la orden que lleva una raya de pluma gruesa encima de los dígitos,
+que queda como "no se leyó" → Revisar, nunca adivinado.
+
+**Decisión: la página web alcanza.** 27 minutos por 3,000 páginas en esta máquina
+(Intel UHD 630, sin GPU dedicada) no justifica un programa instalable. La clave fue
+dejar de hacer OCR de la página completa (2.9 s por página, y ni así leía el número)
+y leer solo dos zonas chicas.
 
 ## Pendiente
 
-Estado al 2026-09-16 (v0.8.0), en pausa hasta tener un PDF de órdenes:
+Estado al 2026-09-17 (v0.10.0):
 
 - **Etapa 1, Preparar Layout: funcional** y probada por el usuario con un documento base real.
-- **Etapa 2, Verificar órdenes:** interfaz lista; arranca vacía y ofrece "Ver demostración" con 3,000 órdenes de muestra (filtros, vista previa, corrección manual, Excel con diseño). No procesa PDFs todavía.
-- La página ya no muestra avisos de boceto: el usuario pidió que se parezca lo más posible a la versión final.
+- **Etapa 2, Verificar órdenes:** interfaz lista con demostración; todavía no procesa PDFs.
+- **Fase 0: terminada.** La lectura de PDFs reales está medida y resuelta (arriba).
 
 Siguiente paso:
 
-1. **Pasar un PDF real por `fase0/medidor.html`** y revisar: cuántas páginas
-   llevan bien el número de orden, cuántas se clasifican bien como orden o
-   soporte, si el conteo de firmas coincide con lo que se ve, y el tiempo por
-   página.
-2. **Ajustar los umbrales** con esos resultados (largo mínimo de línea, solidez,
-   tinta de la franja de firma, resolución de render).
-3. Con esos números, decidir cómo construir la verificación real (página web vs.
-   programa instalable si el navegador se queda corto).
+1. Llevar la receta de la fase 0 a la etapa 2 de la página: cargar los PDFs, clasificar
+   páginas, leer el número, confirmarlo contra el documento base y armar el resultado.
+2. Reglas que ya se pueden decidir con lo medido: una orden se arma con su página de
+   orden (el soporte que la acompaña no se valida) y el estado sale de número +
+   ejercicio + montos + firmas.
+3. Falta medir, cuando haya ejemplos: montos y fecha de la orden (hoy solo se leen con
+   el OCR completo, que es lento), órdenes de varias hojas reales, una ADEFA real (no
+   hubo ninguna en los documentos base revisados) y páginas giradas 90°.

@@ -2,6 +2,30 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.10.0 — 2026-09-17
+
+Fase 0 terminada: el medidor se rehízo con lo aprendido de un PDF real de la
+plataforma y ahora lee lo que hay que leer.
+
+- **Clasificación por encabezado:** una tira angosta de arriba basta para separar
+  órdenes de soporte. 7 de 7 órdenes en 23 páginas, sin falsos positivos.
+- **Lectura del número por zona, no por página completa:** recorte de la caja de
+  arriba a la derecha, `PSM 4` y lista `0123456789-A`, con hasta cinco
+  recortes/escalas porque la caja se mueve con el escaneo. 7 de 7, 6 al primer
+  intento.
+- **Se borra la tinta de color antes de leer:** la impresión es negra y la pluma y
+  los sellos tienen color. Sin esto, una raya de pluma encima de los dígitos
+  arruina la lectura.
+- **Confirmación contra el documento base:** los PDF están llenos de números de 10
+  dígitos que no son órdenes (cuentas, centros gestores, folios del banco). Si más
+  de un candidato coincide, queda ambiguo: no se adivina.
+- **Firmas por tinta de color** en las tres celdas del pie, que es como están en el
+  formato real (no sobre una raya, como suponía la versión anterior).
+- 0.55 s por página contra 2.9 s del OCR de página completa: **3,000 páginas en ~27
+  minutos**. Con eso, la página web alcanza y no hace falta un programa instalable.
+- El generador de PDF de prueba imita el formato real, con sus casos difíciles
+  (raya de pluma sobre el número, sello encima de una firma, ADEFA, dos hojas).
+
 ## v0.9.2 — 2026-09-17
 
 - **El número de orden ya no se filtra por prefijo.** Medido en dos documentos

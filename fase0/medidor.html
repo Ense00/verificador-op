@@ -93,15 +93,14 @@ pre.txt{font:12px/1.5 var(--mono);background:var(--sunken);border:1px solid var(
       </div>
       <div>
         <label for="hasta">Hasta página</label>
-        <input type="number" id="hasta" value="12" min="1">
+        <input type="number" id="hasta" value="25" min="1">
       </div>
       <div>
         <label for="dpi">Resolución de render</label>
         <select id="dpi">
-          <option value="110">110 ppp (rápido)</option>
-          <option value="150" selected>150 ppp</option>
           <option value="200">200 ppp</option>
-          <option value="300">300 ppp (lento)</option>
+          <option value="300" selected>300 ppp (recomendada)</option>
+          <option value="400">400 ppp (lenta)</option>
         </select>
       </div>
       <div>
@@ -109,15 +108,21 @@ pre.txt{font:12px/1.5 var(--mono);background:var(--sunken);border:1px solid var(
         <select id="idioma">
           <option value="spa" selected>Español</option>
           <option value="spa+eng">Español + inglés</option>
-          <option value="eng">Inglés</option>
         </select>
       </div>
     </div>
     <div class="row" style="margin-top:12px">
-      <label class="chk"><input type="checkbox" id="ocr" checked> Reconocer texto con OCR</label>
-      <label class="chk"><input type="checkbox" id="saltarOcr" checked> Saltar el OCR si el PDF ya trae texto</label>
-      <label class="chk"><input type="checkbox" id="imagen" checked> Analizar la imagen (líneas de firma, tinta, inclinación)</label>
+      <label class="chk"><input type="checkbox" id="limpiar" checked> Borrar la tinta de color antes de leer (plumas y sellos)</label>
+      <label class="chk"><input type="checkbox" id="imagen" checked> Analizar la imagen (firmas por tinta, inclinación)</label>
+      <label class="chk"><input type="checkbox" id="completo"> OCR de la página completa (lento: para montos y fechas)</label>
       <label class="chk"><input type="checkbox" id="vistas" checked> Guardar vistas para revisar (máx. 80)</label>
+    </div>
+    <div class="row" style="margin-top:12px;align-items:flex-start">
+      <div style="flex:1;min-width:260px">
+        <label for="base">Órdenes del documento base (opcional, una por línea)</label>
+        <textarea id="base" rows="3" placeholder="1900012563&#10;1900013449&#10;…" style="width:100%;background:var(--sunken);color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:7px 9px;font:13px var(--mono)"></textarea>
+        <p class="hint" style="margin-top:4px">Con esta lista el medidor <b>confirma</b> cada número leído en vez de solo reportarlo, que es como va a trabajar la herramienta final.</p>
+      </div>
     </div>
     <div class="row" style="margin-top:12px">
       <button id="correr">Medir</button>
@@ -140,9 +145,10 @@ pre.txt{font:12px/1.5 var(--mono);background:var(--sunken);border:1px solid var(
   <h2>3 · Página por página</h2>
   <div class="tw"><table>
     <thead><tr>
-      <th class="num">Pág.</th><th>Clase</th><th class="num">Texto PDF</th><th class="num">Render</th><th class="num">OCR</th>
-      <th class="num">Total</th><th>Órdenes leídas</th><th>Folio</th><th class="num">Montos</th><th class="num">Líneas</th><th class="num">Firmas</th>
-      <th class="num">Tinta</th><th class="num">Color</th><th class="num">Inclin.</th>
+      <th class="num">Pág.</th><th>Documento</th><th>Orden de pago</th><th class="num">Intentos</th>
+      <th class="num">Firma 1</th><th class="num">Firma 2</th><th class="num">Firma 3</th>
+      <th class="num">Render</th><th class="num">Encab.</th><th class="num">Número</th><th class="num">Total</th>
+      <th class="num">Color</th><th class="num">Inclin.</th>
     </tr></thead>
     <tbody id="filas"></tbody>
   </table></div>
@@ -151,7 +157,7 @@ pre.txt{font:12px/1.5 var(--mono);background:var(--sunken);border:1px solid var(
 <section>
   <h2>4 · Revisar una página</h2>
   <div class="body">
-    <p class="hint" style="margin-top:0">Haz clic en una fila de la tabla. En la vista, las líneas detectadas van en rojo y la franja donde se busca la firma en azul (llena = con tinta suficiente para contar como firma).</p>
+    <p class="hint" style="margin-top:0">Haz clic en una fila. En la vista se marcan en azul las tres celdas donde se buscan las firmas y en rojo la zona donde se busca el número de orden.</p>
     <div class="split" style="margin-top:12px">
       <div><canvas id="lienzo"></canvas></div>
       <div><pre class="txt" id="texto">—</pre></div>
@@ -169,97 +175,81 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 const $ = s => document.querySelector(s);
 const logEl = $('#log');
 const log = m => { logEl.textContent += '\n' + m; logEl.scrollTop = logEl.scrollHeight; };
-const ms = n => n == null ? '' : (n >= 1000 ? (n/1000).toFixed(2) + ' s' : Math.round(n) + ' ms');
-const pct = n => n == null ? '' : (n*100).toFixed(1) + '%';
+const ms = n => n == null ? '' : (n >= 1000 ? (n / 1000).toFixed(2) + ' s' : Math.round(n) + ' ms');
+const pct = n => n == null ? '' : (n * 100).toFixed(2) + '%';
+const sinAcentos = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
 
-let paginas = [], vistas = new Map(), cancelar = false, worker = null, workerIdioma = null;
+let paginas = [], vistas = new Map(), cancelar = false, worker = null, workerIdioma = null, base = new Set();
 
-/* ---------- lectura de candidatos en el texto ---------- */
-// En los documentos base reales la orden SIEMPRE trae 10 dígitos, y las series
-// observadas son varias (19, 50, 51, 71): no se filtra por prefijo.
-const RE_OP      = /\b\d{10}(?!\d)(?:\s*-\s*A\b)?/g;
-// de 8 a 12 dígitos: sirve para ver si el OCR perdió o inventó un dígito
-const RE_CERCA   = /\b\d{8,12}\b/g;
-const RE_MONTO   = /\b\d{1,3}(?:[,  ]\d{3})*[.,]\d{2}\b/g;
-const RE_FECHA   = /\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b/g;
-const RE_FOLIO   = /folio[\s:.#n\u00ba\u00b0-]*([A-Za-z0-9][A-Za-z0-9-]{2,19})/i;
-const PAL_OP     = /orden(?:es)?\s+de\s+pa[gq]o/i;
-const PAL_FIRMA  = /(elabor|revis|autoriz|recib|visto\s+bueno|nombre\s+y\s+firma)/i;
-
-function leerCandidatos(txt){
-  const limpio = (txt || '').replace(/\s+/g, ' ');
-  const ops = [...new Set((limpio.match(RE_OP) || []).map(s => s.replace(/\s*-\s*A$/, '-A').replace(/\s+/g, '')))];
-  const cerca = [...new Set(limpio.match(RE_CERCA) || [])].filter(d => d.length !== 10);
-  // el folio no se descarta: hay órdenes que usan el folio como número de orden
-  const mf = limpio.match(RE_FOLIO);
-  const folio = mf ? mf[1].replace(/\s+/g, '') : null;
-  const folioEsOrden = !!folio && /^\d{10}(?:-A)?$/.test(folio);
-  if (folioEsOrden && !ops.includes(folio)) ops.unshift(folio);
-  return {
-    ops, folio, folioEsOrden,
-    cerca,
-    montos: [...new Set(limpio.match(RE_MONTO) || [])],
-    fechas: [...new Set(limpio.match(RE_FECHA) || [])],
-    diceOP: PAL_OP.test(limpio),
-    diceFirma: PAL_FIRMA.test(limpio)
-  };
+/* ---------- qué documento es cada página ----------
+   Medido en un PDF real: las páginas se turnan ORDEN DE PAGO → SOLICITUD DE PAGO →
+   LIBERACIÓN DE TRANSFERENCIAS, y el encabezado las distingue sin fallar. */
+const TIPOS = [
+  { clave: 'orden',      nombre: 'Orden de pago',  re: /ORDEN\s+DE\s+PAG[O0]/ },
+  { clave: 'solicitud',  nombre: 'Solicitud',      re: /SOLICITUD\s+DE\s+PAG[O0]/ },
+  { clave: 'liberacion', nombre: 'Liberación',     re: /LIBERACI[O0]N\s+DE\s+TRANSFERENCIAS/ },
+  { clave: 'banco',      nombre: 'Banco',          re: /(NET\s*CASH|TRANSFERENCIA|CLAVE\s+DE\s+RASTREO|INTERBANCARIO)/ }
+];
+function tipoDe(txt){
+  for (const t of TIPOS) if (t.re.test(txt)) return t;
+  return { clave: 'soporte', nombre: 'Soporte', re: null };
 }
 
-function clasificar(c, img){
-  let p = 0;
-  if (c.diceOP) p += 2;
-  if (c.ops.length) p += 2;
-  if (c.diceFirma) p += 1;
-  if (c.montos.length >= 2) p += 1;
-  if (img && img.firmas >= 2) p += 1;
-  if (p >= 4) return 'orden';
-  if (p >= 2) return 'dudosa';
-  return 'soporte';
-}
-
-/* ---------- análisis de la imagen ---------- */
-function gris(ctx, w, h, anchoDest){
-  const esc = Math.min(1, anchoDest / w);
-  const W = Math.max(60, Math.round(w * esc)), H = Math.max(60, Math.round(h * esc));
-  const c = document.createElement('canvas'); c.width = W; c.height = H;
-  const cx = c.getContext('2d', { willReadFrequently: true });
-  cx.drawImage(ctx.canvas, 0, 0, W, H);
-  const d = cx.getImageData(0, 0, W, H).data;
-  const g = new Uint8Array(W * H); let colorosos = 0;
-  for (let i = 0, j = 0; j < g.length; i += 4, j++){
-    const r = d[i], vv = d[i+1], b = d[i+2];
-    g[j] = (r * 0.299 + vv * 0.587 + b * 0.114) | 0;
-    const mx = Math.max(r, vv, b), mn = Math.min(r, vv, b);
-    if (mx - mn > 40 && mx > 60) colorosos++;
+/* ---------- recortes ----------
+   Borrar la tinta de color es lo que destrabó la lectura: una raya de pluma sobre
+   los dígitos rompe el OCR, y la impresión es negra mientras pluma y sellos no. */
+function recorte(c, fx, fy, fw, fh, amp, limpiar){
+  const sw = Math.round(c.width * fw), sh = Math.round(c.height * fh);
+  const z = document.createElement('canvas');
+  z.width = Math.max(8, Math.round(sw * amp)); z.height = Math.max(8, Math.round(sh * amp));
+  const zx = z.getContext('2d', { willReadFrequently: true });
+  zx.imageSmoothingQuality = 'high';
+  zx.fillStyle = '#fff'; zx.fillRect(0, 0, z.width, z.height);
+  zx.drawImage(c, Math.round(c.width * fx), Math.round(c.height * fy), sw, sh, 0, 0, z.width, z.height);
+  if (limpiar){
+    const d = zx.getImageData(0, 0, z.width, z.height), a = d.data;
+    for (let i = 0; i < a.length; i += 4){
+      const r = a[i], g = a[i+1], b = a[i+2];
+      if (Math.max(r, g, b) - Math.min(r, g, b) > 30) a[i] = a[i+1] = a[i+2] = 255;
+      else a[i] = a[i+1] = a[i+2] = (r * 0.299 + g * 0.587 + b * 0.114) | 0;
+    }
+    zx.putImageData(d, 0, 0);
   }
-  return { g, W, H, color: colorosos / g.length };
+  return z;
 }
 
-function otsu(g){
-  const h = new Array(256).fill(0);
-  for (let i = 0; i < g.length; i++) h[g[i]]++;
-  const tot = g.length; let sum = 0;
-  for (let i = 0; i < 256; i++) sum += i * h[i];
-  let sumB = 0, wB = 0, mejor = 0, umbral = 128;
-  for (let t = 0; t < 256; t++){
-    wB += h[t]; if (!wB) continue;
-    const wF = tot - wB; if (!wF) break;
-    sumB += t * h[t];
-    const d = wB / tot * (wF / tot) * Math.pow(sumB / wB - (sum - sumB) / wF, 2);
-    if (d > mejor){ mejor = d; umbral = t; }
+/* ---------- tinta ---------- */
+function tinta(c, fx, fy, fw, fh){
+  const x = Math.round(c.width * fx), y = Math.round(c.height * fy);
+  const w = Math.max(1, Math.round(c.width * fw)), h = Math.max(1, Math.round(c.height * fh));
+  const d = c.getContext('2d', { willReadFrequently: true }).getImageData(x, y, w, h).data;
+  let color = 0, oscuro = 0, n = 0;
+  for (let i = 0; i < d.length; i += 4){
+    const r = d[i], g = d[i+1], b = d[i+2];
+    const lum = r * 0.299 + g * 0.587 + b * 0.114;
+    n++;
+    if (lum < 170) oscuro++;
+    if (Math.max(r, g, b) - Math.min(r, g, b) > 28 && lum < 215) color++;
   }
-  return umbral;
+  return { color: color / n, oscuro: oscuro / n };
 }
 
-function inclinacion(g, W, H, umbral){
+/* ---------- inclinación ---------- */
+function inclinacion(c){
+  const W = 500, H = Math.round(c.height * W / c.width);
+  const t = document.createElement('canvas'); t.width = W; t.height = H;
+  const tx = t.getContext('2d', { willReadFrequently: true });
+  tx.drawImage(c, 0, 0, W, H);
+  const d = tx.getImageData(0, 0, W, H).data, g = new Uint8Array(W * H);
+  for (let i = 0, j = 0; j < g.length; i += 4, j++) g[j] = (d[i] * 0.299 + d[i+1] * 0.587 + d[i+2] * 0.114) | 0;
   let mejorAng = 0, mejorPunt = -1;
   for (let a = -3; a <= 3.0001; a += 0.25){
-    const t = Math.tan(a * Math.PI / 180); let punt = 0;
+    const tg = Math.tan(a * Math.PI / 180); let punt = 0;
     for (let y = 0; y < H; y++){
       let n = 0;
       for (let x = 0; x < W; x += 2){
-        const yy = y + Math.round((x - W / 2) * t);
-        if (yy >= 0 && yy < H && g[yy * W + x] < umbral) n++;
+        const yy = y + Math.round((x - W / 2) * tg);
+        if (yy >= 0 && yy < H && g[yy * W + x] < 170) n++;
       }
       punt += n * n;
     }
@@ -268,90 +258,25 @@ function inclinacion(g, W, H, umbral){
   return mejorAng;
 }
 
-function enderezar(g, W, H, ang){
-  const t = Math.tan(ang * Math.PI / 180);
-  if (Math.abs(t) < 0.002) return g;
-  const d = new Uint8Array(W * H).fill(255);
-  for (let x = 0; x < W; x++){
-    const off = Math.round((x - W / 2) * t);
-    for (let y = 0; y < H; y++){
-      const yy = y + off;
-      if (yy >= 0 && yy < H) d[y * W + x] = g[yy * W + x];
-    }
+/* ---------- número de orden ----------
+   Cinco intentos con recortes y escalas distintas: la caja se mueve con el escaneo
+   y ninguna receta sola acierta en todas. Si hay documento base, él decide. */
+const INTENTOS = [
+  { fx: 0.67, fy: 0.02, fw: 0.33, fh: 0.15, amp: 1,   psm: '4', limpiar: true,  lista: '0123456789-A' },
+  { fx: 0.60, fy: 0.00, fw: 0.40, fh: 0.20, amp: 1,   psm: '4', limpiar: true,  lista: '0123456789-A' },
+  { fx: 0.67, fy: 0.02, fw: 0.33, fh: 0.15, amp: 1,   psm: '4', limpiar: false },
+  { fx: 0.60, fy: 0.00, fw: 0.40, fh: 0.20, amp: 1.5, psm: '4', limpiar: true },
+  { fx: 0.55, fy: 0.00, fw: 0.45, fh: 0.25, amp: 1,   psm: '3', limpiar: true }
+];
+const ZONA_NUM = INTENTOS[0];
+function candidatosDe(txt){
+  const out = new Set();
+  for (const bruto of (txt.match(/\d[\d\s-]{7,}(?:-?A\b)?/gi) || [])){
+    const s = bruto.replace(/\s/g, ''), A = /-A$/i.test(s), d = s.replace(/[^0-9]/g, '');
+    if (d.length === 10) out.add(d + (A ? '-A' : ''));
+    else if (d.length > 10 && d.length <= 13){ out.add(d.slice(0, 10)); out.add(d.slice(-10)); }
   }
-  return d;
-}
-
-function analizarImagen(ctx, w, h){
-  const { g, W, H, color } = gris(ctx, w, h, 1000);
-  const umbral = otsu(g);
-  let oscuros = 0;
-  for (let i = 0; i < g.length; i++) if (g[i] < umbral) oscuros++;
-
-  // el escaneo viene inclinado: se endereza antes de buscar líneas, si no, ninguna cae en una sola fila
-  const inclin = inclinacion(g, W, H, umbral);
-  const gr = enderezar(g, W, H, inclin);
-  // enderezar redondea a píxel entero y parte las rayas en escalones: se engrosan 1 píxel arriba y abajo
-  const grd = new Uint8Array(W * H);
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++){
-    const i = y * W + x;
-    let v = gr[i];
-    if (y > 0) v = Math.min(v, gr[i - W]);
-    if (y < H - 1) v = Math.min(v, gr[i + W]);
-    grd[x + y * W] = v;
-  }
-
-  // líneas horizontales: todas las corridas largas de píxeles oscuros de cada fila
-  // (importa que sean todas: las tres líneas de firma están a la misma altura)
-  const minLargo = Math.round(W * 0.14), tolHueco = 2, minSolidez = 0.8;
-  const abiertas = [], lineas = [];
-  for (let y = 0; y < H; y++){
-    const corridas = [];
-    let ini = -1, ultimo = -1, oscurosRun = 0;
-    for (let x = 0; x < W; x++){
-      if (grd[y * W + x] < umbral){ if (ini < 0) ini = x; ultimo = x; oscurosRun++; }
-      else if (ini >= 0 && x - ultimo > tolHueco){ corridas.push([ini, ultimo, oscurosRun]); ini = -1; oscurosRun = 0; }
-    }
-    if (ini >= 0) corridas.push([ini, ultimo, oscurosRun]);
-    for (const [x0, x1, osc] of corridas){
-      if (x1 - x0 < minLargo) continue;
-      // una raya está casi llena de tinta; un renglón de texto tiene huecos entre letras
-      const solidez = osc / (x1 - x0 + 1);
-      if (solidez < minSolidez) continue;
-      let L = null;
-      for (const A of abiertas){
-        if (y - A.y2 > 3) continue;
-        const sol = Math.min(A.x1, x1) - Math.max(A.x0, x0);
-        if (sol > 0.5 * Math.min(A.x1 - A.x0, x1 - x0)){ L = A; break; }
-      }
-      if (L){ L.y2 = y; L.x0 = Math.min(L.x0, x0); L.x1 = Math.max(L.x1, x1); L.largo = L.x1 - L.x0; L.solidez = Math.max(L.solidez, solidez); }
-      else { const N = { y1: y, y2: y, x0, x1, largo: x1 - x0, solidez }; abiertas.push(N); lineas.push(N); }
-    }
-    for (let i = abiertas.length - 1; i >= 0; i--) if (y - abiertas[i].y2 > 3) abiertas.splice(i, 1);
-  }
-
-  // ¿hay firma sobre la línea? tinta en la franja de arriba
-  const alto = Math.max(12, Math.round(H * 0.035));
-  const tinta = oscuros / g.length;
-  // hay firma si la franja de arriba tiene bastante más tinta que la página en promedio
-  const umbralFirma = Math.max(0.02, tinta * 2.2);
-  for (const L of lineas){
-    const yA = Math.max(0, L.y1 - alto), yB = Math.max(0, L.y1 - 2);
-    let n = 0, tot = 0;
-    for (let y = yA; y < yB; y++) for (let x = L.x0; x < L.x1; x++){ tot++; if (gr[y * W + x] < umbral) n++; }
-    L.franja = { yA, yB, densidad: tot ? n / tot : 0 };
-    L.firma = L.franja.densidad >= umbralFirma;
-  }
-  const largas = lineas.filter(L => L.largo >= W * 0.14 && L.largo <= W * 0.62 && L.y2 - L.y1 <= 7);
-  return {
-    W, H, umbral, color, umbralFirma,
-    tinta,
-    lineas, lineasFirma: largas.length,
-    firmas: largas.filter(L => L.firma).length,
-    lineasAbajo: largas.filter(L => L.y1 > H * 0.55).length,
-    firmasAbajo: largas.filter(L => L.y1 > H * 0.55 && L.firma).length,
-    inclin
-  };
+  return out;
 }
 
 /* ---------- OCR ---------- */
@@ -359,9 +284,7 @@ async function darWorker(idioma){
   if (worker && workerIdioma === idioma) return worker;
   if (worker){ await worker.terminate(); worker = null; }
   log('Preparando OCR (' + idioma + ')… la primera vez baja el idioma, tarda.');
-  worker = await Tesseract.createWorker(idioma, 1, {
-    logger: m => { if (m.status && m.progress === 1) log('  OCR: ' + m.status); }
-  });
+  worker = await Tesseract.createWorker(idioma, 1, { logger: m => { if (m.status && m.progress === 1) log('  OCR: ' + m.status); } });
   workerIdioma = idioma;
   return worker;
 }
@@ -373,22 +296,21 @@ async function medir(){
   cancelar = false;
   $('#correr').disabled = true; $('#parar').disabled = false; $('#expJson').disabled = true;
   paginas = []; vistas.clear(); $('#filas').innerHTML = ''; $('#texto').textContent = '—';
-  logEl.textContent = 'Archivo: ' + f.name + '  (' + (f.size / 1048576).toFixed(1) + ' MB)';
+  base = new Set($('#base').value.split(/[\s,;]+/).map(s => s.trim().toUpperCase()).filter(Boolean));
+  logEl.textContent = 'Archivo: ' + f.name + '  (' + (f.size / 1048576).toFixed(1) + ' MB)' + (base.size ? '  ·  ' + base.size + ' órdenes en el documento base' : '');
 
   const dpi = +$('#dpi').value, escala = dpi / 72;
-  const usarOcr = $('#ocr').checked, saltar = $('#saltarOcr').checked;
-  const conImagen = $('#imagen').checked, guardar = $('#vistas').checked;
-  const idioma = $('#idioma').value;
+  const limpiar = $('#limpiar').checked, conImagen = $('#imagen').checked;
+  const completo = $('#completo').checked, guardar = $('#vistas').checked;
 
   const t0 = performance.now();
-  const buf = await f.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  const pdf = await pdfjsLib.getDocument({ data: await f.arrayBuffer() }).promise;
   const tAbrir = performance.now() - t0;
   log('Abierto en ' + ms(tAbrir) + ' · ' + pdf.numPages + ' páginas.');
 
   const desde = Math.max(1, +$('#desde').value);
   const hasta = Math.min(pdf.numPages, +$('#hasta').value || pdf.numPages);
-  if (usarOcr) await darWorker(idioma);
+  const w = await darWorker($('#idioma').value);
 
   const lienzo = document.createElement('canvas');
   const ctx = lienzo.getContext('2d', { willReadFrequently: true });
@@ -400,9 +322,8 @@ async function medir(){
 
     let t = performance.now();
     const tc = await page.getTextContent();
-    const txtPdf = tc.items.map(i => i.str).join(' ').trim();
+    r.charsPdf = tc.items.map(i => i.str).join(' ').trim().length;
     r.tTexto = performance.now() - t;
-    r.charsPdf = txtPdf.length;
 
     const vp = page.getViewport({ scale: escala });
     lienzo.width = Math.round(vp.width); lienzo.height = Math.round(vp.height);
@@ -412,22 +333,55 @@ async function medir(){
     await page.render({ canvasContext: ctx, viewport: vp }).promise;
     r.tRender = performance.now() - t;
 
-    if (conImagen){ t = performance.now(); r.img = analizarImagen(ctx, lienzo.width, lienzo.height); r.tImagen = performance.now() - t; }
+    // 1) encabezado: qué documento es
+    t = performance.now();
+    await w.setParameters({ tessedit_pageseg_mode: '4', tessedit_char_whitelist: '' });
+    r.encabezado = sinAcentos((await w.recognize(recorte(lienzo, 0.10, 0, 0.55, 0.10, 1, limpiar))).data.text.replace(/\s+/g, ' ')).trim();
+    r.tEncab = performance.now() - t;
+    r.tipo = tipoDe(r.encabezado);
 
-    r.fuente = 'pdf';
-    let texto = txtPdf;
-    if (usarOcr && !(saltar && r.charsPdf > 80)){
-      t = performance.now();
-      const { data } = await worker.recognize(lienzo);
-      r.tOcr = performance.now() - t;
-      r.conf = data.confidence;
-      texto = data.text; r.fuente = 'ocr';
+    // 2) número de orden, solo en las páginas de orden
+    r.cand = []; r.numero = null; r.intentos = 0; r.tNum = 0;
+    if (r.tipo.clave === 'orden'){
+      const vistos = new Set();
+      for (const it of INTENTOS){
+        r.intentos++;
+        t = performance.now();
+        await w.setParameters({ tessedit_pageseg_mode: it.psm, tessedit_char_whitelist: it.lista || '0123456789-' });
+        const txt = (await w.recognize(recorte(lienzo, it.fx, it.fy, it.fw, it.fh, it.amp, it.limpiar))).data.text;
+        r.tNum += performance.now() - t;
+        for (const c of candidatosDe(txt)) vistos.add(c);
+        const enBase = [...vistos].filter(c => base.has(c));
+        if (enBase.length === 1) r.numero = enBase[0];
+        else if (enBase.length > 1){ r.ambiguo = enBase; break; }   // p. ej. la orden y su -A: nunca se adivina
+        if (r.numero) break;
+        if (!base.size && vistos.size) break;   // sin documento base no hay con qué confirmar
+      }
+      r.cand = [...vistos];
+      if (!r.numero && !base.size && r.cand.length === 1) r.numero = r.cand[0];
     }
-    r.chars = texto.length;
-    r.cand = leerCandidatos(texto);
-    r.clase = clasificar(r.cand, r.img);
-    r.total = (r.tTexto || 0) + (r.tRender || 0) + (r.tImagen || 0) + (r.tOcr || 0);
-    r.texto = texto;
+
+    // 3) firmas: tinta de color en las tres celdas de abajo
+    if (conImagen){
+      t = performance.now();
+      r.firmas = [0, 1, 2].map(i => tinta(lienzo, 0.06 + i * 0.30, 0.82, 0.28, 0.16));
+      r.inclin = inclinacion(lienzo);
+      r.color = tinta(lienzo, 0, 0, 1, 1).color;
+      r.tImagen = performance.now() - t;
+    }
+
+    // 4) OCR completo, opcional
+    if (completo){
+      t = performance.now();
+      await w.setParameters({ tessedit_pageseg_mode: '3', tessedit_char_whitelist: '' });
+      const d = (await w.recognize(recorte(lienzo, 0, 0, 1, 1, 1, limpiar))).data;
+      r.texto = d.text; r.conf = d.confidence;
+      r.montos = [...new Set((d.text.match(/\b\d{1,3}(?:[,\u00A0 ]\d{3})*[.,]\d{2}\b/g) || []))];
+      r.fechas = [...new Set((d.text.match(/\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b/g) || []))];
+      r.tCompleto = performance.now() - t;
+    }
+
+    r.total = (r.tTexto || 0) + (r.tRender || 0) + (r.tEncab || 0) + (r.tNum || 0) + (r.tImagen || 0) + (r.tCompleto || 0);
 
     if (guardar && vistas.size < 80){
       const mini = document.createElement('canvas');
@@ -447,27 +401,33 @@ async function medir(){
   $('#correr').disabled = false; $('#parar').disabled = true; $('#expJson').disabled = paginas.length === 0;
 }
 
-/* ---------- tabla, resumen, vista ---------- */
+/* ---------- tabla ---------- */
+const UMBRAL_FIRMA = 0.008;   // punto de partida: se ajusta con más PDFs
+function celdaFirma(f){
+  if (!f) return '<td class="num"></td>';
+  const hay = f.color >= UMBRAL_FIRMA;
+  return '<td class="num" style="color:' + (hay ? 'var(--ok)' : 'var(--muted)') + '">' + (f.color * 100).toFixed(2) + '%</td>';
+}
 function pintarFila(r){
   const tr = document.createElement('tr');
-  const cls = r.clase === 'orden' ? 'op' : r.clase === 'soporte' ? 'sop' : 'dud';
-  const nom = r.clase === 'orden' ? 'Orden' : r.clase === 'soporte' ? 'Soporte' : 'Dudosa';
-  const i = r.img || {};
+  const cls = r.tipo.clave === 'orden' ? 'op' : r.tipo.clave === 'soporte' ? 'sop' : 'dud';
+  const num = r.numero
+    ? '<b>' + r.numero + '</b>' + (base.size ? ' <span style="color:var(--ok)">✓</span>' : '')
+    : (r.cand.length ? '<span style="color:var(--rev)">' + r.cand.slice(0, 2).join(' ') + '</span>'
+       : (r.ambiguo ? '<span style="color:var(--rev)">ambiguo: ' + r.ambiguo.join(' / ') + '</span>'
+          : r.tipo.clave === 'orden' ? '<span style="color:var(--bad)">no se leyó</span>' : '<span style="color:var(--muted)">—</span>'));
   tr.innerHTML =
     '<td class="num">' + r.pagina + '</td>' +
-    '<td><span class="tag ' + cls + '">' + nom + '</span></td>' +
-    '<td class="num">' + r.charsPdf + '</td>' +
+    '<td><span class="tag ' + cls + '">' + r.tipo.nombre + '</span></td>' +
+    '<td>' + num + '</td>' +
+    '<td class="num">' + (r.intentos || '') + '</td>' +
+    (r.firmas ? r.firmas.map(celdaFirma).join('') : '<td></td><td></td><td></td>') +
     '<td class="num">' + ms(r.tRender) + '</td>' +
-    '<td class="num">' + (r.tOcr ? ms(r.tOcr) : '—') + '</td>' +
+    '<td class="num">' + ms(r.tEncab) + '</td>' +
+    '<td class="num">' + (r.tNum ? ms(r.tNum) : '—') + '</td>' +
     '<td class="num">' + ms(r.total) + '</td>' +
-    '<td>' + (r.cand.ops.join(' ') || '<span style="color:var(--muted)">—</span>') + '</td>' +
-    '<td>' + (r.cand.folio ? (r.cand.folioEsOrden ? '<b>' + r.cand.folio + '</b>' : r.cand.folio) : '<span style="color:var(--muted)">—</span>') + '</td>' +
-    '<td class="num">' + r.cand.montos.length + '</td>' +
-    '<td class="num">' + (i.lineasFirma ?? '') + '</td>' +
-    '<td class="num">' + (i.firmas ?? '') + '</td>' +
-    '<td class="num">' + pct(i.tinta) + '</td>' +
-    '<td class="num">' + pct(i.color) + '</td>' +
-    '<td class="num">' + (i.inclin != null ? i.inclin.toFixed(2) + '°' : '') + '</td>';
+    '<td class="num">' + (r.color != null ? pct(r.color) : '') + '</td>' +
+    '<td class="num">' + (r.inclin != null ? r.inclin.toFixed(2) + '°' : '') + '</td>';
   tr.onclick = () => { document.querySelectorAll('#filas tr.sel').forEach(e => e.classList.remove('sel')); tr.classList.add('sel'); verPagina(r); };
   $('#filas').appendChild(tr);
 }
@@ -478,80 +438,75 @@ function resumir(totPag, tAbrir){
   const n = paginas.length; if (!n) return;
   const prom = f => paginas.reduce((a, r) => a + (f(r) || 0), 0) / n;
   const pTotal = prom(r => r.total);
+  const ordenes = paginas.filter(r => r.tipo.clave === 'orden');
+  const leidas = ordenes.filter(r => r.numero);
+  const primer = leidas.filter(r => r.intentos === 1);
   const conTextoPdf = paginas.filter(r => r.charsPdf > 80).length;
-  const conOcr = paginas.filter(r => r.tOcr).length;
-  const ordenes = paginas.filter(r => r.clase === 'orden').length;
-  const leidas = paginas.filter(r => r.cand.ops.length).length;
-  const conf = paginas.filter(r => r.conf != null);
-  const proy = k => { const s = pTotal * k / 1000; return s < 90 ? s.toFixed(0) + ' s' : (s / 60).toFixed(1) + ' min'; };
+  const proy = k => { const s = pTotal * k / 1000; return s < 90 ? s.toFixed(0) + ' s' : (s / 60).toFixed(0) + ' min'; };
+  const conteo = {};
+  for (const r of paginas) conteo[r.tipo.nombre] = (conteo[r.tipo.nombre] || 0) + 1;
   $('#tarjetas').innerHTML =
     tarjeta('Páginas medidas', n, 'de ' + totPag + ' · abrir el PDF: ' + ms(tAbrir)) +
-    tarjeta('Tiempo por página', ms(pTotal), 'render ' + ms(prom(r => r.tRender)) + (conOcr ? ' · OCR ' + ms(paginas.reduce((a, r) => a + (r.tOcr || 0), 0) / Math.max(1, conOcr)) : '')) +
+    tarjeta('Tiempo por página', ms(pTotal), 'render ' + ms(prom(r => r.tRender)) + ' · encabezado ' + ms(prom(r => r.tEncab))) +
     tarjeta('Proyección', proy(500), '500 págs. · 3,000 págs.: ' + proy(3000)) +
-    tarjeta('Ya traen texto', conTextoPdf + ' / ' + n, conTextoPdf === n ? 'no haría falta OCR' : conTextoPdf ? 'mixto: OCR solo donde falta' : 'escaneo puro: OCR obligatorio') +
-    tarjeta('Número de orden leído', leidas + ' / ' + n, 'páginas con al menos un número de 10 dígitos' +
-      (paginas.filter(r => r.cand.folioEsOrden).length ? ' · ' + paginas.filter(r => r.cand.folioEsOrden).length + ' por el folio' : '')) +
-    tarjeta('Clasificadas como orden', ordenes + ' / ' + n, 'el resto: soporte o dudosa') +
-    tarjeta('Firmas detectadas', paginas.reduce((a, r) => a + (r.img ? r.img.firmas : 0), 0), 'sobre ' + paginas.reduce((a, r) => a + (r.img ? r.img.lineasFirma : 0), 0) + ' líneas de firma') +
-    (conf.length ? tarjeta('Confianza del OCR', (conf.reduce((a, r) => a + r.conf, 0) / conf.length).toFixed(0) + '%', 'promedio que reporta Tesseract') : '');
+    tarjeta('Órdenes de pago', ordenes.length + ' / ' + n, Object.entries(conteo).map(([k, v]) => k + ' ' + v).join(' · ')) +
+    tarjeta('Número leído', leidas.length + ' / ' + ordenes.length, primer.length + ' al primer intento' + (base.size ? ' · confirmado contra el documento base' : ' · sin documento base, no se confirma')) +
+    tarjeta('Ya traen texto', conTextoPdf + ' / ' + n, conTextoPdf === n ? 'no haría falta OCR' : conTextoPdf ? 'mixto' : 'escaneo puro: OCR obligatorio') +
+    (paginas.some(r => r.firmas) ? tarjeta('Celdas con tinta de firma',
+       paginas.filter(r => r.tipo.clave === 'orden').reduce((a, r) => a + (r.firmas || []).filter(f => f.color >= UMBRAL_FIRMA).length, 0),
+       'de ' + ordenes.length * 3 + ' celdas de orden · umbral ' + (UMBRAL_FIRMA * 100).toFixed(1) + '%') : '');
 }
 
 function verPagina(r){
   const c = $('#lienzo'), cx = c.getContext('2d');
   const url = vistas.get(r.pagina);
-  const t = r.img ? Math.tan(r.img.inclin * Math.PI / 180) : 0;
   const dibujar = (w, h, img) => {
     c.width = w; c.height = h;
-    cx.setTransform(1, 0, 0, 1, 0, 0);
     cx.fillStyle = '#fff'; cx.fillRect(0, 0, w, h);
-    if (img){ cx.setTransform(1, -t, 0, 1, 0, t * w / 2); cx.drawImage(img, 0, 0, w, h); cx.setTransform(1, 0, 0, 1, 0, 0); }
-    if (r.img){
-      const k = w / r.img.W;
-      for (const L of r.img.lineas){
-        const arriba = (L.franja.yB - L.franja.yA) * k;
-        cx.fillStyle = L.firma ? 'rgba(51,70,168,.22)' : 'rgba(51,70,168,.07)';
-        cx.fillRect(L.x0 * k, L.franja.yA * k, (L.x1 - L.x0) * k, arriba);
-        cx.strokeStyle = 'rgba(176,40,28,.85)'; cx.lineWidth = 2;
-        cx.beginPath(); cx.moveTo(L.x0 * k, L.y1 * k); cx.lineTo(L.x1 * k, L.y1 * k); cx.stroke();
-      }
-    }
+    if (img) cx.drawImage(img, 0, 0, w, h);
+    cx.lineWidth = 2;
+    cx.strokeStyle = 'rgba(176,40,28,.9)';
+    cx.strokeRect(ZONA_NUM.fx * w, ZONA_NUM.fy * h, ZONA_NUM.fw * w, ZONA_NUM.fh * h);
+    (r.firmas || []).forEach((f, i) => {
+      cx.strokeStyle = 'rgba(51,70,168,.9)';
+      cx.fillStyle = f.color >= UMBRAL_FIRMA ? 'rgba(51,70,168,.16)' : 'rgba(51,70,168,.04)';
+      const x = (0.06 + i * 0.30) * w, y = 0.82 * h, ww = 0.28 * w, hh = 0.16 * h;
+      cx.fillRect(x, y, ww, hh); cx.strokeRect(x, y, ww, hh);
+    });
   };
   if (url){ const im = new Image(); im.onload = () => dibujar(im.width, im.height, im); im.src = url; }
-  else if (r.img) dibujar(r.img.W, r.img.H, null);
-  const i = r.img || {};
+  else dibujar(600, 800, null);
   $('#texto').textContent =
-    'Página ' + r.pagina + '  ·  ' + r.px + ' px  ·  texto de: ' + (r.fuente === 'ocr' ? 'OCR' : 'capa del PDF') +
-    (r.conf != null ? '  ·  confianza ' + r.conf.toFixed(0) + '%' : '') + '\n' +
-    'Órdenes: ' + (r.cand.ops.join(', ') || '—') + '\n' +
-    'Folio: ' + (r.cand.folio ? r.cand.folio + (r.cand.folioEsOrden ? '  (tiene forma de número de orden: cuenta como candidato)' : '  (no tiene forma de número de orden)') : '—') + '\n' +
-    'Números de 8 a 12 dígitos que no son de 10 (¿OCR incompleto?): ' + (r.cand.cerca.slice(0, 12).join(', ') || '—') + '\n' +
-    'Montos: ' + (r.cand.montos.slice(0, 14).join(', ') || '—') + '\n' +
-    'Fechas: ' + (r.cand.fechas.slice(0, 10).join(', ') || '—') + '\n' +
-    'Imagen: tinta ' + pct(i.tinta) + ' · color ' + pct(i.color) + ' · inclinación ' + (i.inclin != null ? i.inclin.toFixed(2) + '°' : '—') +
-    ' · líneas de firma ' + (i.lineasFirma ?? '—') + ' (con tinta: ' + (i.firmas ?? '—') + ')\n' +
-    '\n---- texto leído ----\n' + (r.texto || '');
+    'Página ' + r.pagina + '  ·  ' + r.px + '  ·  ' + r.tipo.nombre + '\n' +
+    'Encabezado leído: ' + (r.encabezado || '—') + '\n\n' +
+    'Orden de pago: ' + (r.numero || '— no se leyó —') + '\n' +
+    'Candidatos vistos: ' + (r.cand.length ? r.cand.join(', ') : '—') + '  (' + r.intentos + ' intento' + (r.intentos === 1 ? '' : 's') + ')\n' +
+    (r.firmas ? 'Tinta de color en las tres celdas de firma: ' + r.firmas.map(f => (f.color * 100).toFixed(2) + '%').join(' · ') + '\n' : '') +
+    (r.inclin != null ? 'Inclinación: ' + r.inclin.toFixed(2) + '°  ·  color en la página: ' + pct(r.color) + '\n' : '') +
+    'Tiempos: render ' + ms(r.tRender) + ' · encabezado ' + ms(r.tEncab) + ' · número ' + ms(r.tNum) + (r.tCompleto ? ' · OCR completo ' + ms(r.tCompleto) : '') + '\n' +
+    (r.montos ? '\nMontos: ' + (r.montos.slice(0, 14).join(', ') || '—') + '\nFechas: ' + (r.fechas.slice(0, 8).join(', ') || '—') + '\n' : '') +
+    (r.texto ? '\n---- texto leído ----\n' + r.texto : '');
 }
 
 function exportar(){
   const conTexto = $('#conTexto').checked;
   const datos = {
     fecha: new Date().toISOString(),
-    ajustes: { dpi: +$('#dpi').value, idioma: $('#idioma').value, ocr: $('#ocr').checked, saltarSiHayTexto: $('#saltarOcr').checked },
+    ajustes: { dpi: +$('#dpi').value, idioma: $('#idioma').value, limpiarColor: $('#limpiar').checked, ocrCompleto: $('#completo').checked, conDocumentoBase: base.size > 0 },
     navegador: navigator.userAgent,
     paginas: paginas.map(r => ({
-      pagina: r.pagina, clase: r.clase, px: r.px, charsPdf: r.charsPdf, chars: r.chars, fuente: r.fuente, conf: r.conf,
-      tTexto: r.tTexto, tRender: r.tRender, tImagen: r.tImagen, tOcr: r.tOcr, total: r.total,
-      nOps: r.cand.ops.length, nCerca: r.cand.cerca.length, folio: r.cand.folio, folioEsOrden: r.cand.folioEsOrden, nMontos: r.cand.montos.length, nFechas: r.cand.fechas.length,
-      diceOP: r.cand.diceOP, diceFirma: r.cand.diceFirma,
-      img: r.img ? { tinta: r.img.tinta, color: r.img.color, inclin: r.img.inclin, lineasFirma: r.img.lineasFirma, firmas: r.img.firmas, umbral: r.img.umbral } : null,
-      ops: conTexto ? r.cand.ops : undefined,
+      pagina: r.pagina, tipo: r.tipo.clave, px: r.px, charsPdf: r.charsPdf,
+      numero: conTexto ? r.numero : (r.numero ? 'leído' : null), intentos: r.intentos, nCand: r.cand.length,
+      firmas: (r.firmas || []).map(f => +f.color.toFixed(4)), inclin: r.inclin, color: r.color,
+      tRender: r.tRender, tEncab: r.tEncab, tNum: r.tNum, tImagen: r.tImagen, tCompleto: r.tCompleto, total: r.total,
+      encabezado: conTexto ? r.encabezado : undefined,
       texto: conTexto ? r.texto : undefined
     }))
   };
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(datos, null, 2)], { type: 'application/json' }));
   a.download = 'fase0-medicion.json'; a.click();
-  log('Exportado' + (conTexto ? ' (incluye el texto leído: trátalo como documento sensible).' : ' (solo métricas, sin texto).'));
+  log('Exportado' + (conTexto ? ' (incluye números y texto: trátalo como documento sensible).' : ' (solo métricas).'));
 }
 
 $('#correr').onclick = () => medir().catch(e => { log('Error: ' + e.message); console.error(e); $('#correr').disabled = false; $('#parar').disabled = true; });

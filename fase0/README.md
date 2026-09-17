@@ -21,40 +21,30 @@ la primera vez.
 
 | Qué | Para qué sirve |
 |---|---|
-| Si la página ya trae texto | Si el PDF no es puro escaneo, el OCR sobra y todo es 10× más rápido |
-| Tiempo de render y de OCR | Saber si 3,000 páginas se pueden verificar en el navegador o hace falta un programa instalable |
-| Número de orden leído (incluido `-A`) | Es lo mínimo indispensable: sin número no hay verificación. Un número de orden es cualquier grupo de **10 dígitos**: en los documentos base reales todas lo son, y las series son varias (19, 50, 51, 71) |
-| Folio | Hay órdenes que usan el folio como número de orden; se muestra y se marca si tiene forma de orden |
-| Números de 8 a 12 dígitos | Delatan al OCR cuando pierde o inventa un dígito |
-| Montos y fechas leídos | Para cotejar contra el documento base |
-| Clase de página (orden / soporte / dudosa) | Los PDF mezclan órdenes con facturas y anexos |
-| Líneas de firma y cuáles traen tinta | El conteo de firmas (3 esperadas) es la regla más delicada |
-| Tinta, color e inclinación | Calidad del escaneo: sellos de color, hojas chuecas |
+| Qué documento es cada página | Los PDF traen órdenes mezcladas con solicitudes, liberaciones y comprobantes del banco. Se decide por el encabezado |
+| Número de orden (incluido `-A`) | Se lee solo en las páginas de orden, de la caja de arriba a la derecha |
+| Confirmación contra el documento base | Pegando ahí la lista de órdenes solicitadas, el medidor **confirma** el número en vez de solo reportarlo |
+| Tinta de color en las tres celdas del pie | Es el conteo de firmas: la firma es de pluma, el nombre impreso es negro |
+| Tiempos de render, encabezado y número | Para saber si 3,000 páginas se pueden verificar en el navegador |
+| Si la página ya trae texto | Si el PDF no es puro escaneo, el OCR sobra |
+| Inclinación y color de la página | Calidad del escaneo |
 
-En "Revisar una página" se ve la página **ya enderezada**, con las líneas
-detectadas en rojo y en azul la franja donde se busca la firma. Ahí se nota
-rápido si la detección se equivocó.
+En "Revisar una página" se ve la página con las zonas marcadas: en rojo donde se
+busca el número, en azul las tres celdas de firma (llenas si tienen tinta).
 
-**Exportar medición (JSON)** guarda los números para compararlos entre corridas.
-Por omisión no incluye el texto leído; si se marca la casilla, el archivo queda
-con datos del documento y hay que tratarlo como tal.
+**Exportar medición (JSON)** guarda los números para comparar corridas. Por
+omisión no incluye el texto leído ni los números de orden; si se marca la
+casilla, el archivo queda con datos del documento y hay que tratarlo como tal.
 
-## Cómo está hecha la detección de firmas
+## Lo que se aprendió midiendo un PDF real
 
-1. Se pasa la página a gris y se binariza con Otsu.
-2. Se estima la inclinación probando ángulos de −3° a 3°: gana el que deja más
-   renglones alineados. **Sin enderezar no se detecta nada**: una raya inclinada
-   1.5° no cae en una sola fila de píxeles.
-3. Se buscan, en cada fila, todas las corridas oscuras largas y **sólidas**
-   (una raya está llena de tinta; un renglón de texto tiene huecos entre letras).
-   Tienen que ser todas las de la fila: las tres líneas de firma están a la misma
-   altura.
-4. Se descartan las demasiado largas (bordes de tabla) y las demasiado cortas.
-5. Sobre cada línea se mide la tinta de la franja de arriba: si tiene bastante
-   más que el promedio de la página, se cuenta como firmada.
-
-Los umbrales (largo de línea, solidez, tinta de la franja) son un punto de
-partida: se ajustan con el PDF real, que es justo para lo que sirve esta página.
+1. **300 ppp de render.** El escaneo viene a 200 ppp; a menos de 300 el número no se lee.
+2. **Borrar la tinta de color antes de leer.** La impresión es negra; pluma y sellos traen color. Una raya de pluma encima de los dígitos arruina el OCR, y blanquear el color lo resuelve.
+3. **Leer zonas, no páginas.** El OCR de la página completa tarda 2.9 s y ni así lee el número chico. Dos recortes (encabezado y caja del número) bajan a 0.55 s por página y aciertan.
+4. **`PSM 4`, nunca `PSM 6`.** Con `PSM 6` no se leyó ni una sola orden; con `PSM 4` salieron todas.
+5. **Varios intentos.** La caja se mueve con el escaneo: se prueban cinco recortes y escalas hasta que uno coincide con el documento base.
+6. **La `A` de ADEFA va en la lista de caracteres** y pegada al número; si no, una `-A` se confunde con su original.
+7. **El documento base es el árbitro.** Los PDF están llenos de números de 10 dígitos que no son órdenes.
 
 ## Probarla sin PDF real
 
@@ -67,6 +57,9 @@ Deja aquí un `op-sintetico.pdf` con datos inventados que imita un escaneo:
 encima de una firma, un folio arriba y dos páginas de soporte. El archivo está
 bloqueado en `.gitignore`.
 
-Con ese PDF el medidor acierta las 7 páginas en clase, número de orden, líneas y
-firmas, y tarda ~1.2 s por página a 150 ppp (render 170 ms + OCR 900 ms). Es un
-escaneo *limpio*: con papel real hay que esperar peor.
+Imita el formato real: seis órdenes, cada una seguida de su solicitud y su
+liberación, con los casos difíciles (raya de pluma sobre el número, sello encima
+de una firma, ADEFA `-A`, orden de dos hojas, otra serie). El medidor acierta las
+seis en clasificación y en conteo de firmas (3, 2, 1, 0, 3 y 2), y lee el número
+en cinco de seis: falla justo la que lleva la raya gruesa encima de los dígitos,
+que queda como "no se leyó" en vez de adivinada.
