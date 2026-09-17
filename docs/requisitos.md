@@ -149,7 +149,7 @@ Si un archivo trae más de una OP, se renombra con todas sus OP en orden de apar
   - **Fecha y hora:** momento en que se crea el archivo. Formato `DD-MM-AAAA` y `HH-MM` (24 h). Día primero para que el año de la fecha no se confunda con el ejercicio que va justo antes; la hora con guion porque Windows no permite `:` en nombres. *Confirmado.*
   - Se quitan de la entidad los caracteres que Windows no permite: `\ / : * ? " < > |`, y también `｜` para no confundir el separador.
 - Ejemplos: `Tabla ｜ Entidad de Ejemplo ｜ 2021 ｜ 14-09-2026 ｜ 16-05.xlsx` y `Entidad de Ejemplo ｜ 2021 ｜ 14-09-2026 ｜ 16-05.zip`.
-- **Parte:** si se verifica una parte de un Layout partido, el Excel y la carpeta terminan en ` ｜ Parte K`, igual que el Layout de esa parte (pedido del usuario, 2026-09-16: si no, no se distingue de una verificación completa). La fila de datos del Excel también dice `Parte K de N`. Ejemplo: `Tabla ｜ BOMBEROS ｜ 2021 ｜ 16-09-2026 ｜ 17-54 ｜ Parte 10.xlsx`.
+- **Parte:** si se verifica una parte de un Layout partido, el Excel y la carpeta terminan en ` ｜ Parte K`, igual que el Layout de esa parte (pedido del usuario, 2026-09-16: si no, no se distingue de una verificación completa). La fila de datos del Excel también dice `Parte K de N`. Ejemplo: `Tabla ｜ ENTIDAD DEMO ｜ 2021 ｜ 16-09-2026 ｜ 17-54 ｜ Parte 10.xlsx`.
 
 ### Excel de resultados
 
