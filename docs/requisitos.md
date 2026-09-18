@@ -328,6 +328,32 @@ que apareció daba 0.71.
 
 **Resultado: 3 sellos en las 7 órdenes, que es el conteo del usuario.**
 
+### Pero el conteo no es confiable, y por eso no decide nada (2026-09-17)
+
+Se probó con más de tres sellos, pegando sellos **reales** del propio PDF en hojas
+nuevas (misma geometría, tinta encima como un sello de verdad):
+
+| Hoja | Sellos reales | Detectados |
+|---|---|---|
+| 3 originales + 1 pegado | 4 | 5 |
+| 3 + 2 pegados | 5 | 6 |
+| 3 + 3 pegados | 6 | 7 |
+| 3 + 2 pegados muy encimados | 5 | 6 |
+
+Siempre uno de más: el sello pegado cayó sobre la tabla y **se partió en dos
+detecciones**, una sobre cada extremo de la palabra. Y no se puede arreglar juntando
+detecciones cercanas, porque en la orden de la página 21 **dos sellos distintos tienen
+sus centros más cerca** (10 % del ancho) que las dos mitades del sello partido (15 %):
+por geometría, un sello ancho partido y dos sellos encimados se ven igual.
+
+**Decisión del usuario (2026-09-17): lo que se verifica es que HAYA sello**, no cuántos.
+La presencia es robusta (7 de 7, sin confundir firmas, rayas de pluma ni la reja). El
+número de aros se muestra en la tabla marcado como aproximado y **no afecta al estado**.
+
+Contar bien exigiría reconocer el dibujo de cada sello (comparar contra recortes de los
+sellos de la dependencia, en varios giros), que es bastante más caro y necesita esos
+recortes. Queda como posibilidad si algún día el conteo importa.
+
 Quedan dos miradas al mismo problema, cada una para lo suyo:
 
 - **Aros** → cuántos sellos hay.

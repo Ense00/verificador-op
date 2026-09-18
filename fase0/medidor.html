@@ -148,7 +148,7 @@ pre.txt{font:12px/1.5 var(--mono);background:var(--sunken);border:1px solid var(
   <div class="tw"><table>
     <thead><tr>
       <th class="num">Pág.</th><th>Documento</th><th>Orden de pago</th><th class="num">Monto</th><th>Fecha</th><th>Hoja</th>
-      <th class="num">Firmas</th><th class="num">Sellos</th><th class="num">Firma 1</th><th class="num">Firma 2</th><th class="num">Firma 3</th>
+      <th class="num">Firmas</th><th class="num">Sello</th><th class="num">Firma 1</th><th class="num">Firma 2</th><th class="num">Firma 3</th>
       <th class="num">Render</th><th class="num">Encab.</th><th class="num">Número</th><th class="num">Total</th>
       <th class="num">Color</th><th class="num">Inclin.</th>
     </tr></thead>
@@ -884,7 +884,11 @@ function pintarFila(r, tr){
       ? r.firmas.filter(f => estadoFirma(f) === 'si').length + ' de 3'
         + (r.firmas.some(f => estadoFirma(f) === 'duda') ? ' <span style="color:var(--rev)">+dudas</span>' : '')
       : '') + '</td>' +
-    '<td class="num">' + (r.sellos ? r.sellos.length + (r.selloEnFirma ? ' <span style="color:var(--rev)" title="uno cae sobre una firma">⚠</span>' : '') : '') + '</td>' +
+    '<td class="num">' + (r.sellos
+      ? (r.sellos.length
+          ? '<b style="color:var(--ok)">sí</b> <span style="color:var(--muted)">≈' + r.sellos.length + '</span>'
+          : '<b style="color:var(--bad)">no</b>')
+      : '') + '</td>' +
     (r.firmas ? r.firmas.map(celdaFirma).join('') : '<td></td><td></td><td></td>') +
     '<td class="num">' + ms(r.tRender) + '</td>' +
     '<td class="num">' + ms(r.tEncab) + '</td>' +
@@ -918,7 +922,7 @@ function resumir(totPag, tAbrir, pared, nHilos, tRender, tRecorte){
     tarjeta('Ya traen texto', conTextoPdf + ' / ' + n, conTextoPdf === n ? 'no haría falta OCR' : conTextoPdf ? 'mixto' : 'escaneo puro: OCR obligatorio') +
     (paginas.some(r => r.sellos) ? tarjeta('Órdenes con sello',
        ordenes.filter(r => (r.sellos || []).length).length + ' / ' + ordenes.length,
-       ordenes.filter(r => r.selloEnFirma).length + ' con un sello encima de una firma') : '') +
+       'lo que decide es que haya; el conteo de la tabla es aproximado') : '') +
     (paginas.some(r => r.firmas) ? tarjeta('Celdas con tinta de firma',
        ordenes.reduce((a, r) => a + (r.firmas || []).filter(f => estadoFirma(f) === 'si').length, 0),
        'de ' + ordenes.length * 3 + ' celdas de orden · umbral ' + (UMBRAL_FIRMA * 100).toFixed(1) + '%'
@@ -937,9 +941,9 @@ function verPagina(r){
     cx.strokeRect(ZONA_NUM.fx * w, ZONA_NUM.fy * h, ZONA_NUM.fw * w, ZONA_NUM.fh * h);
     (r.sellos || []).forEach(s => {
       cx.strokeStyle = 'rgba(176,40,28,.95)'; cx.lineWidth = 3;
-      cx.strokeRect(s.x * w, s.y * h, s.an * w, s.al * h);
-      cx.fillStyle = 'rgba(176,40,28,.10)';
-      cx.fillRect(s.x * w, s.y * h, s.an * w, s.al * h);
+      cx.beginPath();
+      cx.ellipse((s.x + s.an / 2) * w, (s.y + s.al / 2) * h, s.an * w / 2, s.al * h / 2, 0, 0, 2 * Math.PI);
+      cx.stroke();
     });
     (r.firmas || []).forEach((f, i) => {
       cx.strokeStyle = 'rgba(51,70,168,.9)';
@@ -958,7 +962,9 @@ function verPagina(r){
       'Fecha: ' + (r.fecha || '—') + '  (ejercicio ' + (r.ejercicio || '—') + ')   ·   hoja ' + (r.hoja || '—') + '\n' : '') +
     'Candidatos vistos: ' + (r.cand.length ? r.cand.join(', ') : '—') + '  (' + r.intentos + ' intento' + (r.intentos === 1 ? '' : 's') + ')\n' +
     (r.firmas ? 'Tinta de color en las tres celdas de firma: ' + r.firmas.map(f => (f.color * 100).toFixed(2) + '% ' + ({ si: '(firmada)', duda: '(dudosa)', tapada: '(tapada por un sello: no se puede saber)', no: '(vacía)' })[estadoFirma(f)]).join(' · ') + '\n' : '') +
-    (r.sellos ? 'Sellos detectados: ' + r.sellos.length + (r.selloEnFirma ? '  ·  uno cae sobre una celda de firma (Revisar)' : '') + '\n' : '') +
+    (r.sellos ? 'Sello: ' + (r.sellos.length ? 'sí' : 'NO SE DETECTÓ NINGUNO')
+      + '  ·  aros contados: ' + r.sellos.length + ' (conteo aproximado, no decide nada)'
+      + (r.selloEnFirma ? '  ·  uno cae sobre una celda de firma' : '') + '\n' : '') +
     (r.inclin != null ? 'Inclinación: ' + r.inclin.toFixed(2) + '°  ·  color en la página: ' + pct(r.color) + '\n' : '') +
     'Tiempos: render ' + ms(r.tRender) + ' · encabezado ' + ms(r.tEncab) + ' · número ' + ms(r.tNum) + (r.tCompleto ? ' · OCR completo ' + ms(r.tCompleto) : '') + '\n' +
     (r.fechas ? '\nOCR completo · montos: ' + (r.fechas ? (r.montosPag || []).slice(0, 14).join(', ') : '') + '\nfechas: ' + r.fechas.slice(0, 8).join(', ') + '\n' : '') +

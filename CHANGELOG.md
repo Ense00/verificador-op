@@ -2,6 +2,18 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.16.0 — 2026-09-17
+
+- **El conteo de sellos deja de decidir; lo que decide es que haya sello.** Probado con
+  más de tres sellos (pegando sellos reales del propio PDF en hojas nuevas), el conteo
+  da uno de más: un sello ancho que cae sobre la tabla se parte en dos detecciones, y no
+  se puede distinguir de dos sellos encimados, porque en una orden real dos sellos
+  distintos están más cerca entre sí que las dos mitades del sello partido.
+- La tabla ahora muestra **sí / no** y el número de aros al lado, marcado como
+  aproximado. La presencia sí es robusta: 7 de 7 en las órdenes reales.
+- En la vista de revisión los sellos se dibujan como elipse (el aro detectado), no como
+  recuadro, para no dar a entender que ese es el contorno real del sello.
+
 ## v0.15.0 — 2026-09-17
 
 - **Los sellos ahora se cuentan, no solo se detectan.** La versión por manchas contaba 2
