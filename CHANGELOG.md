@@ -2,6 +2,29 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.23.0 — 2026-09-18
+
+- **La etapa 2 ya verifica de verdad.** Elegir la carpeta de PDFs, elegir el documento
+  base y pulsar Verificar corre el motor completo sobre los archivos y llena la tabla con
+  el resultado: orden de pago, ejercicio, monto, firmas y sellos, con su motivo, archivo
+  y página. Se puede cancelar a media corrida y queda lo que alcanzó a leerse.
+- **Nada llega a "Correcto" sin que el documento base confirme el número.** Una orden que
+  no se confirma va a *No encontradas*, nunca a una fila buena con el número equivocado.
+- **Páginas con forma de orden que no se pudieron identificar**: se listan aparte con
+  archivo, página y qué pasó, en la pestaña *No encontradas* y en una hoja propia del
+  Excel. Es donde hay que ir a buscar lo que falta.
+- **Medido en la página**, caso Caso B (8 PDF, 62 páginas): **37 s con todo marcado**,
+  **16 s marcando solo la orden de pago**, 7 de 8 órdenes y **0 falsos positivos**.
+- **pdf.js y el OCR se cargan al pulsar Verificar**, no al abrir la página.
+- **Un PDF a la vez en memoria:** antes se abrían todos de golpe para contar páginas, lo
+  que con un archivo de 1,660 páginas no cabe.
+- La demostración se conserva: es un segundo juego de datos, se entra y se sale de ella
+  sin perder lo verificado, y las correcciones a mano se guardan por juego.
+- El selector de PDFs abre una **carpeta**; hay un botón aparte para archivos sueltos.
+- Documentación: los nombres de las entidades y los números de orden reales que se habían
+  colado en `CHANGELOG.md` y `docs/requisitos.md` se cambiaron por **Caso A/B/C** y
+  números ficticios, como manda la regla del README.
+
 ## v0.22.0 — 2026-09-18
 
 - **El lector del documento base ahora saca también el ejercicio y el monto de cada
@@ -11,20 +34,19 @@ Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarroll
 
   | Caso | Orden | Ejercicio | Monto | Cobertura |
   |---|---|---|---|---|
-  | Bomberos | `Orden de Pago` | `Fecha Contable` | `Importe en moneda de la entidad CP` | 73 / 73 |
-  | Cruz Roja | ídem | ídem | ídem | 8 / 8 |
-  | Caborca | `Nº documento` | `Fecha contabiliz.` | `Importe en moneda local` | 365 / 365 |
+  | Caso A | `Orden de Pago` | `Fecha Contable` | `Importe en moneda de la entidad CP` | 73 / 73 |
+  | Caso B | ídem | ídem | ídem | 8 / 8 |
+  | Caso C | `Nº documento` | `Fecha contabiliz.` | `Importe en moneda local` | 365 / 365 |
 
 - Primer paso de la integración en la página: el motor de verificación quedó extraído
   del medidor y **encapsulado** (846 líneas que no chocan con el código de la página),
   con un orquestador sin interfaz que avisa del progreso por callback. Probado por
-  separado: 7 de 8 órdenes de Cruz Roja con ejercicio, montos, firmas y sellos.
+  separado: 7 de 8 órdenes de Caso B con ejercicio, montos, firmas y sellos.
 
 ## v0.21.0 — 2026-09-18
 
 - **Las casillas de qué revisar ahora ahorran trabajo de verdad.** Si no se piden sellos
-  ni firmas se salta toda la segunda vuelta de análisis de imagen. Medido: el caso Cruz
-  Roja pasa de 0.7 a **0.3 minutos** marcando solo "Orden de pago", con el mismo
+  ni firmas se salta toda la segunda vuelta de análisis de imagen. Medido: el caso Caso B pasa de 0.7 a **0.3 minutos** marcando solo "Orden de pago", con el mismo
   resultado en lo que importa.
 - **Escaneo sin color → Ilegible.** Las señales de firma se apoyan en el color; en una
   hoja gris o en blanco y negro no se puede juzgar, y decir "falta firma" sería inventar.
@@ -38,10 +60,10 @@ Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarroll
   color de trazo fino**. El sello es de hule y su trazo grueso; la pluma no. Quedándose
   con la tinta coloreada que no sobrevive a una erosión, aparece la firma bajo el sello
   (celda firmada 0.3–4.3 %, celda vacía 0–0.04 %). El conteo de firmas pasa de **2 a 7
-  aciertos de 8** en el caso Cruz Roja, sin regresión en el documento de referencia.
+  aciertos de 8** en el caso Caso B, sin regresión en el documento de referencia.
 - La densidad de tinta se mide sobre el **área libre de sello**, no sobre la celda
   entera: así una firma que asoma junto al sello no se diluye.
-- **Bomberos completo en modo carpeta: 64 de 67 órdenes (96 %, antes 90 %)**, 1,123
+- **Caso A completo en modo carpeta: 64 de 67 órdenes (96 %, antes 90 %)**, 1,123
   páginas en **9.4 minutos** en una sola sesión del navegador, sin falsos positivos.
 
 ## v0.19.1 — 2026-09-18
@@ -49,8 +71,7 @@ Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarroll
 - Corregido un error del modo carpeta: las segundas vueltas (número y sellos) recorrían
   **todas** las páginas acumuladas, incluidas las de archivos ya procesados, y volvían a
   renderizar del PDF equivocado. Ahora cada vuelta se limita a las páginas de su archivo.
-  Con eso el modo carpeta da el mismo resultado que archivo por archivo: 7 de 8 en Cruz
-  Roja.
+  Con eso el modo carpeta da el mismo resultado que archivo por archivo: 7 de 8 en Caso B.
 
 ## v0.19.0 — 2026-09-18
 
@@ -59,14 +80,14 @@ Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarroll
   en unas dependencias y `Nº documento` en otras). Al terminar reporta cuántas de las
   órdenes solicitadas se encontraron y cuáles faltan, y la tabla dice de qué archivo
   viene cada página.
-- Confirmada la mejora de v0.18.0 también en Bomberos: sobre los mismos 19 archivos,
+- Confirmada la mejora de v0.18.0 también en Caso A: sobre los mismos 19 archivos,
   **22 órdenes confirmadas contra 19**, sin perder ninguna.
 
 ## v0.18.0 — 2026-09-18
 
 Primera medición contra documentos base reales (banco `Base + OP` con tres casos).
 
-- **Cruz Roja: de 6 a 7 de 8 órdenes confirmadas, sin falsos positivos.** Lo que faltaba
+- **Caso B: de 6 a 7 de 8 órdenes confirmadas, sin falsos positivos.** Lo que faltaba
   eran órdenes con la pluma cruzando el número: un barrido de 720 combinaciones mostró
   que se leen borrando **solo** la pluma muy saturada (umbral 60, no 30) y ampliando el
   recorte, con `PSM 6` o `PSM 3`. Se agregaron esos intentos.

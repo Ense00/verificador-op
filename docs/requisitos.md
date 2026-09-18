@@ -481,7 +481,7 @@ tres celdas, detectable por sus líneas.
 ## Banco de evaluación con documentos base reales (2026-09-18)
 
 El usuario armó `Base + OP/` con tres casos, cada uno con su documento base y sus PDF:
-**Bomberos** (73 órdenes, 67 PDF), **Cruz Roja** (8 y 8) y **Caborca** (365 órdenes,
+**Caso A** (73 órdenes, 67 PDF), **Caso B** (8 y 8) y **Caso C** (365 órdenes,
 20 PDF, ~8,600 páginas). Con eso la medición dejó de ser anecdótica.
 
 ### Cómo se mide
@@ -495,20 +495,20 @@ falsos positivos**: ninguna orden dada por buena que no lo sea.
 
 | Caso | Órdenes con PDF | Confirmadas (antes) | Confirmadas (ahora) | Falsos positivos |
 |---|---|---|---|---|
-| Bomberos | 67 (6 no tienen PDF) | 60 (90 %) | **64 (96 %)** | **0** |
-| Cruz Roja | 8 | 6 (75 %) | **7 (88 %)** | **0** |
+| Caso A | 67 (6 no tienen PDF) | 60 (90 %) | **64 (96 %)** | **0** |
+| Caso B | 8 | 6 (75 %) | **7 (88 %)** | **0** |
 
-Bomberos corrió entero en **modo carpeta**: los 67 PDF y 1,123 páginas en **9.4 minutos**,
+Caso A corrió entero en **modo carpeta**: los 67 PDF y 1,123 páginas en **9.4 minutos**,
 en una sola sesión del navegador y sin degradarse. Las 3 órdenes que siguen sin
-encontrarse (`1900021849`, `1900022066`, `1900025576`) tienen la pluma encima del número.
+encontrarse (`1900000013`, `1900000016`, `1900000021`) tienen la pluma encima del número.
 
 El **cero falsos positivos es estructural, no estadístico**: una orden solo se da por
 encontrada si el número leído está en la lista del documento base, y si coinciden dos
 candidatos se marca ambiguo. Un número mal leído se convierte en "no encontrada", nunca
 en "encontrada la equivocada".
 
-La comparación de Bomberos se hizo sobre los mismos 19 archivos con las dos versiones:
-**22 órdenes contra 19**, tres ganadas (`1900021848`, `1900021850`, `1900021861`, que
+La comparación de Caso A se hizo sobre los mismos 19 archivos con las dos versiones:
+**22 órdenes contra 19**, tres ganadas (`1900000012`, `1900000014`, `1900000015`, que
 estaban entre las que fallaban) y ninguna perdida. La corrida completa no se terminó por
 tiempo, pero los cambios solo **agregan** intentos de lectura, así que no pueden reducir
 lo encontrado.
@@ -516,13 +516,13 @@ lo encontrado.
 ### Tres cosas que esta medición dejó claras
 
 1. **El nombre del PDF no manda.** Las órdenes aparecen repartidas entre archivos sin
-   seguir el nombre: `1900021861.pdf` contiene la orden `1900024677`. Por eso la métrica
+   seguir el nombre: `1900000015.pdf` contiene la orden `1900000020`. Por eso la métrica
    correcta es el conjunto de órdenes halladas en todos los PDF, no archivo por archivo.
 2. **Cuando no puede leer, no inventa.** Se persiguió un caso sospechoso
-   (`1900021848.pdf` confirmaba `1900021843`) y resultó ser otra orden legítima en otra
+   (`1900000012.pdf` confirmaba `1900000011`) y resultó ser otra orden legítima en otra
    página del mismo PDF; la página del número ilegible no confirmó nada. La propiedad de
    seguridad se sostiene en los 75 casos medidos.
-3. **La documentación de los formatos base también varía:** el Excel de Caborca no tiene
+3. **La documentación de los formatos base también varía:** el Excel de Caso C no tiene
    columna `Orden de Pago` sino `Nº documento`. La columna se localiza por contenido (la
    que más números distintos de 8-12 dígitos tiene), no por su nombre.
 
@@ -532,7 +532,7 @@ lo encontrado.
   número) demostró que **sí es leíble**: 12 combinaciones lo logran. Lo que la rescata es
   borrar **solo la pluma muy saturada** (umbral 60 en vez de 30, para no comerse los
   grises del dígito) y ampliar el recorte, con `PSM 6` o `PSM 3`. Se agregaron esos
-  intentos y con eso Cruz Roja pasó de 6 a 7 de 8.
+  intentos y con eso Caso B pasó de 6 a 7 de 8.
   - Nota: `PSM 6` estaba descartado por una prueba anterior sobre la página completa. En
     un recorte pegado a la caja del número funciona. La lección es que el modo depende
     del tamaño del recorte, no del documento.
@@ -574,7 +574,7 @@ Quedan entonces **tres señales**, cada una para lo que las otras no ven:
 | Trazo grueso (erosión) | pluma **negra**, que no tiene color | el color no la ve |
 | Tinta de color **fina** | pluma **debajo de un sello** | las dos anteriores se ahogan en la tinta del sello |
 
-Medido contra las 8 órdenes de Cruz Roja, cuya verdad se comprobó a ojo (2 de 3 firmas
+Medido contra las 8 órdenes de Caso B, cuya verdad se comprobó a ojo (2 de 3 firmas
 en todas, falta siempre la del Tesorero):
 
 | | Antes | Ahora |
@@ -593,10 +593,10 @@ y 3.6, Canon y uno sin identificar). Lo medido sobre ellos:
 ### Hallazgos de estructura
 
 - **Cinco archivos son copias idénticas** de otros tres (verificado por huella MD5):
-  `1900022997 = 1900023000 = 1900023001`, `1000039081 = …82 = …83`,
-  `5100017190 = 5100021144`. Son de los más grandes (82 MB × 3, 49 MB × 2): descartar
+  `1900000017 = 1900000018 = 1900000019`, `1000039081 = …82 = …83`,
+  `5100000011 = 5100000012`. Son de los más grandes (82 MB × 3, 49 MB × 2): descartar
   duplicados por huella antes de leer ahorra ~250 MB y miles de páginas.
-- **Un PDF trae varias órdenes**, aunque se llame como una sola: en `1900022997.pdf`
+- **Un PDF trae varias órdenes**, aunque se llame como una sola: en `1900000017.pdf`
   (32 páginas) hay **6 órdenes distintas**. Y un archivo se llama con **siete** números.
 - **Documentos muy grandes:** uno de **1,660 páginas y 457 MB**.
 - **Solo la primera página es apaisada** (el listado de pagos) en los siete archivos que
@@ -607,7 +607,7 @@ y 3.6, Canon y uno sin identificar). Lo medido sobre ellos:
 
 ### Validación de punta a punta con documento base real
 
-`BOMBEROS 2021.xlsx` resultó ser el documento base de `1900022997.pdf`. Con su lista de
+`CASO A 2021.xlsx` resultó ser el documento base de `1900000017.pdf`. Con su lista de
 73 órdenes:
 
 | Medida | Resultado |
@@ -623,13 +623,13 @@ lectura del número aguanta en un formato que no se calibró.
 
 ### El hallazgo que más cambia el diseño: hay firmas de tinta NEGRA
 
-En las órdenes de BOMBEROS las firmas son de **pluma negra**, no azul. Todo el detector
+En las órdenes de Caso A las firmas son de **pluma negra**, no azul. Todo el detector
 de firmas se basaba en el color, así que reportaba 0 de 3 donde hay 2. Medido en cuatro
 formatos:
 
 | Formato | Firma por color | Firma por grosor de trazo (2 erosiones) |
 |---|---|---|
-| Bomberos, pluma negra | 0.00–0.15 % ✗ | **10–11 %** ✓ |
+| Caso A, pluma negra | 0.00–0.15 % ✗ | **10–11 %** ✓ |
 | Educación, pluma azul | 1.0–4.2 % ✓ | 0.7–1.9 % ✗ |
 | ISSSTESON, pluma azul fina | 2.1–4.8 % ✓ | 0.01–0.15 % ✗ |
 | Celda vacía (referencia) | 0.00 % | 0.35 % |
@@ -641,8 +641,8 @@ así que sería la vía si algún día aparece un escaneo en gris.
 
 ### También corregido
 
-- **El `-A` puede ser invento del OCR:** en una orden leyó `1900023001-A` donde la caja
-  dice `1900023001` sin sufijo. Con una base que tuviera la orden y su `-A`, eso podría
+- **El `-A` puede ser invento del OCR:** en una orden leyó `1900000019-A` donde la caja
+  dice `1900000019` sin sufijo. Con una base que tuviera la orden y su `-A`, eso podría
   confirmar la equivocada. El sufijo necesita más exigencia que hoy.
 - Las órdenes de esos formatos traen `Página 1 / 1` al pie y el número en caja rotulada
   `Orden de Pago`, como el primer formato.
@@ -698,7 +698,7 @@ franja angosta y de ahí saltar al dato.
 
 - **Cada casilla manda sobre el trabajo que se hace.** Si no se piden sellos ni firmas,
   se salta entera la segunda vuelta de análisis de imagen, que es lo más caro (1.7–3 s
-  por orden). Medido sobre el caso Cruz Roja (62 páginas):
+  por orden). Medido sobre el caso Caso B (62 páginas):
 
   | Casillas | Tiempo | Órdenes encontradas |
   |---|---|---|
@@ -714,6 +714,55 @@ franja angosta y de ahí saltar al dato.
 - **Aviso al marcar firmas o sellos:** la interfaz advierte que esos dos se leen de la
   imagen y no son tan exactos como el número, el ejercicio y el monto.
 
+## La etapa 2 ya verifica de verdad (2026-09-18)
+
+El motor de la fase 0 quedó conectado a la página. La etapa 2 dejó de ser una
+demostración: elige la carpeta de PDFs, lee el documento base, corre la verificación y
+llena la tabla con el resultado real.
+
+**Cómo está armado**
+
+- El motor va en un bloque aislado (`const Motor = (() => { … })()`) que no comparte ni
+  un nombre con el código de la página. La página solo le pide dos cosas:
+  `Motor.leerDocumentoBase(archivo)` y `Motor.procesarPDFs(archivos, opciones)`.
+- **pdf.js y el OCR se traen al pulsar Verificar**, no al abrir la página: son varios MB
+  y quien solo va a preparar el Layout no tiene por qué esperarlos.
+- **La demostración y el resultado real son dos juegos de datos** sobre las mismas
+  listas. Se guardan y se reponen, así que se puede entrar y salir de la demostración
+  sin perder lo verificado. Las correcciones a mano se guardan por juego de datos, para
+  que las de la demostración no se apliquen a filas reales.
+- **Un PDF a la vez en memoria.** Antes se abrían todos para contar páginas; con un
+  archivo de 1,660 páginas eso no cabe. Ahora se cuenta y se cierra, y en la vuelta
+  buena se abre de nuevo uno por uno.
+
+**De lo leído a la tabla**
+
+| Campo | Correcto | Incorrecto | Revisar | Ilegible |
+|---|---|---|---|---|
+| Orden | el número está en el documento base | — | aparece en más de un archivo | (no llega a fila: va a "No encontradas") |
+| Ejercicio | el año coincide | año distinto | — | no se pudo leer la fecha |
+| Monto | coincide con un renglón o con el total | no aparece; se dice el más cercano y la diferencia | monto negativo en el documento base | no se pudo leer la tabla de montos |
+| Firmas | todas las celdas firmadas | faltan firmas | sello encima o trazo tenue | escaneo sin color |
+| Sellos | hay sello | no se detectó ninguno | — | sin color y sin sello |
+
+- **Nada llega a "Correcto" sin que el número esté confirmado contra el documento base.**
+  Una orden que no se confirma no se inventa: va a *No encontradas*.
+- **Páginas con forma de orden que no se pudieron identificar**: se listan aparte, en la
+  misma pestaña de *No encontradas* y en una hoja propia del Excel, con archivo, página
+  y qué pasó ("se leyó 7220472021, que no está en el documento base"). Es justo donde
+  hay que ir a buscar las órdenes que faltan.
+
+**Medido en la página, caso Caso B (8 PDF, 62 páginas)**
+
+| Casillas | Tiempo | Resultado |
+|---|---|---|
+| Todas | 37 s | 7 de 8 órdenes, 0 falsos positivos |
+| Solo orden de pago | **16 s** | las mismas 7 |
+
+Las dos órdenes que salen "Correcto" con todo marcado y las seis que salen "Incorrecto"
+por firmas se revisaron a ojo: en ese caso el recuadro de *Páguese* viene de verdad sin
+firmar, así que "solo 2 de 3" es correcto.
+
 ## Pendiente
 
 Estado al 2026-09-17 (v0.10.0):
@@ -722,13 +771,17 @@ Estado al 2026-09-17 (v0.10.0):
 - **Etapa 2, Verificar órdenes:** interfaz lista con demostración; todavía no procesa PDFs.
 - **Fase 0: terminada.** La lectura de PDFs reales está medida y resuelta (arriba).
 
-Siguiente paso:
+Al 2026-09-18 (v0.23.0) la etapa 2 ya verifica PDFs reales. Lo que sigue:
 
-1. Llevar la receta de la fase 0 a la etapa 2 de la página: cargar los PDFs, clasificar
-   páginas, leer el número, confirmarlo contra el documento base y armar el resultado.
-2. Reglas que ya se pueden decidir con lo medido: una orden se arma con su página de
-   orden (el soporte que la acompaña no se valida) y el estado sale de número +
-   ejercicio + montos + firmas.
-3. Falta medir, cuando haya ejemplos: montos y fecha de la orden (hoy solo se leen con
-   el OCR completo, que es lento), órdenes de varias hojas reales, una ADEFA real (no
-   hubo ninguna en los documentos base revisados) y páginas giradas 90°.
+1. **Probarlo el usuario** con sus carpetas: es lo único que puede decir si el ritmo y
+   los estados sirven en el trabajo de verdad.
+2. **El caso Caso C (~8,600 páginas) nunca se ha corrido entero.** Es la prueba de
+   resistencia: memoria, tiempo y la posibilidad de cancelar a medias.
+3. **Tres órdenes del Caso A siguen sin leerse** por tener la pluma encima de los
+   dígitos. El barrido de parámetros no las alcanzó.
+4. **El conteo de sellos no es de fiar** cuando se traslapan; por eso solo se informa si
+   hay o no hay, que es lo que pidió el usuario.
+5. **Sin medir todavía:** una ADEFA real (no hubo ninguna en los documentos base
+   revisados) y páginas giradas 90°.
+6. **Falta la descarga de la carpeta de PDFs renombrados** (botón "Descargar carpeta"):
+   hoy sigue diciendo "Próximamente".
