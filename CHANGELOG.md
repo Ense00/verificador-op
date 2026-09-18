@@ -2,6 +2,21 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.14.0 — 2026-09-17
+
+- **Un sello encima de una firma ya no la inventa.** Se probó el caso a propósito: una
+  orden sin ninguna firma con sellos sobre las tres celdas se reportaba como *3 de 3
+  firmas*. Ahora la tinta que cae dentro de un sello detectado no cuenta como firma: esa
+  orden da 0 de 3 y la misma orden firmada sigue dando 3 de 3, porque los trazos de la
+  firma salen del aro del sello.
+- Nuevo estado de firma **tapada**: celda cubierta por un sello y sin tinta de pluma
+  fuera de él. No se decide, se manda a revisar.
+- Dentro de la banda de firmas se exige más hueco para contar una mancha como sello
+  (una firma enlazada encierra ~31; un sello encima, ~484), así que ya se detectan los
+  sellos que caen ahí sin confundirlos con las firmas.
+- Aclaración de reglas: que un sello tape una firma **no** es motivo de revisión por sí
+  mismo; solo cuando impide saber si la celda está firmada.
+
 ## v0.13.1 — 2026-09-17
 
 Correcciones a la detección de sellos, tras revisar la salida dibujada sobre las hojas:

@@ -246,7 +246,12 @@ function tinta(c, fx, fy, fw, fh){
    Después se quitan las corridas largas (las rayas de la reja son largas y rectas;
    un sello son arcos cortos), se juntan las manchas y se filtran por tamaño: el
    escudo del membrete mide 0.09 de ancho y cualquier sello pasa de 0.13. */
-const SELLO = { W: 700, CEL: 6, MIN_CELDA: 3, MIN_AN: 0.13, MIN_AL: 0.07, MIN_TINTA: 1100, MIN_PROP: 0.25, MIN_HUECO: 12 };
+const SELLO = { W: 700, CEL: 6, MIN_CELDA: 3, MIN_AN: 0.13, MIN_AL: 0.07, MIN_TINTA: 1100, MIN_PROP: 0.25,
+                MIN_HUECO: 12,        // un sello encierra hueco; una raya de pluma no
+                MIN_HUECO_FIRMAS: 60, // dentro de la banda de firmas se exige más: ahí el
+                                      // lazo de una firma puede encerrar algo (medido: 31),
+                                      // pero un sello encima encierra mucho más (medido: 484)
+                BANDA_FIRMAS: 0.82 };
 
 function tintaAnadida(c){
   const W = SELLO.W, H = Math.round(c.height * W / c.width);
@@ -299,6 +304,36 @@ function tintaAnadida(c){
   return { add, W, H };
 }
 
+/* La tinta de un sello encima de una celda no puede contarse como firma. Se mide la
+   tinta de cada celda quitando lo que cae dentro del recuadro de un sello; si lo que
+   queda no alcanza pero el sello cubre buena parte de la celda, no se decide: se
+   reporta "tapada" para que la vea una persona. */
+function tintaFirmas(c, sellos){
+  return [0, 1, 2].map(i => {
+    const cx = 0.06 + i * 0.30, cy = 0.82, cw = 0.28, ch = 0.16;
+    const x = Math.round(c.width * cx), y = Math.round(c.height * cy);
+    const w = Math.round(c.width * cw), h = Math.round(c.height * ch);
+    const d = c.getContext('2d', { willReadFrequently: true }).getImageData(x, y, w, h).data;
+    let total = 0, libre = 0, n = 0;
+    for (let py = 0; py < h; py++) for (let px = 0; px < w; px++){
+      const j = (py * w + px) * 4, r = d[j], g = d[j+1], b = d[j+2];
+      const lum = r * 0.299 + g * 0.587 + b * 0.114;
+      n++;
+      if (!(Math.max(r, g, b) - Math.min(r, g, b) > 28 && lum < 215)) continue;
+      total++;
+      const fx = cx + (px / w) * cw, fy = cy + (py / h) * ch;
+      const dentroDeSello = sellos.some(s => fx >= s.x && fx <= s.x + s.an && fy >= s.y && fy <= s.y + s.al);
+      if (!dentroDeSello) libre++;
+    }
+    const cubierta = sellos.reduce((a, s) => {
+      const ax = Math.max(0, Math.min(s.x + s.an, cx + cw) - Math.max(s.x, cx));
+      const ay = Math.max(0, Math.min(s.y + s.al, cy + ch) - Math.max(s.y, cy));
+      return Math.max(a, (ax * ay) / (cw * ch));
+    }, 0);
+    return { color: libre / n, total: total / n, cubierta };
+  });
+}
+
 function sellos(c){
   const { add, W, H } = tintaAnadida(c);
   const CEL = SELLO.CEL, GW = Math.ceil(W / CEL), GH = Math.ceil(H / CEL);
@@ -348,15 +383,15 @@ function sellos(c){
     }
     let hueco = 0;
     for (let k = 0; k < an * al; k++) if (!dentro[k] && !libre[k]) hueco++;
-    if (hueco < SELLO.MIN_HUECO) continue;
+    const enBanda = (y0 / GH) >= SELLO.BANDA_FIRMAS;
+    if (hueco < (enBanda ? SELLO.MIN_HUECO_FIRMAS : SELLO.MIN_HUECO)) continue;
 
     fuera.push({ x: x0 / GW, y: y0 / GH, an: an / GW, al: al / GH, tinta, hueco });
   }
   // Una mancha que NACE dentro de la banda de firmas es la firma, aunque su lazo se
   // salga de la celda (medido: las firmas empiezan en y ≥ 0.84; un sello que llega a
   // tapar una firma viene bajando desde arriba y empieza en y ≈ 0.66-0.71).
-  const naceEnFirmas = s => s.y >= 0.82;
-  const sellos = fuera.filter(s => !naceEnFirmas(s));
+  const sellos = fuera;
   // encima de una firma = traslapa de verdad una celda, no que la roce
   const sobreFirma = sellos.filter(s => [0, 1, 2].some(i => {
     const cx = 0.06 + i * 0.30, cy = 0.82, cw = 0.28, ch = 0.16;
@@ -646,6 +681,7 @@ async function medir(){
       page.cleanup();
       const se = sellos(lienzo);
       r.sellos = se.sellos; r.selloEnFirma = se.sobreFirma.length > 0;
+      r.firmas = tintaFirmas(lienzo, se.sellos);
       r.total = (r.total || 0);
       pintarFila(r, filas.get(r.pagina));
     }
@@ -700,12 +736,16 @@ function resolverNumero(r, vistos){
    a 0.78 %, mientras que una celda vacía da 0.00 %. El umbral va en 0.6 %, y entre
    0.2 % y 0.6 % no se decide: se marca dudosa para que la revise una persona. */
 const UMBRAL_FIRMA = 0.006, UMBRAL_DUDA = 0.002;
-const estadoFirma = f => !f ? null : f.color >= UMBRAL_FIRMA ? 'si' : f.color >= UMBRAL_DUDA ? 'duda' : 'no';
+const estadoFirma = f => !f ? null
+  : f.color >= UMBRAL_FIRMA ? 'si'
+  : (f.cubierta || 0) >= 0.25 ? 'tapada'      // un sello encima: no se puede saber
+  : f.color >= UMBRAL_DUDA ? 'duda' : 'no';
 function celdaFirma(f){
   if (!f) return '<td class="num"></td>';
   const e = estadoFirma(f);
-  const color = e === 'si' ? 'var(--ok)' : e === 'duda' ? 'var(--rev)' : 'var(--muted)';
-  return '<td class="num" style="color:' + color + '">' + (f.color * 100).toFixed(2) + '%' + (e === 'duda' ? ' ?' : '') + '</td>';
+  const color = e === 'si' ? 'var(--ok)' : (e === 'duda' || e === 'tapada') ? 'var(--rev)' : 'var(--muted)';
+  const marca = e === 'duda' ? ' ?' : e === 'tapada' ? ' sello' : '';
+  return '<td class="num" style="color:' + color + '">' + (f.color * 100).toFixed(2) + '%' + marca + '</td>';
 }
 function filaVacia(r){
   const tr = document.createElement('tr');
@@ -805,7 +845,7 @@ function verPagina(r){
     (r.tipo.clave === 'orden' ? 'Monto mayor leído: ' + (r.monto || '—') + '   ·   todos: ' + (r.montos || []).join(', ') + '\n' +
       'Fecha: ' + (r.fecha || '—') + '  (ejercicio ' + (r.ejercicio || '—') + ')   ·   hoja ' + (r.hoja || '—') + '\n' : '') +
     'Candidatos vistos: ' + (r.cand.length ? r.cand.join(', ') : '—') + '  (' + r.intentos + ' intento' + (r.intentos === 1 ? '' : 's') + ')\n' +
-    (r.firmas ? 'Tinta de color en las tres celdas de firma: ' + r.firmas.map(f => (f.color * 100).toFixed(2) + '% ' + ({ si: '(firmada)', duda: '(dudosa)', no: '(vacía)' })[estadoFirma(f)]).join(' · ') + '\n' : '') +
+    (r.firmas ? 'Tinta de color en las tres celdas de firma: ' + r.firmas.map(f => (f.color * 100).toFixed(2) + '% ' + ({ si: '(firmada)', duda: '(dudosa)', tapada: '(tapada por un sello: no se puede saber)', no: '(vacía)' })[estadoFirma(f)]).join(' · ') + '\n' : '') +
     (r.sellos ? 'Sellos detectados: ' + r.sellos.length + (r.selloEnFirma ? '  ·  uno cae sobre una celda de firma (Revisar)' : '') + '\n' : '') +
     (r.inclin != null ? 'Inclinación: ' + r.inclin.toFixed(2) + '°  ·  color en la página: ' + pct(r.color) + '\n' : '') +
     'Tiempos: render ' + ms(r.tRender) + ' · encabezado ' + ms(r.tEncab) + ' · número ' + ms(r.tNum) + (r.tCompleto ? ' · OCR completo ' + ms(r.tCompleto) : '') + '\n' +

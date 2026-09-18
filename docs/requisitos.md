@@ -101,7 +101,7 @@ Plantilla: hoja `Hoja1`, 8 columnas con estos encabezados exactos. La plataforma
 | Ejercicio | Solo importa el **año**; debe ser el del Excel |
 | Monto | El monto solicitado debe aparecer **en algún lugar de la lista** de montos de la OP (una línea o el total), al centavo. Si hay uno casi igual, se menciona (p. ej. "difiere por $0.01") |
 | Firmas | Deben ser **3 firmas en total**, a mano, en la parte inferior. Los cargos de quienes firman varían, así que no se valida quién firma, solo que sean 3. Una orden puede traer **0, 1, 2 o 3 firmas**: se reporta el conteo ("Sin firmas (0 de 3)", "Solo 1 de 3 firmas", "Solo 2 de 3 firmas"). Frecuencia real: lo común es que **falte 1 firma**; **sin firmas** es raro y suele estar justificado, pero se marca como **Incorrecto** con su motivo (el usuario lo corrige con "Corregir estado" si está justificado); **1 de 3** prácticamente no ocurre. Solo se detecta presencia, no autenticidad |
-| Sellos | Azules o negros, en cualquier posición, a veces encima de firmas. Sello encima de firma = *Revisar* |
+| Sellos | Azules o negros, en cualquier posición, a veces encima de firmas. Se verifica que **haya sello**. Un sello encima de una firma **no** es motivo de revisión por sí mismo (aclaración del usuario, 2026-09-17: era una preocupación técnica, no una regla); solo si por culpa del sello **no se puede saber** si la celda está firmada, esa firma queda sin determinar y la orden va a *Revisar* |
 
 Localizar la OP en los PDFs se hace siempre (es la base de todo). Lo no marcado sale como "No revisado".
 
@@ -309,6 +309,22 @@ Después se limpian dos cosas que no son sellos:
 - **El escudo del membrete:** mide 0.09 del ancho de la hoja y cualquier sello pasa de 0.13, así que basta un mínimo de tamaño.
 - **Las firmas:** una mancha que **nace** dentro de la banda de firmas es la firma, aunque su lazo se salga de la celda (corregido el 2026-09-17 tras revisión del usuario: la firma del *Páguese* tiene un lazo grande que cruzaba a la celda vecina y se contaba como sello). Medido: las firmas empiezan en y ≥ 0.84; un sello que llega a taparlas viene bajando y empieza en y ≈ 0.66-0.71.
 - **Las rayas de pluma:** aunque sean largas y diagonales, no encierran nada. Se exige que la mancha **encierre hueco**, porque un sello es un aro. Eso descartó unas rayas de pluma azul que cruzaban la tabla de una orden.
+
+### Sello encima de firma: sí se pueden separar (probado el 2026-09-17)
+
+La duda del usuario era técnica: si un sello cae sobre una firma, ¿se puede saber
+todavía si la celda está firmada? Se probó fabricando el caso que no existe en el PDF
+real: una orden **sin ninguna firma** con dos sellos grandes encima de las tres celdas,
+y la misma orden **con las tres firmas** y los mismos sellos.
+
+- Sin descontar el sello, la orden sin firmas reportaba **3 de 3 firmas**: un falso grave.
+- Descontando del conteo la tinta que cae dentro del recuadro de un sello detectado:
+  la orden sin firmas da **0 de 3** y la firmada da **3 de 3**. La firma se reconoce
+  debajo del sello porque sus trazos salen del aro.
+- Dentro de la banda de firmas se le exige más hueco a una mancha para contarla como
+  sello (medido: el lazo de una firma encierra ~31; un sello encima, ~484).
+- Si una celda queda cubierta por un sello y no queda tinta de pluma fuera de él, no se
+  adivina: la firma se marca **tapada** (sin determinar) y eso manda la orden a *Revisar*.
 
 Cuesta ~68 ms por orden; como solo se hace en las páginas de orden, sobre el total son
 unos 20 ms por página: el proceso completo pasa de ~150 a ~170 ms por página.
