@@ -2,6 +2,18 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.13.1 — 2026-09-17
+
+Correcciones a la detección de sellos, tras revisar la salida dibujada sobre las hojas:
+
+- **Las firmas ya no cuentan como sello.** La regla anterior ("si la mancha se sale de
+  su celda de firma, es un sello") fallaba con la firma del *Páguese*, que tiene un lazo
+  grande. Ahora manda dónde **nace** la mancha: dentro de la banda de firmas es firma;
+  un sello que las tapa viene bajando desde arriba.
+- **Las rayas de pluma tampoco.** Se exige que la mancha encierre hueco, porque un sello
+  es un aro. Unas rayas azules que cruzaban la tabla de una orden ya no se cuentan.
+- Siguen detectándose las 7 de 7 órdenes con sello.
+
 ## v0.13.0 — 2026-09-17
 
 - **Detección de sellos.** Se separa la *tinta añadida* de la del formato impreso: lo

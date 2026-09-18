@@ -246,7 +246,7 @@ function tinta(c, fx, fy, fw, fh){
    Después se quitan las corridas largas (las rayas de la reja son largas y rectas;
    un sello son arcos cortos), se juntan las manchas y se filtran por tamaño: el
    escudo del membrete mide 0.09 de ancho y cualquier sello pasa de 0.13. */
-const SELLO = { W: 700, CEL: 6, MIN_CELDA: 3, MIN_AN: 0.13, MIN_AL: 0.07, MIN_TINTA: 1100, MIN_PROP: 0.25 };
+const SELLO = { W: 700, CEL: 6, MIN_CELDA: 3, MIN_AN: 0.13, MIN_AL: 0.07, MIN_TINTA: 1100, MIN_PROP: 0.25, MIN_HUECO: 12 };
 
 function tintaAnadida(c){
   const W = SELLO.W, H = Math.round(c.height * W / c.width);
@@ -329,14 +329,34 @@ function sellos(c){
     if (an / GW < SELLO.MIN_AN || al / GH < SELLO.MIN_AL) continue;
     if (prop < SELLO.MIN_PROP) continue;
     if (tinta < SELLO.MIN_TINTA) continue;
-    fuera.push({ x: x0 / GW, y: y0 / GH, an: an / GW, al: al / GH, tinta });
+
+    // ¿encierra hueco? Un sello es un aro; una raya de pluma, por larga y torcida que
+    // sea, no encierra nada. Se rellena desde el borde del recuadro y lo que queda
+    // vacío y sin alcanzar está adentro del aro.
+    const dentro = new Uint8Array(an * al);
+    for (const j of miembros) dentro[(((j / GW | 0) - y0) * an) + ((j % GW) - x0)] = 1;
+    const libre = new Uint8Array(an * al), cola = [];
+    const meter = (px, py) => { const k = py * an + px; if (!dentro[k] && !libre[k]){ libre[k] = 1; cola.push(k); } };
+    for (let px = 0; px < an; px++){ meter(px, 0); meter(px, al - 1); }
+    for (let py = 0; py < al; py++){ meter(0, py); meter(an - 1, py); }
+    while (cola.length){
+      const k = cola.pop(), px = k % an, py = k / an | 0;
+      if (px > 0) meter(px - 1, py);
+      if (px < an - 1) meter(px + 1, py);
+      if (py > 0) meter(px, py - 1);
+      if (py < al - 1) meter(px, py + 1);
+    }
+    let hueco = 0;
+    for (let k = 0; k < an * al; k++) if (!dentro[k] && !libre[k]) hueco++;
+    if (hueco < SELLO.MIN_HUECO) continue;
+
+    fuera.push({ x: x0 / GW, y: y0 / GH, an: an / GW, al: al / GH, tinta, hueco });
   }
-  // una mancha que cabe entera dentro de una celda de firma es la firma, no un sello
-  const enCelda = s => [0, 1, 2].some(i => {
-    const cx = 0.06 + i * 0.30;
-    return s.x >= cx - 0.01 && s.x + s.an <= cx + 0.29 && s.y >= 0.81 && s.y + s.al <= 0.99;
-  });
-  const sellos = fuera.filter(s => !enCelda(s));
+  // Una mancha que NACE dentro de la banda de firmas es la firma, aunque su lazo se
+  // salga de la celda (medido: las firmas empiezan en y ≥ 0.84; un sello que llega a
+  // tapar una firma viene bajando desde arriba y empieza en y ≈ 0.66-0.71).
+  const naceEnFirmas = s => s.y >= 0.82;
+  const sellos = fuera.filter(s => !naceEnFirmas(s));
   // encima de una firma = traslapa de verdad una celda, no que la roce
   const sobreFirma = sellos.filter(s => [0, 1, 2].some(i => {
     const cx = 0.06 + i * 0.30, cy = 0.82, cw = 0.28, ch = 0.16;

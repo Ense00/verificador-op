@@ -307,17 +307,20 @@ Después se limpian dos cosas que no son sellos:
 
 - **Las rayas del formato:** se borran las corridas largas y rectas. Un sello son arcos cortos; la reja de la tabla, líneas largas.
 - **El escudo del membrete:** mide 0.09 del ancho de la hoja y cualquier sello pasa de 0.13, así que basta un mínimo de tamaño.
-- **Las firmas:** una mancha que cabe entera dentro de una celda de firma es la firma. Si se sale de la celda, es un sello encima.
+- **Las firmas:** una mancha que **nace** dentro de la banda de firmas es la firma, aunque su lazo se salga de la celda (corregido el 2026-09-17 tras revisión del usuario: la firma del *Páguese* tiene un lazo grande que cruzaba a la celda vecina y se contaba como sello). Medido: las firmas empiezan en y ≥ 0.84; un sello que llega a taparlas viene bajando y empieza en y ≈ 0.66-0.71.
+- **Las rayas de pluma:** aunque sean largas y diagonales, no encierran nada. Se exige que la mancha **encierre hueco**, porque un sello es un aro. Eso descartó unas rayas de pluma azul que cruzaban la tabla de una orden.
 
 Cuesta ~68 ms por orden; como solo se hace en las páginas de orden, sobre el total son
 unos 20 ms por página: el proceso completo pasa de ~150 a ~170 ms por página.
 
-Resultado: **7 de 7 órdenes con sello detectado** (tres sellos en seis de ellas, uno en
-la séptima porque dos sellos encimados se cuentan como una sola mancha), sin confundir
-la reja ni el escudo. 
-**Lo que falta para confiar del todo:** no hay en este PDF **ninguna orden sin sello**,
-así que no se puede medir cuántas veces diría "hay sello" donde no lo hay. Hace falta
-un ejemplo de orden sin sellar antes de que este dato decida un estado.
+Resultado: **7 de 7 órdenes con sello detectado**, entre uno y tres por orden (cuando
+dos sellos vienen encimados se cuentan como una sola mancha), sin confundir la reja, el
+escudo, las firmas ni las rayas de pluma. El usuario revisó la salida dibujada sobre las
+hojas y ya no encontró falsos. 
+**Frecuencia (dicha por el usuario, 2026-09-17):** casi siempre traen sello; sin sello
+es muy raro. Aun así no hay en este PDF ninguna orden sin sellar, así que no está
+medido cuántas veces diría "hay sello" donde no lo hay. Como el caso es raro, conviene
+que la falta de sello mande a **Revisar** y no a Incorrecto, hasta tener un ejemplo.
 
 ### Velocidad: de 47 minutos a 7 (medido el 2026-09-17)
 
