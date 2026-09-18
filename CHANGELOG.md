@@ -2,6 +2,22 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.18.0 — 2026-09-18
+
+Primera medición contra documentos base reales (banco `Base + OP` con tres casos).
+
+- **Cruz Roja: de 6 a 7 de 8 órdenes confirmadas, sin falsos positivos.** Lo que faltaba
+  eran órdenes con la pluma cruzando el número: un barrido de 720 combinaciones mostró
+  que se leen borrando **solo** la pluma muy saturada (umbral 60, no 30) y ampliando el
+  recorte, con `PSM 6` o `PSM 3`. Se agregaron esos intentos.
+- **Las celdas de firma se ubican por sus rótulos**, no por coordenadas fijas, así que
+  funcionan igual con las firmas al pie o arriba de la segunda hoja.
+- **Dos señales para la firma:** tinta de color o trazo grueso (erosión). La segunda
+  detecta las firmas de pluma negra, que el detector por color no veía.
+- **Guarda contra el `-A` que a veces inventa el OCR:** si la base tiene la orden y su
+  ADEFA, se marca ambiguo antes que arriesgar el cruce.
+- Sin regresión: el documento que ya salía perfecto sigue en 7 de 7, con las firmas bien.
+
 ## v0.17.0 — 2026-09-17
 
 Segunda muestra real: otra entidad, escáner EPSON, y una orden de dos hojas con las

@@ -202,7 +202,33 @@ function tipoDe(txt){
 /* ---------- recortes ----------
    Borrar la tinta de color es lo que destrabó la lectura: una raya de pluma sobre
    los dígitos rompe el OCR, y la impresión es negra mientras pluma y sellos no. */
-function recorte(c, fx, fy, fw, fh, amp, limpiar){
+/* Al borrar la pluma de color queda un hueco donde cruzaba un dígito y el OCR se
+   pierde. "Cerrar" (dilatar y luego erosionar) vuelve a unir esos cortes finos sin
+   engordar el resto del trazo. */
+function cerrarHuecos(zx, W, H, R){
+  const d = zx.getImageData(0, 0, W, H), a = d.data;
+  const tinta = new Uint8Array(W * H);
+  for (let i = 0, j = 0; j < W * H; i += 4, j++) if (a[i] < 150) tinta[j] = 1;
+  const dil = new Uint8Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++){
+    if (!tinta[y * W + x]) continue;
+    for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++){
+      const ny = y + dy, nx = x + dx;
+      if (ny >= 0 && nx >= 0 && ny < H && nx < W) dil[ny * W + nx] = 1;
+    }
+  }
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++){
+    let ok = 1;
+    for (let dy = -R; dy <= R && ok; dy++) for (let dx = -R; dx <= R; dx++){
+      const ny = y + dy, nx = x + dx;
+      if (ny < 0 || nx < 0 || ny >= H || nx >= W || !dil[ny * W + nx]){ ok = 0; break; }
+    }
+    if (ok){ const i = (y * W + x) * 4; a[i] = a[i+1] = a[i+2] = 40; }
+  }
+  zx.putImageData(d, 0, 0);
+}
+
+function recorte(c, fx, fy, fw, fh, amp, limpiar, cerrar, umbralColor){
   const sw = Math.round(c.width * fw), sh = Math.round(c.height * fh);
   const z = document.createElement('canvas');
   z.width = Math.max(8, Math.round(sw * amp)); z.height = Math.max(8, Math.round(sh * amp));
@@ -214,10 +240,11 @@ function recorte(c, fx, fy, fw, fh, amp, limpiar){
     const d = zx.getImageData(0, 0, z.width, z.height), a = d.data;
     for (let i = 0; i < a.length; i += 4){
       const r = a[i], g = a[i+1], b = a[i+2];
-      if (Math.max(r, g, b) - Math.min(r, g, b) > 30) a[i] = a[i+1] = a[i+2] = 255;
+      if (Math.max(r, g, b) - Math.min(r, g, b) > (umbralColor || 30)) a[i] = a[i+1] = a[i+2] = 255;
       else a[i] = a[i+1] = a[i+2] = (r * 0.299 + g * 0.587 + b * 0.114) | 0;
     }
     zx.putImageData(d, 0, 0);
+    if (cerrar) cerrarHuecos(zx, z.width, z.height, cerrar);
   }
   return z;
 }
@@ -306,33 +333,92 @@ function tintaAnadida(c){
   return { add, W, H };
 }
 
+/* Las celdas de firma NO están siempre en el mismo lugar: en un formato van al pie y
+   en otro arriba de la segunda hoja. Se ubican por sus rótulos (SOLICITANTE, ELABORÓ,
+   AUTORIZACIÓN, PÁGUESE…), buscándolos primero en la mitad de abajo y, si no aparecen,
+   en la de arriba. Si no se encuentran, se cae a las coordenadas fijas de siempre. */
+const RE_ETIQUETA = /^(SOLICITANTE|ELABOR[OÓ]|AUTORIZACI[OÓ]N|P[AÁ]GUESE|PAGUESE|TESORER[OÍ]A?|VISTO)$/;
+const CELDAS_FIJAS = [0, 1, 2].map(i => ({ x: 0.06 + i * 0.30, y: 0.82, an: 0.28, al: 0.16 }));
+
+async function ubicarCeldasFirma(w, lienzo, limpiar){
+  for (const [fy, fh] of [[0.55, 0.45], [0.10, 0.50]]){
+    await w.setParameters({ tessedit_pageseg_mode: '4', tessedit_char_whitelist: '' });
+    const img = recorte(lienzo, 0, fy, 1, fh, 1, limpiar);
+    const d = (await w.recognize(img, {}, { blocks: true, text: true })).data;
+    const et = palabras(d).filter(p => p.bbox && RE_ETIQUETA.test(sinAcentos((p.text || '').replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ]/g, ''))));
+    if (et.length < 2) continue;
+    // agrupar por renglón: los rótulos de la tabla de firmas están a la misma altura
+    const alto = img.height;
+    const filas = [];
+    for (const p of et){
+      const yc = (p.bbox.y0 + p.bbox.y1) / 2;
+      let f = filas.find(f => Math.abs(f.y - yc) < alto * 0.035);
+      if (!f){ f = { y: yc, items: [] }; filas.push(f); }
+      f.items.push(p);
+    }
+    const fila = filas.sort((a, b) => b.items.length - a.items.length)[0];
+    if (!fila || fila.items.length < 2) continue;
+    const items = fila.items.sort((a, b) => a.bbox.x0 - b.bbox.x0);
+    // una celda por rótulo: del punto medio con el vecino de la izquierda al de la derecha
+    const celdas = items.map((p, i) => {
+      const cx = (p.bbox.x0 + p.bbox.x1) / 2 / lienzo.width;
+      const izq = i > 0 ? ((items[i-1].bbox.x0 + items[i-1].bbox.x1) / 2 / lienzo.width + cx) / 2 : Math.max(0, cx - 0.16);
+      const der = i < items.length - 1 ? ((items[i+1].bbox.x0 + items[i+1].bbox.x1) / 2 / lienzo.width + cx) / 2 : Math.min(1, cx + 0.16);
+      const y0 = fy + (p.bbox.y1 / alto) * fh;
+      return { x: izq, y: y0, an: der - izq, al: Math.min(0.13, 1 - y0), rotulo: (p.text || '').trim() };
+    });
+    if (celdas.length >= 2) return { celdas, via: 'rótulos' };
+  }
+  return { celdas: CELDAS_FIJAS, via: 'coordenadas fijas' };
+}
+
 /* La tinta de un sello encima de una celda no puede contarse como firma. Se mide la
    tinta de cada celda quitando lo que cae dentro del recuadro de un sello; si lo que
    queda no alcanza pero el sello cubre buena parte de la celda, no se decide: se
    reporta "tapada" para que la vea una persona. */
-function tintaFirmas(c, sellos){
-  return [0, 1, 2].map(i => {
-    const cx = 0.06 + i * 0.30, cy = 0.82, cw = 0.28, ch = 0.16;
+function tintaFirmas(c, sellos, celdas){
+  return (celdas || CELDAS_FIJAS).map(celda => {
+    const cx = celda.x, cy = celda.y, cw = celda.an, ch = celda.al;
     const x = Math.round(c.width * cx), y = Math.round(c.height * cy);
     const w = Math.round(c.width * cw), h = Math.round(c.height * ch);
     const d = c.getContext('2d', { willReadFrequently: true }).getImageData(x, y, w, h).data;
-    let total = 0, libre = 0, n = 0;
+    // Dos señales, porque cada una falla donde la otra funciona (medido): la pluma de
+    // color se ve por su color; la pluma negra, por ser un trazo GRUESO que sobrevive a
+    // erosionar la imagen, mientras el texto impreso es delgado y desaparece.
+    const n = w * h;
+    const osc = new Uint8Array(n);
+    let total = 0, libre = 0;
+    const fueraDeSello = (px, py) => {
+      const fx = cx + (px / w) * cw, fy = cy + (py / h) * ch;
+      return !sellos.some(s => fx >= s.x && fx <= s.x + s.an && fy >= s.y && fy <= s.y + s.al);
+    };
     for (let py = 0; py < h; py++) for (let px = 0; px < w; px++){
       const j = (py * w + px) * 4, r = d[j], g = d[j+1], b = d[j+2];
       const lum = r * 0.299 + g * 0.587 + b * 0.114;
-      n++;
+      if (lum < 150) osc[py * w + px] = 1;
       if (!(Math.max(r, g, b) - Math.min(r, g, b) > 28 && lum < 215)) continue;
       total++;
-      const fx = cx + (px / w) * cw, fy = cy + (py / h) * ch;
-      const dentroDeSello = sellos.some(s => fx >= s.x && fx <= s.x + s.an && fy >= s.y && fy <= s.y + s.al);
-      if (!dentroDeSello) libre++;
+      if (fueraDeSello(px, py)) libre++;
     }
+    // dos erosiones: solo sobrevive el trazo grueso
+    let ero = osc;
+    for (let paso = 0; paso < 2; paso++){
+      const sig = new Uint8Array(n);
+      for (let py = 1; py < h - 1; py++) for (let px = 1; px < w - 1; px++){
+        const k = py * w + px;
+        if (ero[k] && ero[k-1] && ero[k+1] && ero[k-w] && ero[k+w]) sig[k] = 1;
+      }
+      ero = sig;
+    }
+    let grueso = 0;
+    for (let py = 0; py < h; py++) for (let px = 0; px < w; px++)
+      if (ero[py * w + px] && fueraDeSello(px, py)) grueso++;
     const cubierta = sellos.reduce((a, s) => {
       const ax = Math.max(0, Math.min(s.x + s.an, cx + cw) - Math.max(s.x, cx));
       const ay = Math.max(0, Math.min(s.y + s.al, cy + ch) - Math.max(s.y, cy));
       return Math.max(a, (ax * ay) / (cw * ch));
     }, 0);
-    return { color: libre / n, total: total / n, cubierta };
+    return { color: libre / n, total: total / n, grueso: grueso / n, cubierta, rotulo: celda.rotulo };
   });
 }
 
@@ -552,7 +638,19 @@ const INTENTOS = [
   // en otra forma de orden la raya de pluma es fina y limpiar el color deja un hueco
   // en el dígito: sin limpiar se lee mejor, sobre todo con el recorte pegado a la caja
   { fx: 0.68, fy: 0.03, fw: 0.30, fh: 0.09, amp: 1,   psm: '4', limpiar: false },
-  { fx: 0.67, fy: 0.02, fw: 0.33, fh: 0.15, amp: 2,   psm: '4', limpiar: false }
+  { fx: 0.67, fy: 0.02, fw: 0.33, fh: 0.15, amp: 2,   psm: '4', limpiar: false },
+  // con la pluma cruzando los dígitos: se borra el color y se cierran los huecos
+  { fx: 0.67, fy: 0.02, fw: 0.33, fh: 0.15, amp: 1,   psm: '4', limpiar: true, cerrar: 1 },
+  { fx: 0.68, fy: 0.03, fw: 0.30, fh: 0.09, amp: 2,   psm: '4', limpiar: true, cerrar: 1 },
+  { fx: 0.67, fy: 0.02, fw: 0.33, fh: 0.15, amp: 1,   psm: '4', limpiar: true, cerrar: 2 },
+  /* De un barrido de 720 combinaciones sobre una orden con la pluma encima del número:
+     lo que la rescata es borrar SOLO la pluma muy saturada (conservando los grises del
+     dígito) y ampliar el recorte, con PSM 6 o 3. Antes se limpiaba con un umbral bajo
+     que se comía parte del dígito, y PSM 6 estaba descartado por otra prueba. */
+  { fx: 0.67, fy: 0.02, fw: 0.33, fh: 0.15, amp: 2, psm: '3', limpiar: true, umbralColor: 60 },
+  { fx: 0.67, fy: 0.02, fw: 0.33, fh: 0.15, amp: 2, psm: '6', limpiar: true },
+  { fx: 0.67, fy: 0.02, fw: 0.33, fh: 0.15, amp: 3, psm: '6', limpiar: true, umbralColor: 60 },
+  { fx: 0.60, fy: 0.00, fw: 0.40, fh: 0.20, amp: 2, psm: '6', limpiar: true }
 ];
 const ZONA_NUM = INTENTOS[0];
 // el resto de los campos de la orden, cada uno en su zona
@@ -607,6 +705,14 @@ async function dibujarRapido(blob, vp, lienzo, ctx){
   else ctx.drawImage(bm, 0, 0);
   bm.close();
   return true;
+}
+
+function palabras(data){
+  if (data.words && data.words.length) return data.words;
+  const ps = [];
+  for (const b of (data.blocks || [])) for (const p of (b.paragraphs || []))
+    for (const l of (p.lines || [])) for (const w of (l.words || [])) ps.push(w);
+  return ps;
 }
 
 /* ---------- trabajadores ----------
@@ -718,7 +824,7 @@ async function medir(){
     const chico = document.createElement('canvas');
     chico.width = 800; chico.height = Math.round(lienzo.height * 800 / lienzo.width);
     chico.getContext('2d').drawImage(lienzo, 0, 0, chico.width, chico.height);
-    r.firmas = [0, 1, 2].map(i => tinta(chico, 0.06 + i * 0.30, 0.82, 0.28, 0.16));
+    r.firmas = [0, 1, 2].map(i => tinta(chico, 0.06 + i * 0.30, 0.82, 0.28, 0.16));  // provisional; se recalcula con las celdas ubicadas
     r.color = tinta(chico, 0, 0, 1, 1).color;
     if (conImagen) r.inclin = inclinacion(chico);
     if (guardar && vistas.size < 80){
@@ -806,7 +912,9 @@ async function medir(){
       page.cleanup();
       const se = sellos(lienzo);
       r.sellos = se.sellos; r.selloEnFirma = se.sobreFirma.length > 0;
-      r.firmas = tintaFirmas(lienzo, se.zonas.concat(se.sellos));
+      const ub = await ubicarCeldasFirma(trabajadores[0], lienzo, limpiar);
+      r.celdas = ub.celdas; r.viaCeldas = ub.via;
+      r.firmas = tintaFirmas(lienzo, se.zonas.concat(se.sellos), ub.celdas);
       r.total = (r.total || 0);
       pintarFila(r, filas.get(r.pagina));
     }
@@ -831,7 +939,7 @@ async function medir(){
       for (const it of INTENTOS.slice(1)){
         r.intentos++;
         const t2 = performance.now();
-        for (const c of candidatosDe(await leerZona(w, recorte(lienzo, it.fx, it.fy, it.fw, it.fh, it.amp, it.limpiar), it.psm, it.lista || '0123456789-'))) vistos.add(c);
+        for (const c of candidatosDe(await leerZona(w, recorte(lienzo, it.fx, it.fy, it.fw, it.fh, it.amp, it.limpiar, it.cerrar, it.umbralColor), it.psm, it.lista || '0123456789-'))) vistos.add(c);
         r.tNum += performance.now() - t2;
         r.cand = [...vistos];
         resolverNumero(r, vistos);
@@ -852,19 +960,28 @@ async function medir(){
 function resolverNumero(r, vistos){
   if (!base.size){ if (vistos.size === 1) r.numero = [...vistos][0]; return; }
   const enBase = [...vistos].filter(c => base.has(c));
-  if (enBase.length === 1) r.numero = enBase[0];
-  else if (enBase.length > 1) r.ambiguo = enBase;   // p. ej. la orden y su -A: nunca se adivina
+  if (enBase.length > 1){ r.ambiguo = enBase; return; }   // nunca se adivina entre varios
+  if (enBase.length !== 1) return;
+  const c = enBase[0];
+  // El OCR llega a inventar un sufijo "-A" que no está impreso (visto en dos órdenes
+  // reales). Si la base tiene también la versión sin sufijo, no hay forma de saber cuál
+  // es: se marca ambiguo antes que arriesgar el cruce entre una orden y su ADEFA.
+  if (/-A$/i.test(c) && base.has(c.replace(/-A$/i, ''))){ r.ambiguo = [c, c.replace(/-A$/i, '')]; return; }
+  r.numero = c;
 }
 
 /* ---------- tabla ---------- */
 /* Medido en órdenes reales firmadas: la celda del "Páguese" es la más flaca y llegó
    a 0.78 %, mientras que una celda vacía da 0.00 %. El umbral va en 0.6 %, y entre
    0.2 % y 0.6 % no se decide: se marca dudosa para que la revise una persona. */
-const UMBRAL_FIRMA = 0.006, UMBRAL_DUDA = 0.002;
+/* Umbrales medidos sobre órdenes reales de cuatro dependencias: una celda firmada da
+   ≥0.6 % de tinta de color (pluma azul) o ≥2 % de trazo grueso (pluma negra); una celda
+   vacía da 0.00 % de color y 0.35 % de grueso. */
+const UMBRAL_FIRMA = 0.006, UMBRAL_DUDA = 0.002, UMBRAL_GRUESO = 0.02, UMBRAL_GRUESO_DUDA = 0.008;
 const estadoFirma = f => !f ? null
-  : f.color >= UMBRAL_FIRMA ? 'si'
+  : (f.color >= UMBRAL_FIRMA || (f.grueso || 0) >= UMBRAL_GRUESO) ? 'si'
   : (f.cubierta || 0) >= 0.25 ? 'tapada'      // un sello encima: no se puede saber
-  : f.color >= UMBRAL_DUDA ? 'duda' : 'no';
+  : (f.color >= UMBRAL_DUDA || (f.grueso || 0) >= UMBRAL_GRUESO_DUDA) ? 'duda' : 'no';
 function celdaFirma(f){
   if (!f) return '<td class="num"></td>';
   const e = estadoFirma(f);
@@ -958,9 +1075,10 @@ function verPagina(r){
       cx.ellipse((s.x + s.an / 2) * w, (s.y + s.al / 2) * h, s.an * w / 2, s.al * h / 2, 0, 0, 2 * Math.PI);
       cx.stroke();
     });
-    (r.firmas || []).forEach((f, i) => {
+    (r.celdas || CELDAS_FIJAS).forEach((celda, i) => {
+      const f = (r.firmas || [])[i];
       cx.strokeStyle = 'rgba(51,70,168,.9)';
-      const x = (0.06 + i * 0.30) * w, y = 0.82 * h, ww = 0.28 * w, hh = 0.16 * h;
+      const x = celda.x * w, y = celda.y * h, ww = celda.an * w, hh = celda.al * h;
       cx.fillStyle = estadoFirma(f) === 'si' ? 'rgba(51,70,168,.16)' : estadoFirma(f) === 'duda' ? 'rgba(154,86,8,.16)' : 'rgba(51,70,168,.04)';
       cx.fillRect(x, y, ww, hh); cx.strokeRect(x, y, ww, hh);
     });

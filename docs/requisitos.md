@@ -478,6 +478,68 @@ Pago`, `MONTO NETO A PAGAR`, `ELABORÓ` / `SOLICITANTE` / `PÁGUESE`, `Pag. X de
 por coordenadas. Para las celdas de firma hay además una vía sin OCR: son una tabla de
 tres celdas, detectable por sus líneas.
 
+## Banco de evaluación con documentos base reales (2026-09-18)
+
+El usuario armó `Base + OP/` con tres casos, cada uno con su documento base y sus PDF:
+**Bomberos** (73 órdenes, 67 PDF), **Cruz Roja** (8 y 8) y **Caborca** (365 órdenes,
+20 PDF, ~8,600 páginas). Con eso la medición dejó de ser anecdótica.
+
+### Cómo se mide
+
+Para cada caso: se lee la lista de órdenes del documento base, se pasan todos sus PDF
+por el medidor y se cuenta **cuántas de las órdenes solicitadas quedaron confirmadas**.
+La métrica que importa, y que el usuario puso por encima de todo, es que **no haya
+falsos positivos**: ninguna orden dada por buena que no lo sea.
+
+### Resultados
+
+| Caso | Órdenes con PDF | Confirmadas (antes) | Confirmadas (ahora) | Falsos positivos |
+|---|---|---|---|---|
+| Bomberos | 67 (6 no tienen PDF) | 60 (90 %) | por medir | **0** |
+| Cruz Roja | 8 | 6 (75 %) | **7 (88 %)** | **0** |
+
+### Tres cosas que esta medición dejó claras
+
+1. **El nombre del PDF no manda.** Las órdenes aparecen repartidas entre archivos sin
+   seguir el nombre: `1900021861.pdf` contiene la orden `1900024677`. Por eso la métrica
+   correcta es el conjunto de órdenes halladas en todos los PDF, no archivo por archivo.
+2. **Cuando no puede leer, no inventa.** Se persiguió un caso sospechoso
+   (`1900021848.pdf` confirmaba `1900021843`) y resultó ser otra orden legítima en otra
+   página del mismo PDF; la página del número ilegible no confirmó nada. La propiedad de
+   seguridad se sostiene en los 75 casos medidos.
+3. **La documentación de los formatos base también varía:** el Excel de Caborca no tiene
+   columna `Orden de Pago` sino `Nº documento`. La columna se localiza por contenido (la
+   que más números distintos de 8-12 dígitos tiene), no por su nombre.
+
+### Lo que se arregló con esta medición
+
+- **Un barrido de 720 combinaciones** sobre una orden que fallaba (pluma cruzando el
+  número) demostró que **sí es leíble**: 12 combinaciones lo logran. Lo que la rescata es
+  borrar **solo la pluma muy saturada** (umbral 60 en vez de 30, para no comerse los
+  grises del dígito) y ampliar el recorte, con `PSM 6` o `PSM 3`. Se agregaron esos
+  intentos y con eso Cruz Roja pasó de 6 a 7 de 8.
+  - Nota: `PSM 6` estaba descartado por una prueba anterior sobre la página completa. En
+    un recorte pegado a la caja del número funciona. La lección es que el modo depende
+    del tamaño del recorte, no del documento.
+- **Las celdas de firma se ubican por sus rótulos** (`SOLICITANTE`, `ELABORÓ`,
+  `AUTORIZACIÓN`, `PÁGUESE`…), buscándolos primero en la mitad de abajo y, si no
+  aparecen, en la de arriba; si no hay rótulos, se cae a las coordenadas de siempre. Con
+  eso funciona igual en el formato con las firmas al pie y en el que las tiene arriba de
+  la segunda hoja.
+- **Dos señales para la firma**, porque cada una falla donde la otra funciona: tinta de
+  color (pluma azul) **o** trazo grueso que sobrevive a erosionar la imagen (pluma
+  negra, que el detector anterior no veía).
+- **Guarda contra el `-A` inventado:** si el OCR lee un sufijo ADEFA y el documento base
+  tiene también la versión sin sufijo, se marca ambiguo en vez de arriesgar el cruce.
+
+### Lo que queda pendiente y por qué no es urgente
+
+En las órdenes de Cruz Roja el sello `PAGADO` cubre el 68 % de las celdas de firma. El
+medidor **no dice "faltan firmas"**: dice **tapada** y manda la orden a revisar, que es
+el comportamiento seguro. Contar bien esas firmas exigiría separar la tinta del sello de
+la de la pluma dentro de la misma celda; mientras no se resuelva, esas órdenes van a
+Revisar con el motivo escrito.
+
 ## Panorama de 18 PDF reales (2026-09-17)
 
 El usuario agregó 18 archivos (~3,500 páginas, cinco escáneres: EPSON, PaperStream 2.10
