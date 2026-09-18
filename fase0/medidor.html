@@ -392,7 +392,8 @@ function tintaFirmas(c, sellos, celdas){
     // erosionar la imagen, mientras el texto impreso es delgado y desaparece.
     const n = w * h;
     const osc = new Uint8Array(n);
-    let total = 0, libre = 0;
+    const col = new Uint8Array(n);
+    let total = 0, libre = 0, nLibre = 0;
     const fueraDeSello = (px, py) => {
       const fx = cx + (px / w) * cw, fy = cy + (py / h) * ch;
       return !sellos.some(s => fx >= s.x && fx <= s.x + s.an && fy >= s.y && fy <= s.y + s.al);
@@ -400,10 +401,13 @@ function tintaFirmas(c, sellos, celdas){
     for (let py = 0; py < h; py++) for (let px = 0; px < w; px++){
       const j = (py * w + px) * 4, r = d[j], g = d[j+1], b = d[j+2];
       const lum = r * 0.299 + g * 0.587 + b * 0.114;
+      const fuera = fueraDeSello(px, py);
+      if (fuera) nLibre++;
       if (lum < 150) osc[py * w + px] = 1;
       if (!(Math.max(r, g, b) - Math.min(r, g, b) > 28 && lum < 215)) continue;
+      col[py * w + px] = 1;
       total++;
-      if (fueraDeSello(px, py)) libre++;
+      if (fuera) libre++;
     }
     // dos erosiones: solo sobrevive el trazo grueso
     let ero = osc;
@@ -418,12 +422,27 @@ function tintaFirmas(c, sellos, celdas){
     let grueso = 0;
     for (let py = 0; py < h; py++) for (let px = 0; px < w; px++)
       if (ero[py * w + px] && fueraDeSello(px, py)) grueso++;
+
+    // pluma bajo el sello: tinta de color cuyo trazo es fino (no sobrevive una erosión)
+    let colGrueso = col.slice();
+    for (let paso = 0; paso < 1; paso++){
+      const sig = new Uint8Array(n);
+      for (let py = 1; py < h - 1; py++) for (let px = 1; px < w - 1; px++){
+        const k = py * w + px;
+        if (colGrueso[k] && colGrueso[k-1] && colGrueso[k+1] && colGrueso[k-w] && colGrueso[k+w]) sig[k] = 1;
+      }
+      colGrueso = sig;
+    }
+    let fino = 0;
+    for (let k = 0; k < n; k++) if (col[k] && !colGrueso[k]) fino++;
     const cubierta = sellos.reduce((a, s) => {
       const ax = Math.max(0, Math.min(s.x + s.an, cx + cw) - Math.max(s.x, cx));
       const ay = Math.max(0, Math.min(s.y + s.al, cy + ch) - Math.max(s.y, cy));
       return Math.max(a, (ax * ay) / (cw * ch));
     }, 0);
-    return { color: libre / n, total: total / n, grueso: grueso / n, cubierta, rotulo: celda.rotulo };
+    // se divide entre el área libre: así una firma que asoma fuera del sello no se diluye
+    const denom = Math.max(nLibre, n * 0.15);
+    return { color: libre / denom, total: total / n, grueso: grueso / denom, fino: fino / n, cubierta, libreFrac: nLibre / n, rotulo: celda.rotulo };
   });
 }
 
@@ -1064,11 +1083,19 @@ function resolverNumero(r, vistos){
 /* Umbrales medidos sobre órdenes reales de cuatro dependencias: una celda firmada da
    ≥0.6 % de tinta de color (pluma azul) o ≥2 % de trazo grueso (pluma negra); una celda
    vacía da 0.00 % de color y 0.35 % de grueso. */
-const UMBRAL_FIRMA = 0.006, UMBRAL_DUDA = 0.002, UMBRAL_GRUESO = 0.02, UMBRAL_GRUESO_DUDA = 0.008;
+/* Tres señales, cada una para un caso que las otras no ven (todas medidas en órdenes
+   reales de cuatro dependencias):
+   - color  : pluma de color sobre papel limpio        (celda firmada 0.6-8 %, vacía 0 %)
+   - grueso : trazo que sobrevive a erosionar          (pluma NEGRA, que no tiene color)
+   - fino   : tinta de color de trazo delgado          (pluma DEBAJO de un sello: el sello
+              es de hule y su trazo es grueso, la pluma no; firmada 0.3-4.3 %, vacía 0-0.04 %) */
+const UMBRAL_FIRMA = 0.006, UMBRAL_DUDA = 0.002,
+      UMBRAL_GRUESO = 0.02, UMBRAL_GRUESO_DUDA = 0.008,
+      UMBRAL_FINO = 0.002, UMBRAL_FINO_DUDA = 0.001;
 const estadoFirma = f => !f ? null
-  : (f.color >= UMBRAL_FIRMA || (f.grueso || 0) >= UMBRAL_GRUESO) ? 'si'
-  : (f.cubierta || 0) >= 0.25 ? 'tapada'      // un sello encima: no se puede saber
-  : (f.color >= UMBRAL_DUDA || (f.grueso || 0) >= UMBRAL_GRUESO_DUDA) ? 'duda' : 'no';
+  : (f.color >= UMBRAL_FIRMA || (f.grueso || 0) >= UMBRAL_GRUESO || (f.fino || 0) >= UMBRAL_FINO) ? 'si'
+  : (f.cubierta || 0) >= 0.25 ? 'tapada'      // sello encima y ni un trazo fino debajo
+  : (f.color >= UMBRAL_DUDA || (f.grueso || 0) >= UMBRAL_GRUESO_DUDA || (f.fino || 0) >= UMBRAL_FINO_DUDA) ? 'duda' : 'no';
 function celdaFirma(f){
   if (!f) return '<td class="num"></td>';
   const e = estadoFirma(f);

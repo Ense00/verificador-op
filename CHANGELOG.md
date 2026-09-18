@@ -2,6 +2,18 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.20.0 — 2026-09-18
+
+- **Firmas debajo de un sello: resueltas.** Tercera señal, la que faltaba: **tinta de
+  color de trazo fino**. El sello es de hule y su trazo grueso; la pluma no. Quedándose
+  con la tinta coloreada que no sobrevive a una erosión, aparece la firma bajo el sello
+  (celda firmada 0.3–4.3 %, celda vacía 0–0.04 %). El conteo de firmas pasa de **2 a 7
+  aciertos de 8** en el caso Cruz Roja, sin regresión en el documento de referencia.
+- La densidad de tinta se mide sobre el **área libre de sello**, no sobre la celda
+  entera: así una firma que asoma junto al sello no se diluye.
+- **Bomberos completo en modo carpeta: 64 de 67 órdenes (96 %, antes 90 %)**, 1,123
+  páginas en **9.4 minutos** en una sola sesión del navegador, sin falsos positivos.
+
 ## v0.19.1 — 2026-09-18
 
 - Corregido un error del modo carpeta: las segundas vueltas (número y sellos) recorrían

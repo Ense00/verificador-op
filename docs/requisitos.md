@@ -495,8 +495,17 @@ falsos positivos**: ninguna orden dada por buena que no lo sea.
 
 | Caso | Órdenes con PDF | Confirmadas (antes) | Confirmadas (ahora) | Falsos positivos |
 |---|---|---|---|---|
-| Bomberos | 67 (6 no tienen PDF) | 60 (90 %) | +3 en los primeros 19 archivos, 0 perdidas | **0** |
+| Bomberos | 67 (6 no tienen PDF) | 60 (90 %) | **64 (96 %)** | **0** |
 | Cruz Roja | 8 | 6 (75 %) | **7 (88 %)** | **0** |
+
+Bomberos corrió entero en **modo carpeta**: los 67 PDF y 1,123 páginas en **9.4 minutos**,
+en una sola sesión del navegador y sin degradarse. Las 3 órdenes que siguen sin
+encontrarse (`1900021849`, `1900022066`, `1900025576`) tienen la pluma encima del número.
+
+El **cero falsos positivos es estructural, no estadístico**: una orden solo se da por
+encontrada si el número leído está en la lista del documento base, y si coinciden dos
+candidatos se marca ambiguo. Un número mal leído se convierte en "no encontrada", nunca
+en "encontrada la equivocada".
 
 La comparación de Bomberos se hizo sobre los mismos 19 archivos con las dos versiones:
 **22 órdenes contra 19**, tres ganadas (`1900021848`, `1900021850`, `1900021861`, que
@@ -546,13 +555,35 @@ dependencias, `Nº documento` en otras). Al terminar dice cuántas de las órden
 solicitadas encontró y cuáles faltan. No sustituye a la etapa 2 de la página, pero
 permite pasar un caso entero sin tocar código.
 
-### Lo que queda pendiente y por qué no es urgente
+### Firmas debajo de un sello: resuelto con una tercera señal (2026-09-18)
 
-En las órdenes de Cruz Roja el sello `PAGADO` cubre el 68 % de las celdas de firma. El
-medidor **no dice "faltan firmas"**: dice **tapada** y manda la orden a revisar, que es
-el comportamiento seguro. Contar bien esas firmas exigiría separar la tinta del sello de
-la de la pluma dentro de la misma celda; mientras no se resuelva, esas órdenes van a
-Revisar con el motivo escrito.
+El problema era que un sello encima de la celda tapaba la firma y no había forma de
+saber si estaba firmada. La señal que faltaba: **tinta de color de trazo fino**. El sello
+es de hule y su trazo es grueso; la pluma no. Quedándose solo con la tinta coloreada que
+**no** sobrevive a una erosión, aparece la firma debajo del sello.
+
+| | Celdas firmadas | Celdas vacías |
+|---|---|---|
+| Tinta fina de color | 0.31 – 4.35 % | 0.00 – 0.04 % |
+
+Quedan entonces **tres señales**, cada una para lo que las otras no ven:
+
+| Señal | Qué detecta | Dónde fallan las otras |
+|---|---|---|
+| Tinta de color | pluma azul sobre papel limpio | — |
+| Trazo grueso (erosión) | pluma **negra**, que no tiene color | el color no la ve |
+| Tinta de color **fina** | pluma **debajo de un sello** | las dos anteriores se ahogan en la tinta del sello |
+
+Medido contra las 8 órdenes de Cruz Roja, cuya verdad se comprobó a ojo (2 de 3 firmas
+en todas, falta siempre la del Tesorero):
+
+| | Antes | Ahora |
+|---|---|---|
+| Conteo de firmas correcto | 2 de 8 | **7 de 8** |
+
+Sin regresión: el documento de referencia sigue dando 7 de 7 números y 3 de 3 firmas.
+Cuando ni la señal fina encuentra nada bajo un sello, la celda sigue marcándose
+**tapada** → Revisar, que es el comportamiento seguro.
 
 ## Panorama de 18 PDF reales (2026-09-17)
 
