@@ -148,7 +148,7 @@ pre.txt{font:12px/1.5 var(--mono);background:var(--sunken);border:1px solid var(
   <div class="tw"><table>
     <thead><tr>
       <th class="num">Pág.</th><th>Documento</th><th>Orden de pago</th><th class="num">Monto</th><th>Fecha</th><th>Hoja</th>
-      <th class="num">Firmas</th><th class="num">Firma 1</th><th class="num">Firma 2</th><th class="num">Firma 3</th>
+      <th class="num">Firmas</th><th class="num">Sellos</th><th class="num">Firma 1</th><th class="num">Firma 2</th><th class="num">Firma 3</th>
       <th class="num">Render</th><th class="num">Encab.</th><th class="num">Número</th><th class="num">Total</th>
       <th class="num">Color</th><th class="num">Inclin.</th>
     </tr></thead>
@@ -234,6 +234,117 @@ function tinta(c, fx, fy, fw, fh){
     if (Math.max(r, g, b) - Math.min(r, g, b) > 28 && lum < 215) color++;
   }
   return { color: color / n, oscuro: oscuro / n };
+}
+
+/* ---------- sellos ----------
+   Medido en órdenes reales: lo impreso (texto y reja) no tiene nada de color y su
+   tinta llega a negro; un sello, aunque se vea gris de despintado, o trae color
+   (mediana 37-45 de saturación) o es un gris parejo que nunca llega a negro. Con eso
+   se separa "tinta añadida" de "formato impreso", sin depender de la forma ni de si
+   el sello viene de cabeza.
+
+   Después se quitan las corridas largas (las rayas de la reja son largas y rectas;
+   un sello son arcos cortos), se juntan las manchas y se filtran por tamaño: el
+   escudo del membrete mide 0.09 de ancho y cualquier sello pasa de 0.13. */
+const SELLO = { W: 700, CEL: 6, MIN_CELDA: 3, MIN_AN: 0.13, MIN_AL: 0.07, MIN_TINTA: 1100, MIN_PROP: 0.25 };
+
+function tintaAnadida(c){
+  const W = SELLO.W, H = Math.round(c.height * W / c.width);
+  const t = document.createElement('canvas'); t.width = W; t.height = H;
+  t.getContext('2d', { willReadFrequently: true }).drawImage(c, 0, 0, W, H);
+  const d = t.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, W, H).data;
+  const negro = new Uint8Array(W * H), color = new Uint8Array(W * H), gris = new Uint8Array(W * H);
+  for (let i = 0, j = 0; j < W * H; i += 4, j++){
+    const r = d[i], g = d[i+1], b = d[i+2];
+    const lum = r * 0.299 + g * 0.587 + b * 0.114;
+    const sat = Math.max(r, g, b) - Math.min(r, g, b);
+    if (lum < 70) negro[j] = 1;
+    else if (sat > 20 && lum < 215) color[j] = 1;
+    else if (lum > 110 && lum < 205 && sat <= 20) gris[j] = 1;
+    if (sat > 20 && lum < 215) color[j] = 1;
+  }
+  // el gris pegado a tinta negra es el borde suavizado de lo impreso, no un sello.
+  // La vecindad se calcula en dos pasadas (horizontal y vertical) en vez de mirar
+  // los 49 vecinos de cada píxel.
+  // se pinta la vecindad partiendo de los píxeles negros, que son pocos (≈3 % de la
+  // hoja), en vez de preguntar por cada píxel si tiene un negro cerca
+  const R = 2, halo = new Uint8Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++){
+    if (!negro[y * W + x]) continue;
+    const y0 = Math.max(0, y - R), y1 = Math.min(H - 1, y + R);
+    const x0 = Math.max(0, x - R), x1 = Math.min(W - 1, x + R);
+    for (let ny = y0; ny <= y1; ny++) for (let nx = x0; nx <= x1; nx++) halo[ny * W + nx] = 1;
+  }
+  const add = new Uint8Array(W * H);
+  for (let j = 0; j < W * H; j++) add[j] = color[j] || (gris[j] && !halo[j]) ? 1 : 0;
+  // quitar corridas largas: son rayas del formato, no arcos de un sello
+  const lim = Math.round(W * 0.045);
+  for (let y = 0; y < H; y++){
+    let ini = -1;
+    for (let x = 0; x <= W; x++){
+      const v = x < W && add[y * W + x];
+      if (v && ini < 0) ini = x;
+      else if (!v && ini >= 0){ if (x - ini > lim) for (let k = ini; k < x; k++) add[y * W + k] = 0; ini = -1; }
+    }
+  }
+  const limV = Math.round(H * 0.045);
+  for (let x = 0; x < W; x++){
+    let ini = -1;
+    for (let y = 0; y <= H; y++){
+      const v = y < H && add[y * W + x];
+      if (v && ini < 0) ini = y;
+      else if (!v && ini >= 0){ if (y - ini > limV) for (let k = ini; k < y; k++) add[k * W + x] = 0; ini = -1; }
+    }
+  }
+  return { add, W, H };
+}
+
+function sellos(c){
+  const { add, W, H } = tintaAnadida(c);
+  const CEL = SELLO.CEL, GW = Math.ceil(W / CEL), GH = Math.ceil(H / CEL);
+  const celda = new Int32Array(GW * GH);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++)
+    if (add[y * W + x]) celda[(y / CEL | 0) * GW + (x / CEL | 0)]++;
+
+  const viva = i => celda[i] >= SELLO.MIN_CELDA;
+  const visto = new Uint8Array(GW * GH), fuera = [];
+  for (let i0 = 0; i0 < celda.length; i0++){
+    if (visto[i0] || !viva(i0)) continue;
+    const pila = [i0]; visto[i0] = 1;
+    let x0 = GW, x1 = 0, y0 = GH, y1 = 0, tinta = 0; const miembros = [];
+    while (pila.length){
+      const j = pila.pop(), jx = j % GW, jy = j / GW | 0;
+      tinta += celda[j]; miembros.push(j);
+      if (jx < x0) x0 = jx; if (jx > x1) x1 = jx;
+      if (jy < y0) y0 = jy; if (jy > y1) y1 = jy;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++){
+        const nx = jx + dx, ny = jy + dy;
+        if (nx < 0 || ny < 0 || nx >= GW || ny >= GH) continue;
+        const k = ny * GW + nx;
+        if (!visto[k] && viva(k)){ visto[k] = 1; pila.push(k); }
+      }
+    }
+    const an = x1 - x0 + 1, al = y1 - y0 + 1;
+    const prop = Math.min(an, al) / Math.max(an, al);
+    if (an / GW < SELLO.MIN_AN || al / GH < SELLO.MIN_AL) continue;
+    if (prop < SELLO.MIN_PROP) continue;
+    if (tinta < SELLO.MIN_TINTA) continue;
+    fuera.push({ x: x0 / GW, y: y0 / GH, an: an / GW, al: al / GH, tinta });
+  }
+  // una mancha que cabe entera dentro de una celda de firma es la firma, no un sello
+  const enCelda = s => [0, 1, 2].some(i => {
+    const cx = 0.06 + i * 0.30;
+    return s.x >= cx - 0.01 && s.x + s.an <= cx + 0.29 && s.y >= 0.81 && s.y + s.al <= 0.99;
+  });
+  const sellos = fuera.filter(s => !enCelda(s));
+  // encima de una firma = traslapa de verdad una celda, no que la roce
+  const sobreFirma = sellos.filter(s => [0, 1, 2].some(i => {
+    const cx = 0.06 + i * 0.30, cy = 0.82, cw = 0.28, ch = 0.16;
+    const ax = Math.max(0, Math.min(s.x + s.an, cx + cw) - Math.max(s.x, cx));
+    const ay = Math.max(0, Math.min(s.y + s.al, cy + ch) - Math.max(s.y, cy));
+    return (ax * ay) / (cw * ch) >= 0.15;
+  }));
+  return { sellos, sobreFirma, descartados: fuera.length - sellos.length };
 }
 
 /* ---------- inclinación ---------- */
@@ -499,6 +610,28 @@ async function medir(){
   }
   await Promise.all(enVuelo);
 
+  // --- los sellos solo importan en las órdenes: se miran en una segunda vuelta para no
+  //     pagarlos en las dos terceras partes de páginas que son soporte
+  const conSellos = paginas.filter(r => r.tipo && r.tipo.clave === 'orden');
+  if (conSellos.length){
+    const tS = performance.now();
+    for (const r of conSellos){
+      const page = await pdf.getPage(r.pagina);
+      const vp = page.getViewport({ scale: escala });
+      if (!(jpegs.length && await dibujarRapido(jpegs[r.pagina - 1], vp, lienzo, ctx))){
+        lienzo.width = Math.round(vp.width); lienzo.height = Math.round(vp.height);
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, lienzo.width, lienzo.height);
+        await page.render({ canvasContext: ctx, viewport: vp }).promise;
+      }
+      page.cleanup();
+      const se = sellos(lienzo);
+      r.sellos = se.sellos; r.selloEnFirma = se.sobreFirma.length > 0;
+      r.total = (r.total || 0);
+      pintarFila(r, filas.get(r.pagina));
+    }
+    log('Sellos revisados en ' + conSellos.length + ' órdenes (' + ms((performance.now() - tS) / conSellos.length) + ' por orden).');
+  }
+
   // --- segunda vuelta, en serie: las pocas órdenes cuyo número no salió al primer intento
   const rezagadas = paginas.filter(r => r.tipo && r.tipo.clave === 'orden' && !r.numero && !r.ambiguo);
   if (rezagadas.length){
@@ -579,6 +712,7 @@ function pintarFila(r, tr){
       ? r.firmas.filter(f => estadoFirma(f) === 'si').length + ' de 3'
         + (r.firmas.some(f => estadoFirma(f) === 'duda') ? ' <span style="color:var(--rev)">+dudas</span>' : '')
       : '') + '</td>' +
+    '<td class="num">' + (r.sellos ? r.sellos.length + (r.selloEnFirma ? ' <span style="color:var(--rev)" title="uno cae sobre una firma">⚠</span>' : '') : '') + '</td>' +
     (r.firmas ? r.firmas.map(celdaFirma).join('') : '<td></td><td></td><td></td>') +
     '<td class="num">' + ms(r.tRender) + '</td>' +
     '<td class="num">' + ms(r.tEncab) + '</td>' +
@@ -610,6 +744,9 @@ function resumir(totPag, tAbrir, pared, nHilos, tRender, tRecorte){
     tarjeta('Monto leído', ordenes.filter(r => r.monto).length + ' / ' + ordenes.length, 'fecha ' + ordenes.filter(r => r.fecha).length + ' · hoja ' + ordenes.filter(r => r.hoja).length) +
     tarjeta('Número leído', leidas.length + ' / ' + ordenes.length, primer.length + ' al primer intento' + (base.size ? ' · confirmado contra el documento base' : ' · sin documento base, no se confirma')) +
     tarjeta('Ya traen texto', conTextoPdf + ' / ' + n, conTextoPdf === n ? 'no haría falta OCR' : conTextoPdf ? 'mixto' : 'escaneo puro: OCR obligatorio') +
+    (paginas.some(r => r.sellos) ? tarjeta('Órdenes con sello',
+       ordenes.filter(r => (r.sellos || []).length).length + ' / ' + ordenes.length,
+       ordenes.filter(r => r.selloEnFirma).length + ' con un sello encima de una firma') : '') +
     (paginas.some(r => r.firmas) ? tarjeta('Celdas con tinta de firma',
        ordenes.reduce((a, r) => a + (r.firmas || []).filter(f => estadoFirma(f) === 'si').length, 0),
        'de ' + ordenes.length * 3 + ' celdas de orden · umbral ' + (UMBRAL_FIRMA * 100).toFixed(1) + '%'
@@ -626,6 +763,12 @@ function verPagina(r){
     cx.lineWidth = 2;
     cx.strokeStyle = 'rgba(176,40,28,.9)';
     cx.strokeRect(ZONA_NUM.fx * w, ZONA_NUM.fy * h, ZONA_NUM.fw * w, ZONA_NUM.fh * h);
+    (r.sellos || []).forEach(s => {
+      cx.strokeStyle = 'rgba(176,40,28,.95)'; cx.lineWidth = 3;
+      cx.strokeRect(s.x * w, s.y * h, s.an * w, s.al * h);
+      cx.fillStyle = 'rgba(176,40,28,.10)';
+      cx.fillRect(s.x * w, s.y * h, s.an * w, s.al * h);
+    });
     (r.firmas || []).forEach((f, i) => {
       cx.strokeStyle = 'rgba(51,70,168,.9)';
       const x = (0.06 + i * 0.30) * w, y = 0.82 * h, ww = 0.28 * w, hh = 0.16 * h;
@@ -643,6 +786,7 @@ function verPagina(r){
       'Fecha: ' + (r.fecha || '—') + '  (ejercicio ' + (r.ejercicio || '—') + ')   ·   hoja ' + (r.hoja || '—') + '\n' : '') +
     'Candidatos vistos: ' + (r.cand.length ? r.cand.join(', ') : '—') + '  (' + r.intentos + ' intento' + (r.intentos === 1 ? '' : 's') + ')\n' +
     (r.firmas ? 'Tinta de color en las tres celdas de firma: ' + r.firmas.map(f => (f.color * 100).toFixed(2) + '% ' + ({ si: '(firmada)', duda: '(dudosa)', no: '(vacía)' })[estadoFirma(f)]).join(' · ') + '\n' : '') +
+    (r.sellos ? 'Sellos detectados: ' + r.sellos.length + (r.selloEnFirma ? '  ·  uno cae sobre una celda de firma (Revisar)' : '') + '\n' : '') +
     (r.inclin != null ? 'Inclinación: ' + r.inclin.toFixed(2) + '°  ·  color en la página: ' + pct(r.color) + '\n' : '') +
     'Tiempos: render ' + ms(r.tRender) + ' · encabezado ' + ms(r.tEncab) + ' · número ' + ms(r.tNum) + (r.tCompleto ? ' · OCR completo ' + ms(r.tCompleto) : '') + '\n' +
     (r.fechas ? '\nOCR completo · montos: ' + (r.fechas ? (r.montosPag || []).slice(0, 14).join(', ') : '') + '\nfechas: ' + r.fechas.slice(0, 8).join(', ') + '\n' : '') +

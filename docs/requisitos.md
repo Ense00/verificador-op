@@ -286,6 +286,39 @@ que queda como "no se leyó" → Revisar, nunca adivinado.
 fue dejar de hacer OCR de la página completa (2.9 s por página, y ni así leía el
 número) y leer solo dos zonas chicas.
 
+### Sellos (medido el 2026-09-17)
+
+El usuario confirmó que **la presencia del sello cuenta**, no solo si tapa una firma.
+Lo que se midió en las siete órdenes reales:
+
+| Elemento | Color (máx−mín de RGB) | Tinta más oscura |
+|---|---|---|
+| Texto y reja impresos | 2 (nada) | llega a negro (p10 ≈ 25) |
+| Sello azul (`RECIBIDO`) | 45 | gris medio (p10 ≈ 125) |
+| Sello despintado (`REVISADO`) | 37 — **sí tiene color** | gris medio (p10 ≈ 125) |
+| Sello `PAGADO` diagonal | 2 — de verdad gris | nunca llega a negro (p10 ≈ 99) |
+
+De ahí sale la regla: **tinta añadida = la que tiene color, o la que es gris parejo y
+nunca llega a negro**. Lo impreso siempre tiene núcleo negro; el sello, aunque se vea
+gris, no. Así se detectan sellos de cualquier color, en cualquier posición y de cabeza,
+porque no se busca forma ni texto, sino manchas de tinta añadida.
+
+Después se limpian dos cosas que no son sellos:
+
+- **Las rayas del formato:** se borran las corridas largas y rectas. Un sello son arcos cortos; la reja de la tabla, líneas largas.
+- **El escudo del membrete:** mide 0.09 del ancho de la hoja y cualquier sello pasa de 0.13, así que basta un mínimo de tamaño.
+- **Las firmas:** una mancha que cabe entera dentro de una celda de firma es la firma. Si se sale de la celda, es un sello encima.
+
+Cuesta ~68 ms por orden; como solo se hace en las páginas de orden, sobre el total son
+unos 20 ms por página: el proceso completo pasa de ~150 a ~170 ms por página.
+
+Resultado: **7 de 7 órdenes con sello detectado** (tres sellos en seis de ellas, uno en
+la séptima porque dos sellos encimados se cuentan como una sola mancha), sin confundir
+la reja ni el escudo. 
+**Lo que falta para confiar del todo:** no hay en este PDF **ninguna orden sin sello**,
+así que no se puede medir cuántas veces diría "hay sello" donde no lo hay. Hace falta
+un ejemplo de orden sin sellar antes de que este dato decida un estado.
+
 ### Velocidad: de 47 minutos a 7 (medido el 2026-09-17)
 
 El usuario pidió exprimirlo. Cuatro cambios, todos dentro del navegador:

@@ -2,6 +2,21 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.13.0 — 2026-09-17
+
+- **Detección de sellos.** Se separa la *tinta añadida* de la del formato impreso: lo
+  impreso no tiene color y siempre llega a negro; un sello o trae color, o es un gris
+  parejo que nunca llega a negro. Con eso se detectan sellos de cualquier color, en
+  cualquier posición y de cabeza, sin buscar forma ni texto.
+- Se descartan la reja de la tabla (corridas largas y rectas), el escudo del membrete
+  (más chico que cualquier sello) y las firmas (manchas que caben dentro de su celda).
+- **7 de 7 órdenes reales con sello detectado.** Se marca aparte cuando un sello
+  traslapa una celda de firma, que según las reglas manda la orden a *Revisar*.
+- El análisis corre solo en las páginas de orden, en una segunda vuelta: ~68 ms por
+  orden en vez de pagarlo en todas las páginas.
+- Pendiente para confiar en el dato: no hay ninguna orden **sin** sello en el PDF de
+  ejemplo, así que no está medido cuántos falsos positivos daría.
+
 ## v0.12.0 — 2026-09-17
 
 De 47 minutos a ~8 por cada 3,000 páginas, sin perder precisión (7/7 en número,
