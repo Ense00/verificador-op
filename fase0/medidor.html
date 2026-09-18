@@ -873,7 +873,7 @@ async function medirUno(f, primero){
 
   for (let p = desde; p <= hasta; p++){
     if (cancelar){ log('Detenido por ti en la página ' + p + '.'); break; }
-    const r = { pagina: p, cand: [], intentos: 0, tNum: 0 };
+    const r = { pagina: p, cand: [], intentos: 0, tNum: 0, archivo: archivoActual };
     paginas.push(r);
     filas.set(p, filaVacia(r));
 
@@ -936,7 +936,6 @@ async function medirUno(f, primero){
           r.cand = [...vistos];
           resolverNumero(r, vistos);
           if (r.numero) confirmadasTodas.add(r.numero);
-          r.archivo = archivoActual;
           r.tNum = performance.now() - t2;
 
           t2 = performance.now();
@@ -985,7 +984,7 @@ async function medirUno(f, primero){
 
   // --- los sellos solo importan en las órdenes: se miran en una segunda vuelta para no
   //     pagarlos en las dos terceras partes de páginas que son soporte
-  const conSellos = paginas.filter(r => r.tipo && r.tipo.clave === 'orden');
+  const conSellos = paginas.filter(r => r.archivo === archivoActual && r.tipo && r.tipo.clave === 'orden');
   if (conSellos.length){
     const tS = performance.now();
     for (const r of conSellos){
@@ -1009,7 +1008,7 @@ async function medirUno(f, primero){
   }
 
   // --- segunda vuelta, en serie: las pocas órdenes cuyo número no salió al primer intento
-  const rezagadas = paginas.filter(r => r.tipo && r.tipo.clave === 'orden' && !r.numero && !r.ambiguo);
+  const rezagadas = paginas.filter(r => r.archivo === archivoActual && r.tipo && r.tipo.clave === 'orden' && !r.numero && !r.ambiguo);
   if (rezagadas.length){
     log('Segundo intento en ' + rezagadas.length + ' orden' + (rezagadas.length === 1 ? '' : 'es') + ' que no soltaron el número.');
     const w = trabajadores[0];
@@ -1030,6 +1029,7 @@ async function medirUno(f, primero){
         r.tNum += performance.now() - t2;
         r.cand = [...vistos];
         resolverNumero(r, vistos);
+        if (r.numero) confirmadasTodas.add(r.numero);
         if (r.numero || r.ambiguo) break;
       }
       r.total = (r.tRender || 0) + (r.tRecorte || 0) + (r.tEncab || 0) + (r.tNum || 0) + (r.tCampos || 0) + (r.tCompleto || 0);

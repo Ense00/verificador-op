@@ -2,6 +2,14 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.19.1 — 2026-09-18
+
+- Corregido un error del modo carpeta: las segundas vueltas (número y sellos) recorrían
+  **todas** las páginas acumuladas, incluidas las de archivos ya procesados, y volvían a
+  renderizar del PDF equivocado. Ahora cada vuelta se limita a las páginas de su archivo.
+  Con eso el modo carpeta da el mismo resultado que archivo por archivo: 7 de 8 en Cruz
+  Roja.
+
 ## v0.19.0 — 2026-09-18
 
 - **El medidor acepta una carpeta completa:** varios PDF de una vez y el **documento
