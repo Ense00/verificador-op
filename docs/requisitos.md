@@ -478,6 +478,68 @@ Pago`, `MONTO NETO A PAGAR`, `ELABORÓ` / `SOLICITANTE` / `PÁGUESE`, `Pag. X de
 por coordenadas. Para las celdas de firma hay además una vía sin OCR: son una tabla de
 tres celdas, detectable por sus líneas.
 
+## Panorama de 18 PDF reales (2026-09-17)
+
+El usuario agregó 18 archivos (~3,500 páginas, cinco escáneres: EPSON, PaperStream 2.10
+y 3.6, Canon y uno sin identificar). Lo medido sobre ellos:
+
+### Hallazgos de estructura
+
+- **Cinco archivos son copias idénticas** de otros tres (verificado por huella MD5):
+  `1900022997 = 1900023000 = 1900023001`, `1000039081 = …82 = …83`,
+  `5100017190 = 5100021144`. Son de los más grandes (82 MB × 3, 49 MB × 2): descartar
+  duplicados por huella antes de leer ahorra ~250 MB y miles de páginas.
+- **Un PDF trae varias órdenes**, aunque se llame como una sola: en `1900022997.pdf`
+  (32 páginas) hay **6 órdenes distintas**. Y un archivo se llama con **siete** números.
+- **Documentos muy grandes:** uno de **1,660 páginas y 457 MB**.
+- **Solo la primera página es apaisada** (el listado de pagos) en los siete archivos que
+  se ven apaisados; el resto son verticales. No es la hoja girada, es el listado.
+- **Pero hay listados girados 90°** (en `1000039081`), con decenas de números de orden
+  en vertical. Ahí el clasificador marcó 9 "órdenes" en 40 páginas sin leer un número:
+  **falsos positivos peligrosos**, porque esas páginas están llenas de números.
+
+### Validación de punta a punta con documento base real
+
+`BOMBEROS 2021.xlsx` resultó ser el documento base de `1900022997.pdf`. Con su lista de
+73 órdenes:
+
+| Medida | Resultado |
+|---|---|
+| Páginas de orden encontradas | 6 |
+| Número **confirmado contra el documento base** | **6 de 6** |
+| Monto leído | 6 de 6 |
+| Sello detectado | 6 de 6 |
+| Firmas | 0–1 de 3 donde hay 2 de 3 → **mal** |
+
+Es la primera medición contra una lista real de órdenes solicitadas, y confirma que la
+lectura del número aguanta en un formato que no se calibró.
+
+### El hallazgo que más cambia el diseño: hay firmas de tinta NEGRA
+
+En las órdenes de BOMBEROS las firmas son de **pluma negra**, no azul. Todo el detector
+de firmas se basaba en el color, así que reportaba 0 de 3 donde hay 2. Medido en cuatro
+formatos:
+
+| Formato | Firma por color | Firma por grosor de trazo (2 erosiones) |
+|---|---|---|
+| Bomberos, pluma negra | 0.00–0.15 % ✗ | **10–11 %** ✓ |
+| Educación, pluma azul | 1.0–4.2 % ✓ | 0.7–1.9 % ✗ |
+| ISSSTESON, pluma azul fina | 2.1–4.8 % ✓ | 0.01–0.15 % ✗ |
+| Celda vacía (referencia) | 0.00 % | 0.35 % |
+
+Cada medida falla donde la otra funciona: **una firma es tinta de color O trazo grueso**.
+La del grosor sale de erosionar la imagen: el trazo de pluma sobrevive, el texto impreso
+impreso es delgado y desaparece. Ventaja adicional: el grosor **no depende del color**,
+así que sería la vía si algún día aparece un escaneo en gris.
+
+### También corregido
+
+- **El `-A` puede ser invento del OCR:** en una orden leyó `1900023001-A` donde la caja
+  dice `1900023001` sin sufijo. Con una base que tuviera la orden y su `-A`, eso podría
+  confirmar la equivocada. El sufijo necesita más exigencia que hoy.
+- Las órdenes de esos formatos traen `Página 1 / 1` al pie y el número en caja rotulada
+  `Orden de Pago`, como el primer formato.
+
 ## Lo que está calibrado con una sola muestra (2026-09-17)
 
 Advertencia del usuario: el PDF con el que se midió todo trae **órdenes de una sola
