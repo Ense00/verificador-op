@@ -437,6 +437,41 @@ decodificador en C++ del sistema. Lo único donde pierde es el OCR, por ser WebA
 Un programa instalable quedaría alrededor de 5–6 minutos contra los ~8 de la página:
 no paga el costo de instalarlo en la computadora del trabajo.
 
+## Lo que está calibrado con una sola muestra (2026-09-17)
+
+Advertencia del usuario: el PDF con el que se midió todo trae **órdenes de una sola
+página y completas**, de una dependencia, un ejercicio y un escáner. Falta ver la
+variedad real. Lo que sigue es qué supone la lectura hoy y **cómo se rompe** con otras
+variedades, para saber qué ejemplos conviene conseguir.
+
+| Lo que se supone hoy | Con qué variedad se rompe | Qué pasaría |
+|---|---|---|
+| El número vive arriba a la derecha (se prueban 5 recortes) | Otro formato de orden, otra dependencia | No se lee el número → la orden no se identifica |
+| La fecha está en la caja de arriba a la derecha | Ídem | Sin ejercicio → Revisar |
+| Los montos están en la mitad derecha de la tabla (con respaldo a la banda ancha) | Ídem, u orden con la lista de montos en otra hoja | Monto incompleto o ausente |
+| Tres celdas de firma al pie, en `y` 0.82–0.98 | Firmas en hoja aparte, u otro acomodo | Reporta 0 de 3 firmas y marca Incorrecto una orden que sí está firmada |
+| Una orden = una página | **Orden de varias hojas** | Los montos de las hojas siguientes no se suman, y la hoja de firmas se clasifica como soporte |
+| El encabezado dice `ORDEN DE PAGO` | Continuación sin encabezado | La hoja se toma como soporte y no se lee |
+| Página vertical | Orden apaisada o girada 90° | Todas las zonas quedan fuera de lugar |
+| **Escaneo a color** | **Escaneo en gris o blanco y negro** | Se cae lo más valioso: sin color no se separan sellos ni firmas de la tinta impresa |
+| Sellos de ~0.26 del ancho | Sellos mucho más grandes o chicos | Se dejan de detectar (la presencia es lo que decide, así que iría a Revisar) |
+| 200 ppp, un JPEG por página | Otro escáner o PDF con varias imágenes por hoja | Se cae solo a pdf.js: más lento, pero sigue leyendo |
+
+**Ejemplos que más falta conseguir**, en orden de valor:
+
+1. Una **orden de varias hojas** (lista de montos larga o firmas en hoja aparte).
+2. Un PDF de **otra dependencia o otro ejercicio**, para ver si el formato se mueve.
+3. Una orden **sin sello** y otra con **firmas faltantes**, para calibrar los umbrales con el caso negativo (hoy solo está probado con casos completos).
+4. Una **ADEFA** real (`-A`), que no apareció en ningún archivo revisado.
+5. Si existen, un escaneo **en gris** y una hoja **girada**.
+
+El arreglo estructural para los cuatro primeros renglones de la tabla es dejar de usar
+zonas fijas y **ubicar cada dato por su rótulo** (buscar "Orden de Pago", "Fecha de
+expedición", "Monto Neto a Pagar", "SOLICITANTE" con OCR y leer al lado). Se probó una
+primera versión con anclas y salió peor que las zonas fijas (1 de 7 contra 7 de 7),
+porque leer una franja grande diluye el texto chico; la vía es buscar el rótulo en una
+franja angosta y de ahí saltar al dato.
+
 ## Pendiente
 
 Estado al 2026-09-17 (v0.10.0):
