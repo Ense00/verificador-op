@@ -98,8 +98,8 @@ pre.txt{font:12px/1.5 var(--mono);background:var(--sunken);border:1px solid var(
       <div>
         <label for="dpi">Resolución de render</label>
         <select id="dpi">
-          <option value="200">200 ppp</option>
-          <option value="300" selected>300 ppp (recomendada)</option>
+          <option value="200" selected>200 ppp (la del escaneo)</option>
+          <option value="300">300 ppp</option>
           <option value="400">400 ppp (lenta)</option>
         </select>
       </div>
@@ -116,6 +116,8 @@ pre.txt{font:12px/1.5 var(--mono);background:var(--sunken);border:1px solid var(
       <label class="chk"><input type="checkbox" id="imagen" checked> Analizar la imagen (firmas por tinta, inclinación)</label>
       <label class="chk"><input type="checkbox" id="completo"> OCR de la página completa (lento: para montos y fechas)</label>
       <label class="chk"><input type="checkbox" id="vistas" checked> Guardar vistas para revisar (máx. 80)</label>
+      <label class="chk"><input type="checkbox" id="paralelo" checked> Repartir el OCR en varios núcleos <span id="nucleos" style="color:var(--muted)"></span></label>
+      <label class="chk"><input type="checkbox" id="rapido" checked> Decodificar el JPEG con el navegador (9× más rápido que pdf.js)</label>
     </div>
     <div class="row" style="margin-top:12px;align-items:flex-start">
       <div style="flex:1;min-width:260px">
@@ -271,7 +273,12 @@ const INTENTOS = [
 const ZONA_NUM = INTENTOS[0];
 // el resto de los campos de la orden, cada uno en su zona
 const ZONA_FECHA  = { fx: 0.66, fy: 0.115, fw: 0.34, fh: 0.09, amp: 1, psm: '4', lista: '0123456789/.-' };
-const ZONA_MONTOS = { fx: 0.04, fy: 0.26,  fw: 0.94, fh: 0.24, amp: 1, psm: '4', lista: '0123456789.,$' };
+// Solo la parte derecha de la tabla: ahí viven la columna de importes, el subtotal y
+// el neto a pagar. La banda completa cuesta 1 s por orden; esta, 317 ms, y casi siempre
+// lee lo mismo. Cuando un sello cae encima y no sale ningún monto, se repite con la
+// banda ancha: barato primero, caro solo cuando hace falta.
+const ZONA_MONTOS = { fx: 0.50, fy: 0.25,  fw: 0.49, fh: 0.26, amp: 1, psm: '4', lista: '0123456789.,$' };
+const ZONA_MONTOS_ANCHA = { fx: 0.04, fy: 0.26, fw: 0.94, fh: 0.24, amp: 1, psm: '4', lista: '0123456789.,$' };
 const ZONA_HOJA   = { fx: 0.70, fy: 0.960, fw: 0.28, fh: 0.035, amp: 3, psm: '7', lista: '0123456789/' };
 const RE_MONTO = /\d{1,3}(?:,\d{3})*\.\d{2}/g;
 function candidatosDe(txt){
@@ -284,14 +291,67 @@ function candidatosDe(txt){
   return out;
 }
 
-/* ---------- OCR ---------- */
-async function darWorker(idioma){
-  if (worker && workerIdioma === idioma) return worker;
-  if (worker){ await worker.terminate(); worker = null; }
-  log('Preparando OCR (' + idioma + ')… la primera vez baja el idioma, tarda.');
-  worker = await Tesseract.createWorker(idioma, 1, { logger: m => { if (m.status && m.progress === 1) log('  OCR: ' + m.status); } });
-  workerIdioma = idioma;
-  return worker;
+/* ---------- ruta rápida: decodificar el JPEG con el navegador ----------
+   Estos PDF son un escaneo: cada página es un JPEG entero metido en el archivo.
+   pdf.js lo decodifica en JavaScript (229 ms por página, medido); el decodificador
+   del propio navegador tarda 25 ms. Se sacan los JPEG crudos del archivo y se
+   decodifican con createImageBitmap; si algo no cuadra, se regresa a pdf.js. */
+function extraerJpegs(buf){
+  const a = new Uint8Array(buf), segs = [];
+  for (let i = 0; i < a.length - 3; i++){
+    if (a[i] === 0xFF && a[i+1] === 0xD8 && a[i+2] === 0xFF){
+      for (let j = i + 2; j < a.length - 1; j++){
+        if (a[j] === 0xFF && a[j+1] === 0xD9){ segs.push(new Blob([a.subarray(i, j + 2)], { type: 'image/jpeg' })); i = j + 1; break; }
+      }
+    }
+  }
+  return segs;
+}
+
+async function dibujarRapido(blob, vp, lienzo, ctx){
+  const bm = await createImageBitmap(blob);
+  const gira = (vp.width > vp.height) !== (bm.width > bm.height);   // la página puede venir girada
+  const w = gira ? bm.height : bm.width, h = gira ? bm.width : bm.height;
+  const propPag = vp.width / vp.height, propImg = w / h;
+  if (Math.abs(propPag - propImg) / propPag > 0.03){ bm.close(); return false; }  // no corresponde: a pdf.js
+  lienzo.width = w; lienzo.height = h;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+  if (gira){ ctx.translate(w / 2, h / 2); ctx.rotate(Math.PI / 2); ctx.drawImage(bm, -bm.width / 2, -bm.height / 2); ctx.setTransform(1, 0, 0, 1, 0, 0); }
+  else ctx.drawImage(bm, 0, 0);
+  bm.close();
+  return true;
+}
+
+/* ---------- trabajadores ----------
+   El OCR es casi todo el trabajo y se reparte: medido en esta máquina, seis
+   trabajadores hacen el OCR 4.05x más rápido que uno solo. El hilo principal se
+   queda solo con renderizar y recortar, que es lo que no se puede repartir. */
+let equipo = [], equipoIdioma = null;
+const NUCLEOS = Math.max(1, Math.min(6, navigator.hardwareConcurrency || 4));
+
+async function darEquipo(idioma, n){
+  if (equipo.length === n && equipoIdioma === idioma) return equipo;
+  for (const w of equipo) await w.terminate();
+  equipo = [];
+  log('Preparando ' + n + ' trabajador' + (n === 1 ? '' : 'es') + ' de OCR (' + idioma + ')… la primera vez baja el idioma, tarda.');
+  for (let i = 0; i < n; i++) equipo.push(await Tesseract.createWorker(idioma, 1));
+  equipoIdioma = idioma;
+  log('Listos ' + n + '.');
+  return equipo;
+}
+
+function turnos(trabajadores){
+  const libres = trabajadores.slice(), cola = [];
+  return {
+    tomar: () => libres.length ? Promise.resolve(libres.pop()) : new Promise(r => cola.push(r)),
+    soltar: w => { const r = cola.shift(); if (r) r(w); else libres.push(w); }
+  };
+}
+
+async function leerZona(w, img, psm, lista){
+  await w.setParameters({ tessedit_pageseg_mode: psm, tessedit_char_whitelist: lista });
+  return (await w.recognize(img)).data.text;
 }
 
 /* ---------- corrida ---------- */
@@ -302,113 +362,78 @@ async function medir(){
   $('#correr').disabled = true; $('#parar').disabled = false; $('#expJson').disabled = true;
   paginas = []; vistas.clear(); $('#filas').innerHTML = ''; $('#texto').textContent = '—';
   base = new Set($('#base').value.split(/[\s,;]+/).map(s => s.trim().toUpperCase()).filter(Boolean));
-  logEl.textContent = 'Archivo: ' + f.name + '  (' + (f.size / 1048576).toFixed(1) + ' MB)' + (base.size ? '  ·  ' + base.size + ' órdenes en el documento base' : '');
 
   const dpi = +$('#dpi').value, escala = dpi / 72;
   const limpiar = $('#limpiar').checked, conImagen = $('#imagen').checked;
   const completo = $('#completo').checked, guardar = $('#vistas').checked;
+  const nHilos = $('#paralelo').checked ? NUCLEOS : 1;
+
+  logEl.textContent = 'Archivo: ' + f.name + '  (' + (f.size / 1048576).toFixed(1) + ' MB)'
+    + (base.size ? '  ·  ' + base.size + ' órdenes en el documento base' : '')
+    + '  ·  ' + nHilos + ' hilo' + (nHilos === 1 ? '' : 's');
 
   const t0 = performance.now();
-  const pdf = await pdfjsLib.getDocument({ data: await f.arrayBuffer() }).promise;
+  const datos = await f.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: datos.slice(0) }).promise;
+  let jpegs = [];
+  if ($('#rapido').checked){
+    jpegs = extraerJpegs(datos);
+    if (jpegs.length !== pdf.numPages){ log('Ruta rápida descartada: ' + jpegs.length + ' imágenes para ' + pdf.numPages + ' páginas.'); jpegs = []; }
+  }
   const tAbrir = performance.now() - t0;
-  log('Abierto en ' + ms(tAbrir) + ' · ' + pdf.numPages + ' páginas.');
+  log('Abierto en ' + ms(tAbrir) + ' · ' + pdf.numPages + ' páginas' + (jpegs.length ? ' · ruta rápida de JPEG activa' : '') + '.');
 
   const desde = Math.max(1, +$('#desde').value);
   const hasta = Math.min(pdf.numPages, +$('#hasta').value || pdf.numPages);
-  const w = await darWorker($('#idioma').value);
+  const trabajadores = await darEquipo($('#idioma').value, nHilos);
+  const turno = turnos(trabajadores);
 
+  const arranque = performance.now();
   const lienzo = document.createElement('canvas');
   const ctx = lienzo.getContext('2d', { willReadFrequently: true });
+  const filas = new Map(), enVuelo = new Set();
+  let tRenderTotal = 0, tRecorteTotal = 0;
 
   for (let p = desde; p <= hasta; p++){
     if (cancelar){ log('Detenido por ti en la página ' + p + '.'); break; }
-    const r = { pagina: p };
-    const page = await pdf.getPage(p);
+    const r = { pagina: p, cand: [], intentos: 0, tNum: 0 };
+    paginas.push(r);
+    filas.set(p, filaVacia(r));
 
+    // --- hilo principal: renderizar y recortar, que es lo único que no se reparte
     let t = performance.now();
+    const page = await pdf.getPage(p);
     const tc = await page.getTextContent();
     r.charsPdf = tc.items.map(i => i.str).join(' ').trim().length;
-    r.tTexto = performance.now() - t;
-
     const vp = page.getViewport({ scale: escala });
-    lienzo.width = Math.round(vp.width); lienzo.height = Math.round(vp.height);
+    r.rapido = jpegs.length ? await dibujarRapido(jpegs[p - 1], vp, lienzo, ctx) : false;
+    if (!r.rapido){
+      lienzo.width = Math.round(vp.width); lienzo.height = Math.round(vp.height);
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, lienzo.width, lienzo.height);
+      await page.render({ canvasContext: ctx, viewport: vp }).promise;
+    }
+    page.cleanup();
     r.px = lienzo.width + '×' + lienzo.height;
+    r.tRender = performance.now() - t; tRenderTotal += r.tRender;
+
     t = performance.now();
-    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, lienzo.width, lienzo.height);
-    await page.render({ canvasContext: ctx, viewport: vp }).promise;
-    r.tRender = performance.now() - t;
-
-    // 1) encabezado: qué documento es
-    t = performance.now();
-    await w.setParameters({ tessedit_pageseg_mode: '4', tessedit_char_whitelist: '' });
-    r.encabezado = sinAcentos((await w.recognize(recorte(lienzo, 0.10, 0, 0.55, 0.10, 1, limpiar))).data.text.replace(/\s+/g, ' ')).trim();
-    r.tEncab = performance.now() - t;
-    r.tipo = tipoDe(r.encabezado);
-
-    // 2) número de orden, solo en las páginas de orden
-    r.cand = []; r.numero = null; r.intentos = 0; r.tNum = 0;
-    if (r.tipo.clave === 'orden'){
-      const vistos = new Set();
-      for (const it of INTENTOS){
-        r.intentos++;
-        t = performance.now();
-        await w.setParameters({ tessedit_pageseg_mode: it.psm, tessedit_char_whitelist: it.lista || '0123456789-' });
-        const txt = (await w.recognize(recorte(lienzo, it.fx, it.fy, it.fw, it.fh, it.amp, it.limpiar))).data.text;
-        r.tNum += performance.now() - t;
-        for (const c of candidatosDe(txt)) vistos.add(c);
-        const enBase = [...vistos].filter(c => base.has(c));
-        if (enBase.length === 1) r.numero = enBase[0];
-        else if (enBase.length > 1){ r.ambiguo = enBase; break; }   // p. ej. la orden y su -A: nunca se adivina
-        if (r.numero) break;
-        if (!base.size && vistos.size) break;   // sin documento base no hay con qué confirmar
-      }
-      r.cand = [...vistos];
-      if (!r.numero && !base.size && r.cand.length === 1) r.numero = r.cand[0];
-    }
-
-    // 2b) fecha, montos y numeración de hojas, solo en las páginas de orden
-    if (r.tipo.clave === 'orden'){
-      t = performance.now();
-      for (const [campo, z] of [['fecha', ZONA_FECHA], ['montos', ZONA_MONTOS], ['hoja', ZONA_HOJA]]){
-        await w.setParameters({ tessedit_pageseg_mode: z.psm, tessedit_char_whitelist: z.lista });
-        const txt = (await w.recognize(recorte(lienzo, z.fx, z.fy, z.fw, z.fh, z.amp, limpiar))).data.text;
-        if (campo === 'fecha'){
-          const f = (txt.match(/\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b/g) || []);
-          r.fecha = f[0] || null;
-          r.ejercicio = r.fecha ? ('20' + r.fecha.slice(-2)).slice(-4) : null;
-        } else if (campo === 'montos'){
-          r.montos = [...new Set(txt.match(RE_MONTO) || [])];
-          r.monto = r.montos.length ? r.montos.reduce((a, b) => parseFloat(a.replace(/,/g, '')) >= parseFloat(b.replace(/,/g, '')) ? a : b) : null;
-        } else {
-          const h = txt.replace(/\s+/g, ' ').match(/(\d+)\s*\/\s*(\d+)/);
-          r.hoja = h ? h[1] + ' / ' + h[2] : null;
-        }
-      }
-      r.tCampos = performance.now() - t;
-    }
-
-    // 3) firmas: tinta de color en las tres celdas de abajo
-    if (conImagen){
-      t = performance.now();
-      r.firmas = [0, 1, 2].map(i => tinta(lienzo, 0.06 + i * 0.30, 0.82, 0.28, 0.16));
-      r.inclin = inclinacion(lienzo);
-      r.color = tinta(lienzo, 0, 0, 1, 1).color;
-      r.tImagen = performance.now() - t;
-    }
-
-    // 4) OCR completo, opcional
-    if (completo){
-      t = performance.now();
-      await w.setParameters({ tessedit_pageseg_mode: '3', tessedit_char_whitelist: '' });
-      const d = (await w.recognize(recorte(lienzo, 0, 0, 1, 1, 1, limpiar))).data;
-      r.texto = d.text; r.conf = d.confidence;
-      r.montosPag = [...new Set((d.text.match(/\b\d{1,3}(?:[,\u00A0 ]\d{3})*[.,]\d{2}\b/g) || []))];
-      r.fechas = [...new Set((d.text.match(/\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b/g) || []))];
-      r.tCompleto = performance.now() - t;
-    }
-
-    r.total = (r.tTexto || 0) + (r.tRender || 0) + (r.tEncab || 0) + (r.tNum || 0) + (r.tCampos || 0) + (r.tImagen || 0) + (r.tCompleto || 0);
-
+    const recortes = {
+      encab:  recorte(lienzo, 0.10, 0, 0.55, 0.10, 1, limpiar),
+      num:    recorte(lienzo, INTENTOS[0].fx, INTENTOS[0].fy, INTENTOS[0].fw, INTENTOS[0].fh, INTENTOS[0].amp, INTENTOS[0].limpiar),
+      fecha:  recorte(lienzo, ZONA_FECHA.fx, ZONA_FECHA.fy, ZONA_FECHA.fw, ZONA_FECHA.fh, ZONA_FECHA.amp, limpiar),
+      montos: recorte(lienzo, ZONA_MONTOS.fx, ZONA_MONTOS.fy, ZONA_MONTOS.fw, ZONA_MONTOS.fh, ZONA_MONTOS.amp, limpiar),
+      hoja:   recorte(lienzo, ZONA_HOJA.fx, ZONA_HOJA.fy, ZONA_HOJA.fw, ZONA_HOJA.fh, ZONA_HOJA.amp, limpiar),
+      // el recorte ancho casi nunca se usa: se prepara sin limpiar el color, que es lo caro
+      montosAncha: recorte(lienzo, ZONA_MONTOS_ANCHA.fx, ZONA_MONTOS_ANCHA.fy, ZONA_MONTOS_ANCHA.fw, ZONA_MONTOS_ANCHA.fh, ZONA_MONTOS_ANCHA.amp, false),
+      pagina: completo ? recorte(lienzo, 0, 0, 1, 1, 1, limpiar) : null
+    };
+    // la tinta y la inclinación salen de una copia chica: mismo resultado, mucho más barato
+    const chico = document.createElement('canvas');
+    chico.width = 800; chico.height = Math.round(lienzo.height * 800 / lienzo.width);
+    chico.getContext('2d').drawImage(lienzo, 0, 0, chico.width, chico.height);
+    r.firmas = [0, 1, 2].map(i => tinta(chico, 0.06 + i * 0.30, 0.82, 0.28, 0.16));
+    r.color = tinta(chico, 0, 0, 1, 1).color;
+    if (conImagen) r.inclin = inclinacion(chico);
     if (guardar && vistas.size < 80){
       const mini = document.createElement('canvas');
       const esc = Math.min(1, 900 / lienzo.width);
@@ -416,26 +441,127 @@ async function medir(){
       mini.getContext('2d').drawImage(lienzo, 0, 0, mini.width, mini.height);
       vistas.set(p, mini.toDataURL('image/jpeg', 0.72));
     }
-    paginas.push(r);
-    pintarFila(r);
-    $('#prog').style.width = ((p - desde + 1) / (hasta - desde + 1) * 100) + '%';
-    resumir(pdf.numPages, tAbrir);
-    await new Promise(res => setTimeout(res, 0));
+    r.tRecorte = performance.now() - t; tRecorteTotal += r.tRecorte;
+
+    // --- trabajadores: todo el OCR de esta página
+    const tarea = (async () => {
+      const w = await turno.tomar();
+      try {
+        let t2 = performance.now();
+        r.encabezado = sinAcentos((await leerZona(w, recortes.encab, '4', '')).replace(/\s+/g, ' ')).trim();
+        r.tEncab = performance.now() - t2;
+        r.tipo = tipoDe(r.encabezado);
+        if (r.tipo.clave === 'orden'){
+          t2 = performance.now();
+          r.intentos = 1;
+          const vistos = new Set(candidatosDe(await leerZona(w, recortes.num, INTENTOS[0].psm, INTENTOS[0].lista || '0123456789-')));
+          r.cand = [...vistos];
+          resolverNumero(r, vistos);
+          r.tNum = performance.now() - t2;
+
+          t2 = performance.now();
+          for (const [campo, z, img] of [['fecha', ZONA_FECHA, recortes.fecha], ['montos', ZONA_MONTOS, recortes.montos], ['hoja', ZONA_HOJA, recortes.hoja]]){
+            const txt = await leerZona(w, img, z.psm, z.lista);
+            if (campo === 'fecha'){
+              r.fecha = (txt.match(/\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b/g) || [])[0] || null;
+              r.ejercicio = r.fecha ? ('20' + r.fecha.slice(-2)).slice(-4) : null;
+            } else if (campo === 'montos'){
+              r.montos = [...new Set(txt.match(RE_MONTO) || [])];
+              // "solo 0.00" también es señal de que algo tapó las cifras (un sello encima)
+              const hayCifra = r.montos.some(m => parseFloat(m.replace(/,/g, '')) > 0);
+              if (!hayCifra && recortes.montosAncha){
+                r.montosAncha = true;
+                r.montos = [...new Set((await leerZona(w, recortes.montosAncha, ZONA_MONTOS_ANCHA.psm, ZONA_MONTOS_ANCHA.lista)).match(RE_MONTO) || [])];
+              }
+              r.monto = r.montos.length ? r.montos.reduce((a, b) => parseFloat(a.replace(/,/g, '')) >= parseFloat(b.replace(/,/g, '')) ? a : b) : null;
+            } else {
+              const h = txt.replace(/\s+/g, ' ').match(/(\d+)\s*\/\s*(\d+)/);
+              r.hoja = h ? h[1] + ' / ' + h[2] : null;
+            }
+          }
+          r.tCampos = performance.now() - t2;
+        }
+        if (recortes.pagina){
+          t2 = performance.now();
+          const txt = await leerZona(w, recortes.pagina, '3', '');
+          r.texto = txt;
+          r.fechas = [...new Set(txt.match(/\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b/g) || [])];
+          r.montosPag = [...new Set(txt.match(RE_MONTO) || [])];
+          r.tCompleto = performance.now() - t2;
+        }
+      } finally { turno.soltar(w); }
+      r.total = (r.tRender || 0) + (r.tRecorte || 0) + (r.tEncab || 0) + (r.tNum || 0) + (r.tCampos || 0) + (r.tCompleto || 0);
+      pintarFila(r, filas.get(p));
+      $('#prog').style.width = ((p - desde + 1) / (hasta - desde + 1) * 100) + '%';
+    })();
+    enVuelo.add(tarea); tarea.finally(() => enVuelo.delete(tarea));
+    if (enVuelo.size >= nHilos * 2) await Promise.race(enVuelo);
+  }
+  await Promise.all(enVuelo);
+
+  // --- segunda vuelta, en serie: las pocas órdenes cuyo número no salió al primer intento
+  const rezagadas = paginas.filter(r => r.tipo && r.tipo.clave === 'orden' && !r.numero && !r.ambiguo);
+  if (rezagadas.length){
+    log('Segundo intento en ' + rezagadas.length + ' orden' + (rezagadas.length === 1 ? '' : 'es') + ' que no soltaron el número.');
+    const w = trabajadores[0];
+    for (const r of rezagadas){
+      const page = await pdf.getPage(r.pagina);
+      const vp = page.getViewport({ scale: escala });
+      if (!(jpegs.length && await dibujarRapido(jpegs[r.pagina - 1], vp, lienzo, ctx))){
+        lienzo.width = Math.round(vp.width); lienzo.height = Math.round(vp.height);
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, lienzo.width, lienzo.height);
+        await page.render({ canvasContext: ctx, viewport: vp }).promise;
+      }
+      page.cleanup();
+      const vistos = new Set(r.cand);
+      for (const it of INTENTOS.slice(1)){
+        r.intentos++;
+        const t2 = performance.now();
+        for (const c of candidatosDe(await leerZona(w, recorte(lienzo, it.fx, it.fy, it.fw, it.fh, it.amp, it.limpiar), it.psm, it.lista || '0123456789-'))) vistos.add(c);
+        r.tNum += performance.now() - t2;
+        r.cand = [...vistos];
+        resolverNumero(r, vistos);
+        if (r.numero || r.ambiguo) break;
+      }
+      r.total = (r.tRender || 0) + (r.tRecorte || 0) + (r.tEncab || 0) + (r.tNum || 0) + (r.tCampos || 0) + (r.tCompleto || 0);
+      pintarFila(r, filas.get(r.pagina));
+    }
   }
 
-  log('Listo: ' + paginas.length + ' páginas medidas.');
+  const pared = performance.now() - arranque;
+  paginas.sort((a, b) => a.pagina - b.pagina);
+  resumir(pdf.numPages, tAbrir, pared, nHilos, tRenderTotal, tRecorteTotal);
+  log('Listo: ' + paginas.length + ' páginas en ' + ms(pared) + '  (' + (pared / paginas.length).toFixed(0) + ' ms por página).');
   $('#correr').disabled = false; $('#parar').disabled = true; $('#expJson').disabled = paginas.length === 0;
 }
 
+function resolverNumero(r, vistos){
+  if (!base.size){ if (vistos.size === 1) r.numero = [...vistos][0]; return; }
+  const enBase = [...vistos].filter(c => base.has(c));
+  if (enBase.length === 1) r.numero = enBase[0];
+  else if (enBase.length > 1) r.ambiguo = enBase;   // p. ej. la orden y su -A: nunca se adivina
+}
+
 /* ---------- tabla ---------- */
-const UMBRAL_FIRMA = 0.008;   // punto de partida: se ajusta con más PDFs
+/* Medido en órdenes reales firmadas: la celda del "Páguese" es la más flaca y llegó
+   a 0.78 %, mientras que una celda vacía da 0.00 %. El umbral va en 0.6 %, y entre
+   0.2 % y 0.6 % no se decide: se marca dudosa para que la revise una persona. */
+const UMBRAL_FIRMA = 0.006, UMBRAL_DUDA = 0.002;
+const estadoFirma = f => !f ? null : f.color >= UMBRAL_FIRMA ? 'si' : f.color >= UMBRAL_DUDA ? 'duda' : 'no';
 function celdaFirma(f){
   if (!f) return '<td class="num"></td>';
-  const hay = f.color >= UMBRAL_FIRMA;
-  return '<td class="num" style="color:' + (hay ? 'var(--ok)' : 'var(--muted)') + '">' + (f.color * 100).toFixed(2) + '%</td>';
+  const e = estadoFirma(f);
+  const color = e === 'si' ? 'var(--ok)' : e === 'duda' ? 'var(--rev)' : 'var(--muted)';
+  return '<td class="num" style="color:' + color + '">' + (f.color * 100).toFixed(2) + '%' + (e === 'duda' ? ' ?' : '') + '</td>';
 }
-function pintarFila(r){
+function filaVacia(r){
   const tr = document.createElement('tr');
+  tr.innerHTML = '<td class="num">' + r.pagina + '</td><td colspan="12" style="color:var(--muted)">leyendo…</td>';
+  $('#filas').appendChild(tr);
+  return tr;
+}
+function pintarFila(r, tr){
+  if (!tr){ tr = document.createElement('tr'); $('#filas').appendChild(tr); }
   const cls = r.tipo.clave === 'orden' ? 'op' : r.tipo.clave === 'soporte' ? 'sop' : 'dud';
   const num = r.numero
     ? '<b>' + r.numero + '</b>' + (base.size ? ' <span style="color:var(--ok)">✓</span>' : '')
@@ -449,7 +575,10 @@ function pintarFila(r){
     '<td class="num">' + (r.monto || '') + '</td>' +
     '<td>' + (r.fecha || '') + '</td>' +
     '<td>' + (r.hoja || '') + '</td>' +
-    '<td class="num">' + (r.firmas && r.tipo.clave === 'orden' ? r.firmas.filter(f => f.color >= UMBRAL_FIRMA).length + ' de 3' : '') + '</td>' +
+    '<td class="num">' + (r.firmas && r.tipo.clave === 'orden'
+      ? r.firmas.filter(f => estadoFirma(f) === 'si').length + ' de 3'
+        + (r.firmas.some(f => estadoFirma(f) === 'duda') ? ' <span style="color:var(--rev)">+dudas</span>' : '')
+      : '') + '</td>' +
     (r.firmas ? r.firmas.map(celdaFirma).join('') : '<td></td><td></td><td></td>') +
     '<td class="num">' + ms(r.tRender) + '</td>' +
     '<td class="num">' + ms(r.tEncab) + '</td>' +
@@ -458,33 +587,33 @@ function pintarFila(r){
     '<td class="num">' + (r.color != null ? pct(r.color) : '') + '</td>' +
     '<td class="num">' + (r.inclin != null ? r.inclin.toFixed(2) + '°' : '') + '</td>';
   tr.onclick = () => { document.querySelectorAll('#filas tr.sel').forEach(e => e.classList.remove('sel')); tr.classList.add('sel'); verPagina(r); };
-  $('#filas').appendChild(tr);
 }
 
 function tarjeta(k, v, n){ return '<div class="card"><div class="k">' + k + '</div><div class="v">' + v + '</div><div class="n">' + (n || '') + '</div></div>'; }
 
-function resumir(totPag, tAbrir){
+function resumir(totPag, tAbrir, pared, nHilos, tRender, tRecorte){
   const n = paginas.length; if (!n) return;
   const prom = f => paginas.reduce((a, r) => a + (f(r) || 0), 0) / n;
-  const pTotal = prom(r => r.total);
-  const ordenes = paginas.filter(r => r.tipo.clave === 'orden');
+  const pTotal = pared / n;
+  const ordenes = paginas.filter(r => r.tipo && r.tipo.clave === 'orden');
   const leidas = ordenes.filter(r => r.numero);
   const primer = leidas.filter(r => r.intentos === 1);
   const conTextoPdf = paginas.filter(r => r.charsPdf > 80).length;
   const proy = k => { const s = pTotal * k / 1000; return s < 90 ? s.toFixed(0) + ' s' : (s / 60).toFixed(0) + ' min'; };
   const conteo = {};
-  for (const r of paginas) conteo[r.tipo.nombre] = (conteo[r.tipo.nombre] || 0) + 1;
+  for (const r of paginas) if (r.tipo) conteo[r.tipo.nombre] = (conteo[r.tipo.nombre] || 0) + 1;
   $('#tarjetas').innerHTML =
     tarjeta('Páginas medidas', n, 'de ' + totPag + ' · abrir el PDF: ' + ms(tAbrir)) +
-    tarjeta('Tiempo por página', ms(pTotal), 'render ' + ms(prom(r => r.tRender)) + ' · encabezado ' + ms(prom(r => r.tEncab))) +
+    tarjeta('Tiempo por página', ms(pTotal), nHilos + ' hilo' + (nHilos === 1 ? '' : 's') + ' · render ' + ms(tRender / n) + ' · recortes ' + ms(tRecorte / n) + ' · OCR ' + ms(prom(r => (r.tEncab || 0) + (r.tNum || 0) + (r.tCampos || 0) + (r.tCompleto || 0))) + ' repartido') +
     tarjeta('Proyección', proy(500), '500 págs. · 3,000 págs.: ' + proy(3000)) +
     tarjeta('Órdenes de pago', ordenes.length + ' / ' + n, Object.entries(conteo).map(([k, v]) => k + ' ' + v).join(' · ')) +
     tarjeta('Monto leído', ordenes.filter(r => r.monto).length + ' / ' + ordenes.length, 'fecha ' + ordenes.filter(r => r.fecha).length + ' · hoja ' + ordenes.filter(r => r.hoja).length) +
     tarjeta('Número leído', leidas.length + ' / ' + ordenes.length, primer.length + ' al primer intento' + (base.size ? ' · confirmado contra el documento base' : ' · sin documento base, no se confirma')) +
     tarjeta('Ya traen texto', conTextoPdf + ' / ' + n, conTextoPdf === n ? 'no haría falta OCR' : conTextoPdf ? 'mixto' : 'escaneo puro: OCR obligatorio') +
     (paginas.some(r => r.firmas) ? tarjeta('Celdas con tinta de firma',
-       paginas.filter(r => r.tipo.clave === 'orden').reduce((a, r) => a + (r.firmas || []).filter(f => f.color >= UMBRAL_FIRMA).length, 0),
-       'de ' + ordenes.length * 3 + ' celdas de orden · umbral ' + (UMBRAL_FIRMA * 100).toFixed(1) + '%') : '');
+       ordenes.reduce((a, r) => a + (r.firmas || []).filter(f => estadoFirma(f) === 'si').length, 0),
+       'de ' + ordenes.length * 3 + ' celdas de orden · umbral ' + (UMBRAL_FIRMA * 100).toFixed(1) + '%'
+       + (ordenes.some(r => (r.firmas || []).some(f => estadoFirma(f) === 'duda')) ? ' · hay celdas dudosas' : '')) : '');
 }
 
 function verPagina(r){
@@ -499,8 +628,8 @@ function verPagina(r){
     cx.strokeRect(ZONA_NUM.fx * w, ZONA_NUM.fy * h, ZONA_NUM.fw * w, ZONA_NUM.fh * h);
     (r.firmas || []).forEach((f, i) => {
       cx.strokeStyle = 'rgba(51,70,168,.9)';
-      cx.fillStyle = f.color >= UMBRAL_FIRMA ? 'rgba(51,70,168,.16)' : 'rgba(51,70,168,.04)';
       const x = (0.06 + i * 0.30) * w, y = 0.82 * h, ww = 0.28 * w, hh = 0.16 * h;
+      cx.fillStyle = estadoFirma(f) === 'si' ? 'rgba(51,70,168,.16)' : estadoFirma(f) === 'duda' ? 'rgba(154,86,8,.16)' : 'rgba(51,70,168,.04)';
       cx.fillRect(x, y, ww, hh); cx.strokeRect(x, y, ww, hh);
     });
   };
@@ -513,7 +642,7 @@ function verPagina(r){
     (r.tipo.clave === 'orden' ? 'Monto mayor leído: ' + (r.monto || '—') + '   ·   todos: ' + (r.montos || []).join(', ') + '\n' +
       'Fecha: ' + (r.fecha || '—') + '  (ejercicio ' + (r.ejercicio || '—') + ')   ·   hoja ' + (r.hoja || '—') + '\n' : '') +
     'Candidatos vistos: ' + (r.cand.length ? r.cand.join(', ') : '—') + '  (' + r.intentos + ' intento' + (r.intentos === 1 ? '' : 's') + ')\n' +
-    (r.firmas ? 'Tinta de color en las tres celdas de firma: ' + r.firmas.map(f => (f.color * 100).toFixed(2) + '%').join(' · ') + '\n' : '') +
+    (r.firmas ? 'Tinta de color en las tres celdas de firma: ' + r.firmas.map(f => (f.color * 100).toFixed(2) + '% ' + ({ si: '(firmada)', duda: '(dudosa)', no: '(vacía)' })[estadoFirma(f)]).join(' · ') + '\n' : '') +
     (r.inclin != null ? 'Inclinación: ' + r.inclin.toFixed(2) + '°  ·  color en la página: ' + pct(r.color) + '\n' : '') +
     'Tiempos: render ' + ms(r.tRender) + ' · encabezado ' + ms(r.tEncab) + ' · número ' + ms(r.tNum) + (r.tCompleto ? ' · OCR completo ' + ms(r.tCompleto) : '') + '\n' +
     (r.fechas ? '\nOCR completo · montos: ' + (r.fechas ? (r.montosPag || []).slice(0, 14).join(', ') : '') + '\nfechas: ' + r.fechas.slice(0, 8).join(', ') + '\n' : '') +
@@ -547,6 +676,7 @@ $('#correr').onclick = () => medir().catch(e => { log('Error: ' + e.message); co
 $('#parar').onclick = () => { cancelar = true; };
 $('#expJson').onclick = exportar;
 $('#arch').onchange = () => { const f = $('#arch').files[0]; if (f) log('Elegido: ' + f.name); };
+$('#nucleos').textContent = '(' + NUCLEOS + ' disponibles)';
 </script>
 </body>
 </html>

@@ -2,6 +2,26 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.12.0 — 2026-09-17
+
+De 47 minutos a ~8 por cada 3,000 páginas, sin perder precisión (7/7 en número,
+monto y ejercicio; 21/21 celdas de firma en el PDF real).
+
+- **El JPEG lo decodifica el navegador, no pdf.js.** Cada página del escaneo es un
+  JPEG entero dentro del PDF: se extraen los JPEG crudos y se decodifican con
+  `createImageBitmap` (25–35 ms contra 229 ms). Si el PDF no es de ese tipo, se
+  regresa solo a pdf.js.
+- **El OCR se reparte en los núcleos disponibles** (hasta 6): 4.05× más rápido. El
+  hilo principal solo decodifica y recorta; las filas de la tabla se llenan conforme
+  cada trabajador termina.
+- **Render a 200 ppp**, la resolución real del escaneo: subir a 300 no agrega detalle.
+- **Banda de montos recortada a la mitad derecha** (317 ms contra 1 s por orden), con
+  la banda ancha como respaldo cuando un sello tapa las cifras y no sale ningún monto
+  mayor que cero.
+- Umbral de firma bajado a 0.6 % y estado intermedio "dudosa" entre 0.2 % y 0.6 %: en
+  una orden real la celda del *Páguese* midió 0.78 %, demasiado cerca del umbral viejo.
+  Lo dudoso no se decide solo, se marca para revisar.
+
 ## Sin versión — 2026-09-17
 
 - Medido si conviene un programa instalable en vez de la página: el navegador

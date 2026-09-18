@@ -25,7 +25,7 @@ la primera vez.
 | Número de orden (incluido `-A`) | Se lee solo en las páginas de orden, de la caja de arriba a la derecha |
 | Confirmación contra el documento base | Pegando ahí la lista de órdenes solicitadas, el medidor **confirma** el número en vez de solo reportarlo |
 | Tinta de color en las tres celdas del pie | Es el conteo de firmas: la firma es de pluma, el nombre impreso es negro |
-| Tiempos de render, encabezado y número | Para saber si 3,000 páginas se pueden verificar en el navegador |
+| Tiempos de render, recortes y OCR | Para saber si 3,000 páginas se pueden verificar en el navegador. El resumen separa lo que corre en un solo hilo (decodificar y recortar) de lo que se reparte (OCR) |
 | Si la página ya trae texto | Si el PDF no es puro escaneo, el OCR sobra |
 | Inclinación y color de la página | Calidad del escaneo |
 
@@ -38,13 +38,15 @@ casilla, el archivo queda con datos del documento y hay que tratarlo como tal.
 
 ## Lo que se aprendió midiendo un PDF real
 
-1. **300 ppp de render.** El escaneo viene a 200 ppp; a menos de 300 el número no se lee.
-2. **Borrar la tinta de color antes de leer.** La impresión es negra; pluma y sellos traen color. Una raya de pluma encima de los dígitos arruina el OCR, y blanquear el color lo resuelve.
-3. **Leer zonas, no páginas.** El OCR de la página completa tarda 2.9 s y ni así lee el número chico. Dos recortes (encabezado y caja del número) bajan a 0.55 s por página y aciertan.
-4. **`PSM 4`, nunca `PSM 6`.** Con `PSM 6` no se leyó ni una sola orden; con `PSM 4` salieron todas.
-5. **Varios intentos.** La caja se mueve con el escaneo: se prueban cinco recortes y escalas hasta que uno coincide con el documento base.
-6. **La `A` de ADEFA va en la lista de caracteres** y pegada al número; si no, una `-A` se confunde con su original.
-7. **El documento base es el árbitro.** Los PDF están llenos de números de 10 dígitos que no son órdenes.
+1. **Decodificar el JPEG con el navegador, no con pdf.js.** Cada página del escaneo es un JPEG entero metido en el PDF. pdf.js lo decodifica en JavaScript (229 ms por página); `createImageBitmap` usa el decodificador del navegador y tarda **25 ms**. El medidor saca los JPEG crudos del archivo y usa esa ruta, con regreso automático a pdf.js si el PDF no es de ese tipo.
+2. **Repartir el OCR en varios núcleos.** Seis trabajadores hacen el OCR **4.05× más rápido** que uno. El hilo principal solo decodifica y recorta.
+3. **Borrar la tinta de color antes de leer.** La impresión es negra; pluma y sellos traen color. Una raya de pluma encima de los dígitos arruina el OCR, y blanquear el color lo resuelve.
+4. **Leer zonas, no páginas.** El OCR de la página completa tarda 2.9 s y ni así lee el número chico.
+5. **Zona barata primero, zona cara solo si hace falta.** La banda de montos completa cuesta 1 s por orden; la mitad derecha, 317 ms, y lee lo mismo salvo cuando un sello cae encima: ahí se repite con la banda ancha. Lo mismo con el número: cinco recortes distintos, y casi siempre basta el primero.
+6. **`PSM 4`, nunca `PSM 6`.** Con `PSM 6` no se leyó ni una sola orden.
+7. **La `A` de ADEFA va en la lista de caracteres** y pegada al número; si no, una `-A` se confunde con su original.
+8. **El documento base es el árbitro.** Los PDF están llenos de números de 10 dígitos que no son órdenes.
+9. **Renderizar a 200 ppp, no a 300:** es la resolución del escaneo, y subirla no agrega detalle, solo trabajo.
 
 ## Probarla sin PDF real
 

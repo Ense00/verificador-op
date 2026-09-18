@@ -286,38 +286,48 @@ que queda como "no se leyó" → Revisar, nunca adivinado.
 fue dejar de hacer OCR de la página completa (2.9 s por página, y ni así leía el
 número) y leer solo dos zonas chicas.
 
-### ¿Un programa instalable sería más rápido? (medido el 2026-09-17)
+### Velocidad: de 47 minutos a 7 (medido el 2026-09-17)
 
-| Parte | Navegador | Nativo | Diferencia |
-|---|---|---|---|
-| Decodificar y escalar la página | 193 ms (pdf.js) | 103 ms (C, medido con Pillow sobre el JPEG del propio PDF) | 1.9× |
-| OCR de las zonas, 1 hilo | 235 ms | no medido (falta Tesseract nativo instalado) | ~1.5× estimado |
+El usuario pidió exprimirlo. Cuatro cambios, todos dentro del navegador:
 
-Lo que sí cambia todo es **usar los seis núcleos**, y el navegador puede hacerlo con
-Web Workers casi tan bien como un programa nativo:
-
-| Hilos de OCR en el navegador | ms por página | Aceleración |
+| Cambio | Antes | Después |
 |---|---|---|
-| 1 | 235 | — |
-| 2 | 122 | 1.93× |
-| 4 | 70 | 3.36× |
-| 6 | 58 | **4.05×** |
+| **Decodificar el JPEG con el navegador.** Cada página del escaneo es un JPEG entero dentro del PDF; pdf.js lo decodifica en JavaScript, `createImageBitmap` usa el decodificador del navegador | 229 ms | **25–35 ms** |
+| **Repartir el OCR en los seis núcleos** con trabajadores | 1 hilo | **4.05× más rápido** |
+| **Renderizar a 200 ppp** (la resolución real del escaneo) en vez de 300 | — | menos trabajo, misma lectura |
+| **Banda de montos recortada**, con la banda ancha solo cuando un sello tapa las cifras | 1,005 ms por orden | **317 ms** |
 
-Con eso, el render (193 ms, hoy en el hilo principal) pasa a ser el cuello de botella,
-y también se puede repartir en trabajadores.
+El resultado, sobre el mismo PDF real de 23 páginas y sin perder nada:
 
-Proyección para 3,000 páginas con todos los campos:
+| | Antes | Ahora |
+|---|---|---|
+| Tiempo por página | 946 ms | **~150 ms** (150–220 según qué tan caliente esté el equipo) |
+| 3,000 páginas | 47 min | **~8 min** |
+| Número, monto, ejercicio | 7 / 7 | 7 / 7 |
+| Firmas | 21 / 21 celdas | 21 / 21 celdas |
 
-- Hoy, un solo hilo: **47 min**
-- Navegador con 6 trabajadores de OCR: **~20 min**
-- Navegador con OCR y render repartidos: **~12 min**
-- Programa instalable con 6 hilos: **~5–8 min** (estimado: el OCR nativo es ~1.5× más
-  rápido que el WASM y el render 1.9×, ya medido)
+Cómo queda repartido el trabajo: el hilo principal solo decodifica (≈32 ms) y recorta
+(≈74 ms); todo el OCR (≈600 ms por página) se va a los seis trabajadores, que lo
+convierten en ≈100 ms. El piso teórico con este diseño es ~140 ms por página.
 
-**Conclusión: sí sería más rápido, más o menos el doble que una versión web bien
-hecha, pero la web todavía no gasta el paralelismo que ya tiene disponible.** Primero
-hay que usar los trabajadores; y un programa instalable pide permiso de instalación en
-la computadora del trabajo, que es un costo que este ahorro no paga.
+**Nota sobre los tiempos:** con los seis núcleos al tope el procesador baja su
+frecuencia, así que la misma corrida da entre 150 y 220 ms por página. Los números
+de arriba son corridas en frío.
+
+### ¿Y un programa instalable? (medido el 2026-09-17)
+
+Ya no: la ventaja se evaporó al usar bien el navegador.
+
+| Parte | Navegador | Nativo |
+|---|---|---|
+| Decodificar la página | **25–35 ms** (`createImageBitmap`) | 103 ms (Pillow/C sobre el mismo JPEG) |
+| OCR, 1 hilo | 235 ms | ~1.5× más rápido (estimado; no hay Tesseract nativo instalado para medirlo) |
+| Repartir en 6 núcleos | 4.05× (medido) | similar |
+
+El navegador **le gana** al código nativo decodificando, porque usa el mismo
+decodificador en C++ del sistema. Lo único donde pierde es el OCR, por ser WebAssembly.
+Un programa instalable quedaría alrededor de 5–6 minutos contra los ~8 de la página:
+no paga el costo de instalarlo en la computadora del trabajo.
 
 ## Pendiente
 
