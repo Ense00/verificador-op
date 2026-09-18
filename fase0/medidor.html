@@ -186,9 +186,11 @@ let paginas = [], vistas = new Map(), cancelar = false, worker = null, workerIdi
 /* ---------- qué documento es cada página ----------
    Medido en un PDF real: las páginas se turnan ORDEN DE PAGO → SOLICITUD DE PAGO →
    LIBERACIÓN DE TRANSFERENCIAS, y el encabezado las distingue sin fallar. */
+/* Los patrones toleran que el OCR pierda o cambie una letra: en una orden real leyó
+   "RDEN DE PAGO" (una raya de pluma encima de la O) y la hoja se fue a soporte. */
 const TIPOS = [
-  { clave: 'orden',      nombre: 'Orden de pago',  re: /ORDEN\s+DE\s+PAG[O0]/ },
-  { clave: 'solicitud',  nombre: 'Solicitud',      re: /SOLICITUD\s+DE\s+PAG[O0]/ },
+  { clave: 'orden',      nombre: 'Orden de pago',  re: /\bO?RDE[NM]\s+DE\s+PA[GC][O0]?\b/ },
+  { clave: 'solicitud',  nombre: 'Solicitud',      re: /S[O0]LICITUD\s+DE\s+PA[GC][O0]?/ },
   { clave: 'liberacion', nombre: 'Liberación',     re: /LIBERACI[O0]N\s+DE\s+TRANSFERENCIAS/ },
   { clave: 'banco',      nombre: 'Banco',          re: /(NET\s*CASH|TRANSFERENCIA|CLAVE\s+DE\s+RASTREO|INTERBANCARIO)/ }
 ];
@@ -546,7 +548,11 @@ const INTENTOS = [
   { fx: 0.60, fy: 0.00, fw: 0.40, fh: 0.20, amp: 1,   psm: '4', limpiar: true,  lista: '0123456789-A' },
   { fx: 0.67, fy: 0.02, fw: 0.33, fh: 0.15, amp: 1,   psm: '4', limpiar: false },
   { fx: 0.60, fy: 0.00, fw: 0.40, fh: 0.20, amp: 1.5, psm: '4', limpiar: true },
-  { fx: 0.55, fy: 0.00, fw: 0.45, fh: 0.25, amp: 1,   psm: '3', limpiar: true }
+  { fx: 0.55, fy: 0.00, fw: 0.45, fh: 0.25, amp: 1,   psm: '3', limpiar: true },
+  // en otra forma de orden la raya de pluma es fina y limpiar el color deja un hueco
+  // en el dígito: sin limpiar se lee mejor, sobre todo con el recorte pegado a la caja
+  { fx: 0.68, fy: 0.03, fw: 0.30, fh: 0.09, amp: 1,   psm: '4', limpiar: false },
+  { fx: 0.67, fy: 0.02, fw: 0.33, fh: 0.15, amp: 2,   psm: '4', limpiar: false }
 ];
 const ZONA_NUM = INTENTOS[0];
 // el resto de los campos de la orden, cada uno en su zona
@@ -557,7 +563,9 @@ const ZONA_FECHA  = { fx: 0.66, fy: 0.115, fw: 0.34, fh: 0.09, amp: 1, psm: '4',
 // banda ancha: barato primero, caro solo cuando hace falta.
 const ZONA_MONTOS = { fx: 0.50, fy: 0.25,  fw: 0.49, fh: 0.26, amp: 1, psm: '4', lista: '0123456789.,$' };
 const ZONA_MONTOS_ANCHA = { fx: 0.04, fy: 0.26, fw: 0.94, fh: 0.24, amp: 1, psm: '4', lista: '0123456789.,$' };
+// la numeración de hojas va al pie en un formato y arriba a la derecha en otro
 const ZONA_HOJA   = { fx: 0.70, fy: 0.960, fw: 0.28, fh: 0.035, amp: 3, psm: '7', lista: '0123456789/' };
+const ZONA_HOJA_2 = { fx: 0.62, fy: 0.030, fw: 0.36, fh: 0.060, amp: 2, psm: '4', lista: '0123456789/dePag. ' };
 const RE_MONTO = /\d{1,3}(?:,\d{3})*\.\d{2}/g;
 function candidatosDe(txt){
   const out = new Set();
@@ -696,12 +704,13 @@ async function medir(){
 
     t = performance.now();
     const recortes = {
-      encab:  recorte(lienzo, 0.10, 0, 0.55, 0.10, 1, limpiar),
+      encab:  recorte(lienzo, 0.08, 0, 0.60, 0.14, 1, limpiar),
       num:    recorte(lienzo, INTENTOS[0].fx, INTENTOS[0].fy, INTENTOS[0].fw, INTENTOS[0].fh, INTENTOS[0].amp, INTENTOS[0].limpiar),
       fecha:  recorte(lienzo, ZONA_FECHA.fx, ZONA_FECHA.fy, ZONA_FECHA.fw, ZONA_FECHA.fh, ZONA_FECHA.amp, limpiar),
       montos: recorte(lienzo, ZONA_MONTOS.fx, ZONA_MONTOS.fy, ZONA_MONTOS.fw, ZONA_MONTOS.fh, ZONA_MONTOS.amp, limpiar),
       hoja:   recorte(lienzo, ZONA_HOJA.fx, ZONA_HOJA.fy, ZONA_HOJA.fw, ZONA_HOJA.fh, ZONA_HOJA.amp, limpiar),
       // el recorte ancho casi nunca se usa: se prepara sin limpiar el color, que es lo caro
+      hoja2:  recorte(lienzo, ZONA_HOJA_2.fx, ZONA_HOJA_2.fy, ZONA_HOJA_2.fw, ZONA_HOJA_2.fh, ZONA_HOJA_2.amp, limpiar),
       montosAncha: recorte(lienzo, ZONA_MONTOS_ANCHA.fx, ZONA_MONTOS_ANCHA.fy, ZONA_MONTOS_ANCHA.fw, ZONA_MONTOS_ANCHA.fh, ZONA_MONTOS_ANCHA.amp, false),
       pagina: completo ? recorte(lienzo, 0, 0, 1, 1, 1, limpiar) : null
     };
@@ -753,8 +762,12 @@ async function medir(){
               }
               r.monto = r.montos.length ? r.montos.reduce((a, b) => parseFloat(a.replace(/,/g, '')) >= parseFloat(b.replace(/,/g, '')) ? a : b) : null;
             } else {
-              const h = txt.replace(/\s+/g, ' ').match(/(\d+)\s*\/\s*(\d+)/);
-              r.hoja = h ? h[1] + ' / ' + h[2] : null;
+              const leerHoja = t => {
+                const m = t.replace(/\s+/g, ' ').match(/(\d+)\s*(?:\/|de)\s*(\d+)/i);
+                return m ? m[1] + ' de ' + m[2] : null;
+              };
+              r.hoja = leerHoja(txt);
+              if (!r.hoja && recortes.hoja2) r.hoja = leerHoja(await leerZona(w, recortes.hoja2, ZONA_HOJA_2.psm, ZONA_HOJA_2.lista));
             }
           }
           r.tCampos = performance.now() - t2;

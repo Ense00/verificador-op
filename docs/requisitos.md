@@ -437,6 +437,43 @@ decodificador en C++ del sistema. Lo único donde pierde es el OCR, por ser WebA
 Un programa instalable quedaría alrededor de 5–6 minutos contra los ~8 de la página:
 no paga el costo de instalarlo en la computadora del trabajo.
 
+## Segunda muestra: otra entidad, otro escáner, orden de dos hojas (2026-09-17)
+
+El usuario agregó un segundo PDF real: 23 páginas, escáner **EPSON** (el otro era
+Fujitsu), 200 ppp a color, otra entidad. Trae **tres órdenes**, una de ellas de **dos
+hojas con las firmas en la segunda**, que era justo lo que faltaba ver.
+
+### Diferencias del formato
+
+| | Primera muestra | Segunda muestra |
+|---|---|---|
+| Rótulo del número | `Orden de Pago` | **`Folio`** |
+| Serie del número | 19…, 51…, 71… | **10…** |
+| Fecha | `18/05/2021` | **`20.01.2021`** (con puntos) |
+| Numeración de hojas | `Página 1 / 1` al pie | **`Pag. 1 de 2`** arriba, junto al folio |
+| Montos | mitad derecha de la tabla | columna `Importe` a la izquierda y `MONTO NETO A PAGAR` abajo |
+| Firmas | tres celdas al pie (`y` 0.82–0.98) | tres celdas **arriba de la segunda hoja** (`y` ≈ 0.22–0.36) |
+| Sellos | `REVISADO`, `RECIBIDO`, `PAGADO` | `RECIBIDO`, `PAGADO`, **`OPERADO`** |
+
+### Qué se arregló con esta muestra
+
+- **Clasificación:** el OCR leyó `RDEN DE PAGO` (una raya de pluma sobre la O) y la hoja se iba a soporte. Los patrones de tipo ahora toleran que se pierda o cambie una letra, y la franja del encabezado se ensanchó porque en esta forma el título cae más abajo. Las 3 órdenes se detectan.
+- **Número:** se leyó en las tres. En una hoja hizo falta un intento nuevo: **sin limpiar el color**. Ahí la raya de pluma es fina y blanquearla deja un hueco en el dígito, mientras que dejándola el OCR lee de corrido. O sea, limpiar el color ayuda con trazos gruesos y estorba con trazos finos: se prueban las dos.
+- Los sellos se detectan en las tres órdenes (`OPERADO` incluido, sin haberlo visto antes: el método no busca el dibujo, busca tinta añadida en forma de aro).
+
+### Qué sigue roto, y por qué importa
+
+- **Firmas: 1 de 3 donde hay 3.** Es el fallo peligroso, porque marcaría como incorrecta una orden que sí está firmada. La banda de firmas está fija al pie y en esta forma las celdas están arriba de la segunda hoja.
+- **Monto: lee `20.01`** (un trozo de la fecha) en la hoja donde la tabla no cae en la zona fija.
+- **`Pag. 1 de 2` no se lee**, ni con la zona de arriba que se agregó.
+- **Una orden de dos hojas se cuenta como dos órdenes** con el mismo número. Falta el modelo de "orden = conjunto de hojas consecutivas con el mismo número", con los montos de todas sus hojas y las firmas de la hoja que las traiga.
+
+La conclusión es la que ya se anticipaba: **las zonas fijas no sobreviven a un segundo
+formato**. El siguiente paso es ubicar cada dato por su rótulo (`Folio` / `Orden de
+Pago`, `MONTO NETO A PAGAR`, `ELABORÓ` / `SOLICITANTE` / `PÁGUESE`, `Pag. X de Y`) y no
+por coordenadas. Para las celdas de firma hay además una vía sin OCR: son una tabla de
+tres celdas, detectable por sus líneas.
+
 ## Lo que está calibrado con una sola muestra (2026-09-17)
 
 Advertencia del usuario: el PDF con el que se midió todo trae **órdenes de una sola

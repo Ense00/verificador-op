@@ -2,6 +2,24 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.17.0 — 2026-09-17
+
+Segunda muestra real: otra entidad, escáner EPSON, y una orden de dos hojas con las
+firmas en la segunda.
+
+- **Los patrones de tipo toleran erratas del OCR.** En una orden leyó `RDEN DE PAGO`
+  (una raya de pluma sobre la O) y la hoja se clasificaba como soporte. También se
+  ensanchó la franja del encabezado, porque en esa forma el título cae más abajo.
+- **Dos intentos nuevos para el número, sin limpiar el color.** Con trazos de pluma
+  finos, blanquear el color deja un hueco en el dígito; sin limpiar se lee de corrido.
+  Limpiar sigue siendo el primer intento, que es lo que funciona con trazos gruesos.
+- Zona alterna para la numeración de hojas (arriba, junto al folio).
+- Con eso, en el PDF nuevo se detectan las 3 órdenes y se lee el número de las 3. El
+  PDF anterior sigue igual: 7 de 7 en número, monto, ejercicio y firmas.
+- **Queda roto y documentado:** las firmas de la segunda muestra (celdas arriba de la
+  segunda hoja, reporta 1 de 3 donde hay 3), el monto cuando la tabla no cae en la zona
+  fija, y el modelo de orden de varias hojas.
+
 ## v0.16.0 — 2026-09-17
 
 - **El conteo de sellos deja de decidir; lo que decide es que haya sello.** Probado con
