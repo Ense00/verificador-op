@@ -429,7 +429,7 @@ table.parts td{vertical-align:middle}
   <header class="top">
     <div class="brand">
       <h1>Verificador de Órdenes de Pago</h1>
-      <span class="stamp">v0.8.0</span>
+      <span class="stamp">v0.23.0</span>
     </div>
     <div class="topright">
     <div class="toprow">
@@ -733,25 +733,28 @@ table.parts td{vertical-align:middle}
 
         <section class="gsec card" id="g-verificar">
           <h3><span class="stepnum">5</span> Paso 3 · Verificar órdenes</h3>
-          <div class="gnote soon"><b>Próximamente.</b> La lectura de los PDFs todavía está en preparación: por ahora no se pueden elegir archivos ni pulsar <b>Verificar</b>. Mientras tanto, en la etapa 2 puedes pulsar <b>Ver demostración</b> para conocer cómo se verán los resultados con datos de muestra. <button type="button" class="btn small" data-guide-goto="verify">Ir a Verificar órdenes</button></div>
+          <div class="gnote">Los PDFs se leen <b>dentro de tu navegador</b>: no se suben a ningún lado. La primera vez que pulses <b>Verificar</b> la página descarga el lector de PDF y el de texto, así que ese arranque tarda unos segundos más. Si quieres ver cómo se verán los resultados antes de tener archivos, pulsa <b>Ver demostración</b>. <button type="button" class="btn small" data-guide-goto="verify">Ir a Verificar órdenes</button></div>
 
           <p>La configuración tiene cuatro bloques:</p>
           <h4>1 · Archivos</h4>
           <ul>
-            <li><b>Carpeta de PDFs:</b> la carpeta que entregó la plataforma. <span class="soonchip">Próximamente</span></li>
-            <li><b>Documento base:</b> el mismo Excel con el que hiciste el Layout. <span class="soonchip">Próximamente</span></li>
+            <li><b>Carpeta de PDFs:</b> la carpeta que entregó la plataforma. Se abre un selector de carpeta y se leen los PDF que estén dentro; con <b>Elegir archivos sueltos</b> puedes marcar archivos uno por uno.</li>
+            <li><b>Documento base:</b> el mismo Excel con el que hiciste el Layout. Al elegirlo se lee al momento y verás cuántas órdenes trae.</li>
             <li><b>Layout partido en … partes:</b> es el mismo número que pusiste en <b>Partir Layout</b>; si lo cambias aquí, cambia allá. Déjalo en 1 si no lo partiste.</li>
             <li><b>Parte a verificar:</b> elige <b>Todas las órdenes</b> o la parte cuyos PDFs vas a revisar. Así las órdenes de las otras partes no aparecen como no encontradas. Si ya cargaste el documento base en el paso 1, debajo verás cuántas órdenes se esperan y de cuál a cuál.</li>
           </ul>
           <h4>2 · Qué revisar</h4>
           <p>Marca lo que quieres comprobar: <b>Orden de pago</b>, <b>Ejercicio</b>, <b>Monto</b>, <b>Firmas</b> y <b>Sellos</b>. Lo que no marques aparece como "No revisado". Buscar las órdenes y detectar duplicados se hace siempre.</p>
+          <p><b>Desmarcar ahorra tiempo de verdad.</b> Firmas y sellos obligan a analizar la imagen de cada orden, que es lo más lento: en una prueba de 62 páginas, con todo marcado tardó 37 segundos y marcando solo <b>Orden de pago</b>, 16. Si solo quieres saber qué órdenes llegaron, desmarca lo demás.</p>
+          <p>Firmas y sellos se leen de la imagen del escaneo y <b>no son tan exactos</b> como el número, el ejercicio y el monto; por eso al marcarlos aparece un aviso. Lo dudoso se manda a <b>Revisar</b>, nunca se da por bueno.</p>
           <h4>3 · Resultados</h4>
           <ul>
             <li><b>Incluir hoja "Renombres":</b> agrega al Excel la lista de archivos renombrados.</li>
             <li><b>Formato de la carpeta:</b> ZIP (recomendado), 7z, TAR.GZ o sin comprimir.</li>
           </ul>
           <h4>4 · Verificar</h4>
-          <p>Pulsa <b>Verificar</b>. <span class="soonchip">Próximamente</span> Al terminar, la configuración se oculta y queda una línea con lo que elegiste. Con <b>Cambiar configuración</b> la vuelves a abrir.</p>
+          <p>Pulsa <b>Verificar</b>. Debajo del botón verás cuántas páginas lleva y cuánto falta; con <b>Cancelar</b> se detiene y queda en la tabla lo que alcanzó a leerse. Al terminar, la configuración se oculta y queda una línea con lo que elegiste. Con <b>Cambiar configuración</b> la vuelves a abrir.</p>
+          <p>No cierres ni cambies de pestaña mientras corre: el trabajo lo hace tu navegador y se va más despacio en segundo plano.</p>
         </section>
 
         <section class="gsec card" id="g-resultados">
@@ -766,7 +769,7 @@ table.parts td{vertical-align:middle}
               <tr><td><span class="pill ile">Ilegible</span></td><td>El escaneo no permite leer ese dato con certeza.</td><td>Revisar el PDF a mano.</td></tr>
             </tbody>
           </table>
-          <p>La herramienta <b>nunca marca Correcto si tiene duda</b>: en ese caso usa Revisar o Ilegible.</p>
+          <p>La herramienta <b>nunca marca Correcto si tiene duda</b>: en ese caso usa Revisar o Ilegible. Y una orden solo se da por encontrada si su número <b>está en el documento base</b>; si lo leído no coincide con ninguno, la orden se va a <b>No encontradas</b> en vez de darse por buena con el número equivocado.</p>
 
           <h4>Resumen</h4>
           <p>Arriba está la barra de colores con los conteos de cada estado. <b>Haz clic en un conteo para filtrar la tabla</b> por ese estado; otro clic quita el filtro. Al lado verás cuántas órdenes se corrigieron a mano, no se encontraron, se omitieron por duplicado, se mandaron a revisión manual y se renombraron.</p>
@@ -787,7 +790,7 @@ table.parts td{vertical-align:middle}
           <table class="gtable">
             <thead><tr><th>Pestaña</th><th>Qué contiene</th></tr></thead>
             <tbody>
-              <tr><td>No encontradas</td><td>Órdenes del documento base (o de la parte elegida) que no aparecen en ningún PDF.</td></tr>
+              <tr><td>No encontradas</td><td>Órdenes del documento base (o de la parte elegida) que no aparecen en ningún PDF. Debajo, si las hay, se listan las <b>páginas con forma de orden de pago que no se pudieron identificar</b>, con su archivo, su página y qué pasó: ahí es donde conviene buscar las órdenes que faltan.</td></tr>
               <tr><td>Revisión manual</td><td>Órdenes que están en dos o más archivos distintos con el mismo ejercicio. Sus archivos van a la carpeta <b>Revisión manual</b>.</td></tr>
               <tr><td>Duplicados omitidos</td><td>Archivos idénticos a otro que no se incluyen en la descarga. Quedan listados como evidencia.</td></tr>
               <tr><td>Renombres</td><td>Archivo original y nombre nuevo. Solo si marcaste "Incluir hoja Renombres".</td></tr>
