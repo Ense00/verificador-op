@@ -123,6 +123,15 @@ pre.txt{font:12px/1.5 var(--mono);background:var(--sunken);border:1px solid var(
       <label class="chk"><input type="checkbox" id="paralelo" checked> Repartir el OCR en varios núcleos <span id="nucleos" style="color:var(--muted)"></span></label>
       <label class="chk"><input type="checkbox" id="rapido" checked> Decodificar el JPEG con el navegador (9× más rápido que pdf.js)</label>
     </div>
+    <div class="row" style="margin-top:12px;align-items:center">
+      <span style="font-size:12px;color:var(--muted)">Qué revisar:</span>
+      <label class="chk"><input type="checkbox" id="chk-op" checked> Orden de pago</label>
+      <label class="chk"><input type="checkbox" id="chk-ej" checked> Ejercicio</label>
+      <label class="chk"><input type="checkbox" id="chk-monto" checked> Monto</label>
+      <label class="chk"><input type="checkbox" id="chk-firmas" checked> Firmas</label>
+      <label class="chk"><input type="checkbox" id="chk-sellos" checked> Sellos</label>
+      <span id="aviso-imagen" style="font-size:12px;color:var(--rev)"></span>
+    </div>
     <div class="row" style="margin-top:12px;align-items:flex-start">
       <div style="flex:1;min-width:260px">
         <label for="base">Órdenes del documento base (se llena solo al elegir el Excel; o pégalas a mano)</label>
@@ -381,7 +390,12 @@ async function ubicarCeldasFirma(w, lienzo, limpiar){
    tinta de cada celda quitando lo que cae dentro del recuadro de un sello; si lo que
    queda no alcanza pero el sello cubre buena parte de la celda, no se decide: se
    reporta "tapada" para que la vea una persona. */
-function tintaFirmas(c, sellos, celdas){
+/* Si la hoja viene escaneada sin color (gris o blanco y negro), las tres señales de
+   firma se apoyan en el color y dejan de servir: eso no es "no está firmada", es que no
+   se puede saber. Se reporta **ilegible**. */
+const SIN_COLOR = 0.002;
+
+function tintaFirmas(c, sellos, celdas, sinColor){
   return (celdas || CELDAS_FIJAS).map(celda => {
     const cx = celda.x, cy = celda.y, cw = celda.an, ch = celda.al;
     const x = Math.round(c.width * cx), y = Math.round(c.height * cy);
@@ -442,7 +456,7 @@ function tintaFirmas(c, sellos, celdas){
     }, 0);
     // se divide entre el área libre: así una firma que asoma fuera del sello no se diluye
     const denom = Math.max(nLibre, n * 0.15);
-    return { color: libre / denom, total: total / n, grueso: grueso / denom, fino: fino / n, cubierta, libreFrac: nLibre / n, rotulo: celda.rotulo };
+    return { color: libre / denom, total: total / n, grueso: grueso / denom, fino: fino / n, cubierta, libreFrac: nLibre / n, sinColor, rotulo: celda.rotulo };
   });
 }
 
@@ -862,6 +876,10 @@ async function medirUno(f, primero){
   const limpiar = $('#limpiar').checked, conImagen = $('#imagen').checked;
   const completo = $('#completo').checked, guardar = $('#vistas').checked;
   const nHilos = $('#paralelo').checked ? NUCLEOS : 1;
+  // Solo se hace el trabajo de lo que se pidió revisar: los sellos y las firmas son lo
+  // más caro, así que revisar únicamente la orden de pago es bastante más rápido.
+  const pide = { op: $('#chk-op').checked, ej: $('#chk-ej').checked, monto: $('#chk-monto').checked,
+                 firmas: $('#chk-firmas').checked, sellos: $('#chk-sellos').checked };
 
   const cabecera = 'Archivo: ' + f.name + '  (' + (f.size / 1048576).toFixed(1) + ' MB)'
     + (base.size ? '  ·  ' + base.size + ' órdenes en el documento base' : '')
@@ -916,20 +934,21 @@ async function medirUno(f, primero){
     const recortes = {
       encab:  recorte(lienzo, 0.08, 0, 0.60, 0.14, 1, limpiar),
       num:    recorte(lienzo, INTENTOS[0].fx, INTENTOS[0].fy, INTENTOS[0].fw, INTENTOS[0].fh, INTENTOS[0].amp, INTENTOS[0].limpiar),
-      fecha:  recorte(lienzo, ZONA_FECHA.fx, ZONA_FECHA.fy, ZONA_FECHA.fw, ZONA_FECHA.fh, ZONA_FECHA.amp, limpiar),
-      montos: recorte(lienzo, ZONA_MONTOS.fx, ZONA_MONTOS.fy, ZONA_MONTOS.fw, ZONA_MONTOS.fh, ZONA_MONTOS.amp, limpiar),
+      fecha:  pide.ej ? recorte(lienzo, ZONA_FECHA.fx, ZONA_FECHA.fy, ZONA_FECHA.fw, ZONA_FECHA.fh, ZONA_FECHA.amp, limpiar) : null,
+      montos: pide.monto ? recorte(lienzo, ZONA_MONTOS.fx, ZONA_MONTOS.fy, ZONA_MONTOS.fw, ZONA_MONTOS.fh, ZONA_MONTOS.amp, limpiar) : null,
       hoja:   recorte(lienzo, ZONA_HOJA.fx, ZONA_HOJA.fy, ZONA_HOJA.fw, ZONA_HOJA.fh, ZONA_HOJA.amp, limpiar),
       // el recorte ancho casi nunca se usa: se prepara sin limpiar el color, que es lo caro
       hoja2:  recorte(lienzo, ZONA_HOJA_2.fx, ZONA_HOJA_2.fy, ZONA_HOJA_2.fw, ZONA_HOJA_2.fh, ZONA_HOJA_2.amp, limpiar),
-      montosAncha: recorte(lienzo, ZONA_MONTOS_ANCHA.fx, ZONA_MONTOS_ANCHA.fy, ZONA_MONTOS_ANCHA.fw, ZONA_MONTOS_ANCHA.fh, ZONA_MONTOS_ANCHA.amp, false),
+      montosAncha: pide.monto ? recorte(lienzo, ZONA_MONTOS_ANCHA.fx, ZONA_MONTOS_ANCHA.fy, ZONA_MONTOS_ANCHA.fw, ZONA_MONTOS_ANCHA.fh, ZONA_MONTOS_ANCHA.amp, false) : null,
       pagina: completo ? recorte(lienzo, 0, 0, 1, 1, 1, limpiar) : null
     };
     // la tinta y la inclinación salen de una copia chica: mismo resultado, mucho más barato
     const chico = document.createElement('canvas');
     chico.width = 800; chico.height = Math.round(lienzo.height * 800 / lienzo.width);
     chico.getContext('2d').drawImage(lienzo, 0, 0, chico.width, chico.height);
-    r.firmas = [0, 1, 2].map(i => tinta(chico, 0.06 + i * 0.30, 0.82, 0.28, 0.16));  // provisional; se recalcula con las celdas ubicadas
+    if (pide.firmas) r.firmas = [0, 1, 2].map(i => tinta(chico, 0.06 + i * 0.30, 0.82, 0.28, 0.16));  // provisional; se recalcula con las celdas ubicadas
     r.color = tinta(chico, 0, 0, 1, 1).color;
+    r.sinColor = r.color < SIN_COLOR;
     if (conImagen) r.inclin = inclinacion(chico);
     if (guardar && vistas.size < 80){
       const mini = document.createElement('canvas');
@@ -958,7 +977,11 @@ async function medirUno(f, primero){
           r.tNum = performance.now() - t2;
 
           t2 = performance.now();
-          for (const [campo, z, img] of [['fecha', ZONA_FECHA, recortes.fecha], ['montos', ZONA_MONTOS, recortes.montos], ['hoja', ZONA_HOJA, recortes.hoja]]){
+          const campos = [];
+          if (pide.ej) campos.push(['fecha', ZONA_FECHA, recortes.fecha]);
+          if (pide.monto) campos.push(['montos', ZONA_MONTOS, recortes.montos]);
+          campos.push(['hoja', ZONA_HOJA, recortes.hoja]);
+          for (const [campo, z, img] of campos){
             const txt = await leerZona(w, img, z.psm, z.lista);
             if (campo === 'fecha'){
               r.fecha = (txt.match(/\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b/g) || [])[0] || null;
@@ -1003,7 +1026,8 @@ async function medirUno(f, primero){
 
   // --- los sellos solo importan en las órdenes: se miran en una segunda vuelta para no
   //     pagarlos en las dos terceras partes de páginas que son soporte
-  const conSellos = paginas.filter(r => r.archivo === archivoActual && r.tipo && r.tipo.clave === 'orden');
+  const conSellos = (pide.sellos || pide.firmas)
+    ? paginas.filter(r => r.archivo === archivoActual && r.tipo && r.tipo.clave === 'orden') : [];
   if (conSellos.length){
     const tS = performance.now();
     for (const r of conSellos){
@@ -1016,10 +1040,16 @@ async function medirUno(f, primero){
       }
       page.cleanup();
       const se = sellos(lienzo);
-      r.sellos = se.sellos; r.selloEnFirma = se.sobreFirma.length > 0;
-      const ub = await ubicarCeldasFirma(trabajadores[0], lienzo, limpiar);
-      r.celdas = ub.celdas; r.viaCeldas = ub.via;
-      r.firmas = tintaFirmas(lienzo, se.zonas.concat(se.sellos), ub.celdas);
+      if (pide.sellos){
+        r.sellos = se.sellos; r.selloEnFirma = se.sobreFirma.length > 0;
+        // sin color no se distingue un sello de la tinta impresa: el dato queda ilegible
+        r.selloIlegible = r.sinColor && !se.sellos.length;
+      }
+      if (pide.firmas){
+        const ub = await ubicarCeldasFirma(trabajadores[0], lienzo, limpiar);
+        r.celdas = ub.celdas; r.viaCeldas = ub.via;
+        r.firmas = tintaFirmas(lienzo, se.zonas.concat(se.sellos), ub.celdas, r.sinColor);
+      }
       r.total = (r.total || 0);
       pintarFila(r, filas.get(r.pagina));
     }
@@ -1095,12 +1125,14 @@ const UMBRAL_FIRMA = 0.006, UMBRAL_DUDA = 0.002,
 const estadoFirma = f => !f ? null
   : (f.color >= UMBRAL_FIRMA || (f.grueso || 0) >= UMBRAL_GRUESO || (f.fino || 0) >= UMBRAL_FINO) ? 'si'
   : (f.cubierta || 0) >= 0.25 ? 'tapada'      // sello encima y ni un trazo fino debajo
-  : (f.color >= UMBRAL_DUDA || (f.grueso || 0) >= UMBRAL_GRUESO_DUDA || (f.fino || 0) >= UMBRAL_FINO_DUDA) ? 'duda' : 'no';
+  : (f.color >= UMBRAL_DUDA || (f.grueso || 0) >= UMBRAL_GRUESO_DUDA || (f.fino || 0) >= UMBRAL_FINO_DUDA) ? 'duda'
+  : f.sinColor ? 'ilegible'                   // escaneo sin color: no se puede juzgar
+  : 'no';
 function celdaFirma(f){
   if (!f) return '<td class="num"></td>';
   const e = estadoFirma(f);
-  const color = e === 'si' ? 'var(--ok)' : (e === 'duda' || e === 'tapada') ? 'var(--rev)' : 'var(--muted)';
-  const marca = e === 'duda' ? ' ?' : e === 'tapada' ? ' sello' : '';
+  const color = e === 'si' ? 'var(--ok)' : (e === 'duda' || e === 'tapada') ? 'var(--rev)' : e === 'ilegible' ? 'var(--ile)' : 'var(--muted)';
+  const marca = e === 'duda' ? ' ?' : e === 'tapada' ? ' sello' : e === 'ilegible' ? ' ileg.' : '';
   return '<td class="num" style="color:' + color + '">' + (f.color * 100).toFixed(2) + '%' + marca + '</td>';
 }
 function filaVacia(r){
@@ -1132,7 +1164,7 @@ function pintarFila(r, tr){
     '<td class="num">' + (r.sellos
       ? (r.sellos.length
           ? '<b style="color:var(--ok)">sí</b> <span style="color:var(--muted)">≈' + r.sellos.length + '</span>'
-          : '<b style="color:var(--bad)">no</b>')
+          : (r.selloIlegible ? '<b style="color:var(--ile)">ilegible</b>' : '<b style="color:var(--bad)">no</b>'))
       : '') + '</td>' +
     (r.firmas ? r.firmas.map(celdaFirma).join('') : '<td></td><td></td><td></td>') +
     '<td class="num">' + ms(r.tRender) + '</td>' +
@@ -1207,7 +1239,7 @@ function verPagina(r){
     (r.tipo.clave === 'orden' ? 'Monto mayor leído: ' + (r.monto || '—') + '   ·   todos: ' + (r.montos || []).join(', ') + '\n' +
       'Fecha: ' + (r.fecha || '—') + '  (ejercicio ' + (r.ejercicio || '—') + ')   ·   hoja ' + (r.hoja || '—') + '\n' : '') +
     'Candidatos vistos: ' + (r.cand.length ? r.cand.join(', ') : '—') + '  (' + r.intentos + ' intento' + (r.intentos === 1 ? '' : 's') + ')\n' +
-    (r.firmas ? 'Tinta de color en las tres celdas de firma: ' + r.firmas.map(f => (f.color * 100).toFixed(2) + '% ' + ({ si: '(firmada)', duda: '(dudosa)', tapada: '(tapada por un sello: no se puede saber)', no: '(vacía)' })[estadoFirma(f)]).join(' · ') + '\n' : '') +
+    (r.firmas ? 'Tinta de color en las tres celdas de firma: ' + r.firmas.map(f => (f.color * 100).toFixed(2) + '% ' + ({ si: '(firmada)', duda: '(dudosa)', tapada: '(tapada por un sello: no se puede saber)', ilegible: '(escaneo sin color: no se puede juzgar)', no: '(vacía)' })[estadoFirma(f)]).join(' · ') + '\n' : '') +
     (r.sellos ? 'Sello: ' + (r.sellos.length ? 'sí' : 'NO SE DETECTÓ NINGUNO')
       + '  ·  aros contados: ' + r.sellos.length + ' (conteo aproximado, no decide nada)'
       + (r.selloEnFirma ? '  ·  uno cae sobre una celda de firma' : '') + '\n' : '') +
@@ -1257,6 +1289,17 @@ $('#xls').onchange = async () => {
   } catch (e){ log('No se pudo leer el documento base: ' + e.message); }
 };
 $('#nucleos').textContent = '(' + NUCLEOS + ' disponibles)';
+
+/* Firmas y sellos no alcanzan la precisión del número, el ejercicio y el monto: se
+   avisa al marcarlos para que nadie dé por perfecto ese resultado. */
+function avisoImagen(){
+  const on = $('#chk-firmas').checked || $('#chk-sellos').checked;
+  $('#aviso-imagen').textContent = on
+    ? '⚠ Firmas y sellos se leen de la imagen: no son tan exactos como el número, el ejercicio y el monto. Lo dudoso se marca para revisar.'
+    : '';
+}
+for (const id of ['#chk-firmas', '#chk-sellos']) $(id).addEventListener('change', avisoImagen);
+avisoImagen();
 </script>
 </body>
 </html>

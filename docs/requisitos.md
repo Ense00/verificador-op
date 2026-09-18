@@ -682,6 +682,38 @@ primera versión con anclas y salió peor que las zonas fijas (1 de 7 contra 7 d
 porque leer una franja grande diluye el texto chico; la vía es buscar el rótulo en una
 franja angosta y de ahí saltar al dato.
 
+## Cuatro decisiones del usuario sobre el alcance (2026-09-18)
+
+1. **Lo que debe quedar perfecto es orden de pago, ejercicio y monto.** Firmas y sellos
+   son secundarios.
+2. **La pestaña "Ilegible" es para eso:** órdenes en blanco y negro muy difíciles de
+   leer, o cualquiera cuyo resultado sea impredecible. Antes que arriesgar un dato, va a
+   Ilegible.
+3. **Si firmas y sellos no van a ser excelentes, hay que avisarlo** al marcar esas
+   casillas, para que nadie dé ese resultado por exacto.
+4. **Las casillas deben ahorrar trabajo de verdad:** marcar solo "Orden de pago" tiene
+   que ser más rápido que marcarlo todo.
+
+### Cómo quedó implementado
+
+- **Cada casilla manda sobre el trabajo que se hace.** Si no se piden sellos ni firmas,
+  se salta entera la segunda vuelta de análisis de imagen, que es lo más caro (1.7–3 s
+  por orden). Medido sobre el caso Cruz Roja (62 páginas):
+
+  | Casillas | Tiempo | Órdenes encontradas |
+  |---|---|---|
+  | Todas | 0.7 min | 7 de 8 |
+  | Solo orden de pago | **0.3 min** | 7 de 8 |
+
+  Es **2.3× más rápido** sin perder nada de lo que importa.
+
+- **Escaneo sin color → Ilegible, no "falta".** Las tres señales de firma se apoyan en el
+  color; si la hoja viene en gris o blanco y negro, no se puede juzgar y decirlo sería
+  inventar. Esas celdas se marcan **ilegible**, y lo mismo el sello cuando no se detecta
+  ninguno en una hoja sin color.
+- **Aviso al marcar firmas o sellos:** la interfaz advierte que esos dos se leen de la
+  imagen y no son tan exactos como el número, el ejercicio y el monto.
+
 ## Pendiente
 
 Estado al 2026-09-17 (v0.10.0):

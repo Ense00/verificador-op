@@ -2,6 +2,18 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.21.0 — 2026-09-18
+
+- **Las casillas de qué revisar ahora ahorran trabajo de verdad.** Si no se piden sellos
+  ni firmas se salta toda la segunda vuelta de análisis de imagen. Medido: el caso Cruz
+  Roja pasa de 0.7 a **0.3 minutos** marcando solo "Orden de pago", con el mismo
+  resultado en lo que importa.
+- **Escaneo sin color → Ilegible.** Las señales de firma se apoyan en el color; en una
+  hoja gris o en blanco y negro no se puede juzgar, y decir "falta firma" sería inventar.
+  Se marca ilegible, igual que el sello no detectado en una hoja sin color.
+- **Aviso al marcar firmas o sellos:** se advierte en la interfaz que esos datos se leen
+  de la imagen y no alcanzan la exactitud del número, el ejercicio y el monto.
+
 ## v0.20.0 — 2026-09-18
 
 - **Firmas debajo de un sello: resueltas.** Tercera señal, la que faltaba: **tinta de
