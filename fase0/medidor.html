@@ -753,9 +753,45 @@ async function leerDocumentoBase(file){
     for (const [c, s] of Object.entries(distintos)) if (s.size > mejor){ mejor = s.size; col = c; }
   }
   if (!col) throw new Error('No se encontró una columna con números de orden.');
-  const ops = new Set();
-  for (const f of filas.slice(1)) if (f[col] && /^\d{8,12}(-A)?$/i.test(f[col])) ops.add(f[col].toUpperCase());
-  return { ordenes: [...ops].sort(), columna: enc[col] || col };
+
+  // También hacen falta el ejercicio y el monto de cada orden, que son con lo que se
+  // compara lo leído del papel. Las columnas se buscan por su nombre, y el ejercicio
+  // sale del AÑO de la fecha contable (así lo define la regla).
+  let colFecha = null, colMonto = null, colPeriodo = null;
+  for (const [c, v] of Object.entries(enc)){
+    const n = norm(v);
+    if (!colFecha && n.includes('fecha') && n.includes('contab')) colFecha = c;
+    if (!colPeriodo && (n === 'periodo' || n === 'período' || n === 'ejercicio')) colPeriodo = c;
+    if (!colMonto && n.includes('importe')) colMonto = c;
+  }
+  const anioDe = v => {
+    if (v == null) return null;
+    const t = String(v).trim();
+    const m = t.match(/\b(19|20)\d{2}\b/);
+    if (m) return m[0];
+    // Excel guarda las fechas como número de días desde 1900
+    const n = +t;
+    if (Number.isFinite(n) && n > 20000 && n < 60000)
+      return String(new Date(Date.UTC(1899, 11, 30) + n * 86400000).getUTCFullYear());
+    return null;
+  };
+  const porOrden = new Map();
+  for (const f of filas.slice(1)){
+    const v = f[col];
+    if (!v || !/^\d{8,12}(-A)?$/i.test(v)) continue;
+    const op = v.toUpperCase();
+    if (!porOrden.has(op)) porOrden.set(op, { op, ejercicio: null, montos: [] });
+    const reg = porOrden.get(op);
+    const anio = (colFecha && anioDe(f[colFecha])) || (colPeriodo && anioDe(f[colPeriodo]));
+    if (anio && !reg.ejercicio) reg.ejercicio = anio;
+    if (colMonto && f[colMonto] != null && f[colMonto] !== ''){
+      const m = parseFloat(String(f[colMonto]).replace(/[^0-9.\-]/g, ''));
+      if (Number.isFinite(m)) reg.montos.push(m);
+    }
+  }
+  return { ordenes: [...porOrden.keys()].sort(), detalle: [...porOrden.values()],
+           columna: enc[col] || col, columnaFecha: colFecha ? enc[colFecha] : null,
+           columnaMonto: colMonto ? enc[colMonto] : null };
 }
 
 /* ---------- ruta rápida: decodificar el JPEG con el navegador ----------
@@ -1283,9 +1319,12 @@ $('#arch').onchange = () => {
 $('#xls').onchange = async () => {
   const f = $('#xls').files[0]; if (!f) return;
   try {
-    const { ordenes, columna } = await leerDocumentoBase(f);
+    const { ordenes, columna, columnaFecha, columnaMonto } = await leerDocumentoBase(f);
     $('#base').value = ordenes.join('\n');
-    log('Documento base: ' + f.name + ' · columna "' + columna + '" · ' + ordenes.length + ' órdenes.');
+    log('Documento base: ' + f.name + ' · orden en "' + columna + '"'
+        + (columnaFecha ? ' · ejercicio de "' + columnaFecha + '"' : ' · sin columna de fecha')
+        + (columnaMonto ? ' · monto de "' + columnaMonto + '"' : ' · sin columna de monto')
+        + ' · ' + ordenes.length + ' órdenes.');
   } catch (e){ log('No se pudo leer el documento base: ' + e.message); }
 };
 $('#nucleos').textContent = '(' + NUCLEOS + ' disponibles)';

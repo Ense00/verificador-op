@@ -2,6 +2,24 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.22.0 — 2026-09-18
+
+- **El lector del documento base ahora saca también el ejercicio y el monto de cada
+  orden**, que es contra lo que hay que comparar lo leído del papel. Las columnas se
+  buscan por nombre y el ejercicio sale del **año de la fecha contable**. Probado en los
+  tres casos del banco, incluido el de estructura distinta:
+
+  | Caso | Orden | Ejercicio | Monto | Cobertura |
+  |---|---|---|---|---|
+  | Bomberos | `Orden de Pago` | `Fecha Contable` | `Importe en moneda de la entidad CP` | 73 / 73 |
+  | Cruz Roja | ídem | ídem | ídem | 8 / 8 |
+  | Caborca | `Nº documento` | `Fecha contabiliz.` | `Importe en moneda local` | 365 / 365 |
+
+- Primer paso de la integración en la página: el motor de verificación quedó extraído
+  del medidor y **encapsulado** (846 líneas que no chocan con el código de la página),
+  con un orquestador sin interfaz que avisa del progreso por callback. Probado por
+  separado: 7 de 8 órdenes de Cruz Roja con ejercicio, montos, firmas y sellos.
+
 ## v0.21.0 — 2026-09-18
 
 - **Las casillas de qué revisar ahora ahorran trabajo de verdad.** Si no se piden sellos
