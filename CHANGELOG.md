@@ -2,6 +2,16 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.19.0 — 2026-09-18
+
+- **El medidor acepta una carpeta completa:** varios PDF de una vez y el **documento
+  base en Excel**, del que localiza la columna de órdenes sola (se llama `Orden de Pago`
+  en unas dependencias y `Nº documento` en otras). Al terminar reporta cuántas de las
+  órdenes solicitadas se encontraron y cuáles faltan, y la tabla dice de qué archivo
+  viene cada página.
+- Confirmada la mejora de v0.18.0 también en Bomberos: sobre los mismos 19 archivos,
+  **22 órdenes confirmadas contra 19**, sin perder ninguna.
+
 ## v0.18.0 — 2026-09-18
 
 Primera medición contra documentos base reales (banco `Base + OP` con tres casos).

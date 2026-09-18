@@ -10,8 +10,16 @@ abre un PDF y reporta, página por página, qué logró leer y cuánto tardó.
 ~/Documents/Dev/verificador-op/fase0/servir.sh
 ```
 
-Eso levanta un servidor local y abre el medidor. Luego: elegir el PDF, un rango
-de páginas (empieza con 10–15) y presionar **Medir**.
+Eso levanta un servidor local y abre el medidor. Luego:
+
+1. **Documento base:** elige el Excel. El medidor localiza solo la columna de las
+   órdenes (se llama `Orden de Pago` en unas dependencias y `Nº documento` en otras) y
+   llena la lista. También puedes pegarla a mano.
+2. **PDF:** puedes elegir **varios de una vez** (toda la carpeta de un caso).
+3. **Medir.** Al terminar, arriba aparece cuántas de las órdenes solicitadas se
+   encontraron y cuáles faltan.
+
+Para una sola hoja, un rango corto de páginas (10–15) es suficiente para tantear.
 
 El PDF **no sale de la computadora**: todo se procesa en el navegador. De
 internet solo bajan las librerías (pdf.js, Tesseract) y el idioma del OCR, y solo

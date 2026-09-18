@@ -84,8 +84,12 @@ pre.txt{font:12px/1.5 var(--mono);background:var(--sunken);border:1px solid var(
   <div class="body">
     <div class="row">
       <div>
-        <label for="arch">PDF a medir</label>
-        <input type="file" id="arch" accept="application/pdf">
+        <label for="arch">PDF a medir (puedes elegir varios)</label>
+        <input type="file" id="arch" accept="application/pdf" multiple>
+      </div>
+      <div>
+        <label for="xls">Documento base (Excel, opcional)</label>
+        <input type="file" id="xls" accept=".xlsx,.xls">
       </div>
       <div>
         <label for="desde">Desde página</label>
@@ -121,7 +125,7 @@ pre.txt{font:12px/1.5 var(--mono);background:var(--sunken);border:1px solid var(
     </div>
     <div class="row" style="margin-top:12px;align-items:flex-start">
       <div style="flex:1;min-width:260px">
-        <label for="base">Órdenes del documento base (opcional, una por línea)</label>
+        <label for="base">Órdenes del documento base (se llena solo al elegir el Excel; o pégalas a mano)</label>
         <textarea id="base" rows="3" placeholder="1900000001&#10;1900000002&#10;…" style="width:100%;background:var(--sunken);color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:7px 9px;font:13px var(--mono)"></textarea>
         <p class="hint" style="margin-top:4px">Con esta lista el medidor <b>confirma</b> cada número leído en vez de solo reportarlo, que es como va a trabajar la herramienta final.</p>
       </div>
@@ -147,7 +151,7 @@ pre.txt{font:12px/1.5 var(--mono);background:var(--sunken);border:1px solid var(
   <h2>3 · Página por página</h2>
   <div class="tw"><table>
     <thead><tr>
-      <th class="num">Pág.</th><th>Documento</th><th>Orden de pago</th><th class="num">Monto</th><th>Fecha</th><th>Hoja</th>
+      <th>Archivo</th><th class="num">Pág.</th><th>Documento</th><th>Orden de pago</th><th class="num">Monto</th><th>Fecha</th><th>Hoja</th>
       <th class="num">Firmas</th><th class="num">Sello</th><th class="num">Firma 1</th><th class="num">Firma 2</th><th class="num">Firma 3</th>
       <th class="num">Render</th><th class="num">Encab.</th><th class="num">Número</th><th class="num">Total</th>
       <th class="num">Color</th><th class="num">Inclin.</th>
@@ -171,6 +175,7 @@ pre.txt{font:12px/1.5 var(--mono);background:var(--sunken);border:1px solid var(
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.0/tesseract.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
@@ -675,6 +680,51 @@ function candidatosDe(txt){
   return out;
 }
 
+/* ---------- documento base ----------
+   La columna de la orden no siempre se llama igual ("Orden de Pago" en unas
+   dependencias, "Nº documento" en otras), así que se busca primero por nombre y, si no
+   aparece, se toma la columna con más números DISTINTOS de 8 a 12 dígitos. */
+async function leerDocumentoBase(file){
+  const zip = await JSZip.loadAsync(await file.arrayBuffer());
+  const comp = Object.keys(zip.files).filter(n => /^xl\/worksheets\/sheet\d+\.xml$/.test(n)).sort();
+  if (!comp.length) throw new Error('El archivo no parece un Excel.');
+  let compartidas = [];
+  if (zip.files['xl/sharedStrings.xml']){
+    const t = await zip.files['xl/sharedStrings.xml'].async('string');
+    compartidas = [...t.matchAll(/<si>([\s\S]*?)<\/si>/g)].map(m => [...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map(x => x[1]).join(''));
+  }
+  const xml = await zip.files[comp[0]].async('string');
+  const filas = [];
+  for (const mf of xml.matchAll(/<row[^>]*>([\s\S]*?)<\/row>/g)){
+    const cel = {};
+    for (const mc of mf[1].matchAll(/<c r="([A-Z]+)\d+"([^>]*)>([\s\S]*?)<\/c>/g)){
+      const attrs = mc[2], cuerpo = mc[3];
+      const v = (cuerpo.match(/<v>([\s\S]*?)<\/v>/) || [])[1];
+      let val = v;
+      if (/t="s"/.test(attrs) && v != null) val = compartidas[+v];
+      else if (/t="inlineStr"/.test(attrs)) val = [...cuerpo.matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map(x => x[1]).join('');
+      if (val != null) cel[mc[1]] = String(val).trim();
+    }
+    filas.push(cel);
+  }
+  if (!filas.length) throw new Error('El Excel está vacío.');
+  const enc = filas[0];
+  const norm = t => (t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  let col = null;
+  for (const [c, v] of Object.entries(enc)) if (norm(v).includes('orden') && norm(v).includes('pago')) col = c;
+  if (!col){
+    const distintos = {};
+    for (const f of filas.slice(1)) for (const [c, v] of Object.entries(f))
+      if (/^\d{8,12}(-A)?$/i.test(v)) (distintos[c] = distintos[c] || new Set()).add(v);
+    let mejor = 0;
+    for (const [c, s] of Object.entries(distintos)) if (s.size > mejor){ mejor = s.size; col = c; }
+  }
+  if (!col) throw new Error('No se encontró una columna con números de orden.');
+  const ops = new Set();
+  for (const f of filas.slice(1)) if (f[col] && /^\d{8,12}(-A)?$/i.test(f[col])) ops.add(f[col].toUpperCase());
+  return { ordenes: [...ops].sort(), columna: enc[col] || col };
+}
+
 /* ---------- ruta rápida: decodificar el JPEG con el navegador ----------
    Estos PDF son un escaneo: cada página es un JPEG entero metido en el archivo.
    pdf.js lo decodifica en JavaScript (229 ms por página, medido); el decodificador
@@ -747,12 +797,46 @@ async function leerZona(w, img, psm, lista){
 }
 
 /* ---------- corrida ---------- */
+let confirmadasTodas = new Set(), archivoActual = '';
+
 async function medir(){
-  const f = window.__archivoPrueba || $('#arch').files[0]; // el hook permite probar la página automáticamente
-  if (!f){ log('Falta elegir un PDF.'); return; }
+  const lista = window.__archivosPrueba || (window.__archivoPrueba ? [window.__archivoPrueba] : [...$('#arch').files]);
+  if (!lista.length){ log('Falta elegir un PDF.'); return; }
+  if (lista.length > 1){
+    confirmadasTodas = new Set();
+    for (let i = 0; i < lista.length; i++){
+      if (cancelar) break;
+      archivoActual = lista[i].name;
+      log('\n───── ' + (i + 1) + ' de ' + lista.length + ': ' + lista[i].name);
+      await medirUno(lista[i], i === 0);
+    }
+    resumirCarpeta();
+    return;
+  }
+  archivoActual = lista[0].name;
+  confirmadasTodas = new Set();
+  await medirUno(lista[0], true);
+  if (base.size) resumirCarpeta();
+}
+
+function resumirCarpeta(){
+  if (!base.size) return;
+  const faltan = [...base].filter(o => !confirmadasTodas.has(o));
+  log('\n═════ ÓRDENES DEL DOCUMENTO BASE');
+  log('  solicitadas : ' + base.size);
+  log('  encontradas : ' + (base.size - faltan.length) + '  (' + Math.round(100 * (base.size - faltan.length) / base.size) + '%)');
+  log('  faltantes   : ' + faltan.length + (faltan.length ? '  → ' + faltan.slice(0, 20).join(', ') + (faltan.length > 20 ? ' …' : '') : ''));
+  const t = document.createElement('div');
+  t.className = 'cards';
+  t.innerHTML = tarjeta('Órdenes del documento base', (base.size - faltan.length) + ' / ' + base.size,
+    faltan.length ? faltan.length + ' sin encontrar' : 'todas encontradas');
+  $('#tarjetas').prepend(t.firstChild);
+}
+
+async function medirUno(f, primero){
   cancelar = false;
   $('#correr').disabled = true; $('#parar').disabled = false; $('#expJson').disabled = true;
-  paginas = []; vistas.clear(); $('#filas').innerHTML = ''; $('#texto').textContent = '—';
+  if (primero){ paginas = []; vistas.clear(); $('#filas').innerHTML = ''; $('#texto').textContent = '—'; }
   base = new Set($('#base').value.split(/[\s,;]+/).map(s => s.trim().toUpperCase()).filter(Boolean));
 
   const dpi = +$('#dpi').value, escala = dpi / 72;
@@ -760,9 +844,10 @@ async function medir(){
   const completo = $('#completo').checked, guardar = $('#vistas').checked;
   const nHilos = $('#paralelo').checked ? NUCLEOS : 1;
 
-  logEl.textContent = 'Archivo: ' + f.name + '  (' + (f.size / 1048576).toFixed(1) + ' MB)'
+  const cabecera = 'Archivo: ' + f.name + '  (' + (f.size / 1048576).toFixed(1) + ' MB)'
     + (base.size ? '  ·  ' + base.size + ' órdenes en el documento base' : '')
     + '  ·  ' + nHilos + ' hilo' + (nHilos === 1 ? '' : 's');
+  if (primero) logEl.textContent = cabecera; else log(cabecera);
 
   const t0 = performance.now();
   const datos = await f.arrayBuffer();
@@ -850,6 +935,8 @@ async function medir(){
           const vistos = new Set(candidatosDe(await leerZona(w, recortes.num, INTENTOS[0].psm, INTENTOS[0].lista || '0123456789-')));
           r.cand = [...vistos];
           resolverNumero(r, vistos);
+          if (r.numero) confirmadasTodas.add(r.numero);
+          r.archivo = archivoActual;
           r.tNum = performance.now() - t2;
 
           t2 = performance.now();
@@ -991,7 +1078,7 @@ function celdaFirma(f){
 }
 function filaVacia(r){
   const tr = document.createElement('tr');
-  tr.innerHTML = '<td class="num">' + r.pagina + '</td><td colspan="12" style="color:var(--muted)">leyendo…</td>';
+  tr.innerHTML = '<td style="font-size:11.5px;color:var(--muted)">' + (archivoActual || '') + '</td><td class="num">' + r.pagina + '</td><td colspan="13" style="color:var(--muted)">leyendo…</td>';
   $('#filas').appendChild(tr);
   return tr;
 }
@@ -1004,6 +1091,7 @@ function pintarFila(r, tr){
        : (r.ambiguo ? '<span style="color:var(--rev)">ambiguo: ' + r.ambiguo.join(' / ') + '</span>'
           : r.tipo.clave === 'orden' ? '<span style="color:var(--bad)">no se leyó</span>' : '<span style="color:var(--muted)">—</span>'));
   tr.innerHTML =
+    '<td style="font-size:11.5px;color:var(--muted)">' + (r.archivo || '') + '</td>' +
     '<td class="num">' + r.pagina + '</td>' +
     '<td><span class="tag ' + cls + '">' + r.tipo.nombre + '</span></td>' +
     '<td>' + num + '</td>' +
@@ -1128,7 +1216,19 @@ function exportar(){
 $('#correr').onclick = () => medir().catch(e => { log('Error: ' + e.message); console.error(e); $('#correr').disabled = false; $('#parar').disabled = true; });
 $('#parar').onclick = () => { cancelar = true; };
 $('#expJson').onclick = exportar;
-$('#arch').onchange = () => { const f = $('#arch').files[0]; if (f) log('Elegido: ' + f.name); };
+$('#arch').onchange = () => {
+  const n = $('#arch').files.length;
+  if (n === 1) log('Elegido: ' + $('#arch').files[0].name);
+  else if (n > 1) log('Elegidos ' + n + ' PDF.');
+};
+$('#xls').onchange = async () => {
+  const f = $('#xls').files[0]; if (!f) return;
+  try {
+    const { ordenes, columna } = await leerDocumentoBase(f);
+    $('#base').value = ordenes.join('\n');
+    log('Documento base: ' + f.name + ' · columna "' + columna + '" · ' + ordenes.length + ' órdenes.');
+  } catch (e){ log('No se pudo leer el documento base: ' + e.message); }
+};
 $('#nucleos').textContent = '(' + NUCLEOS + ' disponibles)';
 </script>
 </body>

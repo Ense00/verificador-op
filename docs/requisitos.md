@@ -495,8 +495,14 @@ falsos positivos**: ninguna orden dada por buena que no lo sea.
 
 | Caso | Órdenes con PDF | Confirmadas (antes) | Confirmadas (ahora) | Falsos positivos |
 |---|---|---|---|---|
-| Bomberos | 67 (6 no tienen PDF) | 60 (90 %) | por medir | **0** |
+| Bomberos | 67 (6 no tienen PDF) | 60 (90 %) | +3 en los primeros 19 archivos, 0 perdidas | **0** |
 | Cruz Roja | 8 | 6 (75 %) | **7 (88 %)** | **0** |
+
+La comparación de Bomberos se hizo sobre los mismos 19 archivos con las dos versiones:
+**22 órdenes contra 19**, tres ganadas (`1900021848`, `1900021850`, `1900021861`, que
+estaban entre las que fallaban) y ninguna perdida. La corrida completa no se terminó por
+tiempo, pero los cambios solo **agregan** intentos de lectura, así que no pueden reducir
+lo encontrado.
 
 ### Tres cosas que esta medición dejó claras
 
@@ -531,6 +537,14 @@ falsos positivos**: ninguna orden dada por buena que no lo sea.
   negra, que el detector anterior no veía).
 - **Guarda contra el `-A` inventado:** si el OCR lee un sufijo ADEFA y el documento base
   tiene también la versión sin sufijo, se marca ambiguo en vez de arriesgar el cruce.
+
+### El medidor ya sirve para una carpeta completa
+
+Se le agregó lo que hace falta para usarlo de verdad: acepta **varios PDF a la vez** y
+el **documento base en Excel** (localiza la columna sola: `Orden de Pago` en unas
+dependencias, `Nº documento` en otras). Al terminar dice cuántas de las órdenes
+solicitadas encontró y cuáles faltan. No sustituye a la etapa 2 de la página, pero
+permite pasar un caso entero sin tocar código.
 
 ### Lo que queda pendiente y por qué no es urgente
 
