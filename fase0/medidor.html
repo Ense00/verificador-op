@@ -334,7 +334,107 @@ function tintaFirmas(c, sellos){
   });
 }
 
-function sellos(c){
+/* Los sellos se cuentan buscando **aros**, no manchas: dos sellos encimados son una
+   sola mancha pero siguen siendo dos aros. Cada píxel de tinta añadida vota por el
+   centro de un posible aro (Hough circular); donde se juntan los votos hay un centro.
+   Luego se verifica cada candidato preguntando qué fracción del anillo tiene tinta,
+   que es lo que separa un sello de un garabato o de un renglón. */
+const ARO = { RED: 2, RADIOS: [0.055, 0.07, 0.085], ANG: 36, SUAVE: 3,
+              SEP: 0.15, MIN_REL: 0.60, MIN_COBERTURA: 0.75, MAX: 8, ACHATA: 0.62 };
+
+function contarAros(add, W, H){
+  // se reduce la máscara: el acumulador no necesita tanto detalle
+  const k = ARO.RED, W2 = Math.floor(W / k), H2 = Math.floor(H / k);
+  const fino = new Uint8Array(W2 * H2);
+  for (let y = 0; y < H2 * k; y++) for (let x = 0; x < W2 * k; x++)
+    if (add[y * W + x]) fino[(y / k | 0) * W2 + (x / k | 0)] = 1;
+  // se engrosa un píxel: al reducir, el trazo queda tan delgado que el anillo se rompe
+  const m = new Uint8Array(W2 * H2);
+  for (let y = 0; y < H2; y++) for (let x = 0; x < W2; x++){
+    if (!fino[y * W2 + x]) continue;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++){
+      const yy = y + dy, xx = x + dx;
+      if (yy >= 0 && xx >= 0 && yy < H2 && xx < W2) m[yy * W2 + xx] = 1;
+    }
+  }
+
+  const acc = new Float32Array(W2 * H2);
+  const radios = ARO.RADIOS.map(f => f * W2);
+  for (const r of radios){
+    for (let a = 0; a < ARO.ANG; a++){
+      const t = a * 2 * Math.PI / ARO.ANG;
+      const dy = Math.round(r * Math.sin(t)), dx = Math.round(r * Math.cos(t));
+      for (let y = 0; y < H2; y++){
+        const yy = y + dy; if (yy < 0 || yy >= H2) continue;
+        for (let x = 0; x < W2; x++){
+          if (!m[y * W2 + x]) continue;
+          const xx = x + dx; if (xx < 0 || xx >= W2) continue;
+          acc[yy * W2 + xx]++;
+        }
+      }
+    }
+  }
+  // suavizado de caja para juntar votos vecinos
+  const su = new Float32Array(W2 * H2), s = ARO.SUAVE;
+  for (let y = 0; y < H2; y++) for (let x = 0; x < W2; x++){
+    let t = 0;
+    for (let dy = -s; dy <= s; dy++){
+      const yy = y + dy; if (yy < 0 || yy >= H2) continue;
+      for (let dx = -s; dx <= s; dx++){
+        const xx = x + dx; if (xx < 0 || xx >= W2) continue;
+        t += acc[yy * W2 + xx];
+      }
+    }
+    su[y * W2 + x] = t;
+  }
+  let mx = 0;
+  for (let i = 0; i < su.length; i++) if (su[i] > mx) mx = su[i];
+
+  // candidatos: los picos más altos, separados entre sí
+  const sep = Math.round(W2 * ARO.SEP), cand = [];
+  const usado = new Uint8Array(W2 * H2);
+  for (let n = 0; n < ARO.MAX; n++){
+    let mejor = -1, bx = 0, by = 0;
+    for (let y = 0; y < H2; y++) for (let x = 0; x < W2; x++){
+      const i = y * W2 + x;
+      if (usado[i] || su[i] <= mejor) continue;
+      mejor = su[i]; bx = x; by = y;
+    }
+    if (mejor < mx * 0.30) break;
+    cand.push({ x: bx, y: by, rel: mejor / mx });
+    for (let y = Math.max(0, by - sep); y <= Math.min(H2 - 1, by + sep); y++)
+      for (let x = Math.max(0, bx - sep); x <= Math.min(W2 - 1, bx + sep); x++)
+        usado[y * W2 + x] = 1;
+  }
+
+  // verificación: ¿hay de verdad un anillo de tinta alrededor del centro?
+  const tinta = (x, y) => x >= 0 && y >= 0 && x < W2 && y < H2 && m[y * W2 + x];
+  const fuera = [];
+  for (const c of cand){
+    let mejorCob = 0, mejorRa = 0, mejorRb = 0;
+    for (const ra of ARO.RADIOS.concat([0.10]).map(f => f * W2)){
+      for (const rb of [ra, ra * ARO.ACHATA]){
+        let hit = 0;
+        for (let a = 0; a < 48; a++){
+          const t = a * 2 * Math.PI / 48;
+          for (let d = -2; d <= 2; d++){
+            if (tinta(Math.round(c.x + (ra + d) * Math.cos(t)), Math.round(c.y + (rb + d * ARO.ACHATA) * Math.sin(t)))){ hit++; break; }
+          }
+        }
+        const cob = hit / 48;
+        if (cob > mejorCob){ mejorCob = cob; mejorRa = ra; mejorRb = rb; }
+      }
+    }
+    if (mejorCob < ARO.MIN_COBERTURA || c.rel < ARO.MIN_REL) continue;
+    const ra = mejorRa * 1.25 / W2, rb = mejorRb * 1.25 / H2;   // holgado, para descontar tinta
+    fuera.push({ x: Math.max(0, c.x / W2 - ra), y: Math.max(0, c.y / H2 - rb),
+                 an: Math.min(1, 2 * ra), al: Math.min(1, 2 * rb),
+                 cobertura: +mejorCob.toFixed(2), fuerza: +c.rel.toFixed(2) });
+  }
+  return fuera;
+}
+
+function manchasDeSello(c){
   const { add, W, H } = tintaAnadida(c);
   const CEL = SELLO.CEL, GW = Math.ceil(W / CEL), GH = Math.ceil(H / CEL);
   const celda = new Int32Array(GW * GH);
@@ -383,23 +483,35 @@ function sellos(c){
     }
     let hueco = 0;
     for (let k = 0; k < an * al; k++) if (!dentro[k] && !libre[k]) hueco++;
-    const enBanda = (y0 / GH) >= SELLO.BANDA_FIRMAS;
-    if (hueco < (enBanda ? SELLO.MIN_HUECO_FIRMAS : SELLO.MIN_HUECO)) continue;
+    if (hueco < SELLO.MIN_HUECO) continue;
 
     fuera.push({ x: x0 / GW, y: y0 / GH, an: an / GW, al: al / GH, tinta, hueco });
   }
   // Una mancha que NACE dentro de la banda de firmas es la firma, aunque su lazo se
   // salga de la celda (medido: las firmas empiezan en y ≥ 0.84; un sello que llega a
   // tapar una firma viene bajando desde arriba y empieza en y ≈ 0.66-0.71).
-  const sellos = fuera;
-  // encima de una firma = traslapa de verdad una celda, no que la roce
+  return fuera;
+}
+
+/* Dos miradas distintas al mismo problema: los **aros** cuentan cuántos sellos hay
+   (dos encimados siguen siendo dos aros), y las **manchas** dicen hasta dónde llega
+   la tinta de cada sello, que es lo que hay que descontar de las celdas de firma. */
+function sellos(c){
+  const { add, W, H } = tintaAnadida(c);
+  const sellos = contarAros(add, W, H);
+  // una mancha marca la extensión de un sello solo si hay un aro detectado dentro:
+  // así la mancha de una firma no se descuenta a sí misma
+  const zonas = manchasDeSello(c).filter(m => sellos.some(s => {
+    const cx = s.x + s.an / 2, cy = s.y + s.al / 2;
+    return cx >= m.x && cx <= m.x + m.an && cy >= m.y && cy <= m.y + m.al;
+  }));
   const sobreFirma = sellos.filter(s => [0, 1, 2].some(i => {
     const cx = 0.06 + i * 0.30, cy = 0.82, cw = 0.28, ch = 0.16;
     const ax = Math.max(0, Math.min(s.x + s.an, cx + cw) - Math.max(s.x, cx));
     const ay = Math.max(0, Math.min(s.y + s.al, cy + ch) - Math.max(s.y, cy));
     return (ax * ay) / (cw * ch) >= 0.15;
   }));
-  return { sellos, sobreFirma, descartados: fuera.length - sellos.length };
+  return { sellos, zonas, sobreFirma, descartados: 0 };
 }
 
 /* ---------- inclinación ---------- */
@@ -681,7 +793,7 @@ async function medir(){
       page.cleanup();
       const se = sellos(lienzo);
       r.sellos = se.sellos; r.selloEnFirma = se.sobreFirma.length > 0;
-      r.firmas = tintaFirmas(lienzo, se.sellos);
+      r.firmas = tintaFirmas(lienzo, se.zonas.concat(se.sellos));
       r.total = (r.total || 0);
       pintarFila(r, filas.get(r.pagina));
     }

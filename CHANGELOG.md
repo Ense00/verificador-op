@@ -2,6 +2,21 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.15.0 — 2026-09-17
+
+- **Los sellos ahora se cuentan, no solo se detectan.** La versión por manchas contaba 2
+  donde había 3 (dos sellos encimados son una sola mancha) y se le perdía un `PAGADO`
+  despintado. Ahora se buscan **aros**: cada píxel de tinta añadida vota por el centro de
+  un posible aro y cada candidato se verifica midiendo qué fracción del anillo tiene
+  tinta. **3 sellos en las 7 órdenes reales**, que es el conteo correcto.
+- Se mantienen las dos miradas: los aros cuentan los sellos; las manchas marcan hasta
+  dónde llega su tinta para descontarla de las celdas de firma. Una mancha solo cuenta
+  como sello si tiene un aro dentro, así la mancha de una firma no se descuenta a sí
+  misma (eso hacía perder una firma en una orden).
+- Verificado en los dos sentidos: el PDF real da 3 sellos y 3 firmas en las siete
+  órdenes; el caso fabricado con sellos encima de celdas vacías da 0 firmas, y con
+  celdas firmadas da 3.
+
 ## v0.14.0 — 2026-09-17
 
 - **Un sello encima de una firma ya no la inventa.** Se probó el caso a propósito: una

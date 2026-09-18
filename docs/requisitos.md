@@ -310,6 +310,36 @@ Después se limpian dos cosas que no son sellos:
 - **Las firmas:** una mancha que **nace** dentro de la banda de firmas es la firma, aunque su lazo se salga de la celda (corregido el 2026-09-17 tras revisión del usuario: la firma del *Páguese* tiene un lazo grande que cruzaba a la celda vecina y se contaba como sello). Medido: las firmas empiezan en y ≥ 0.84; un sello que llega a taparlas viene bajando y empieza en y ≈ 0.66-0.71.
 - **Las rayas de pluma:** aunque sean largas y diagonales, no encierran nada. Se exige que la mancha **encierre hueco**, porque un sello es un aro. Eso descartó unas rayas de pluma azul que cruzaban la tabla de una orden.
 
+### Contar sellos, no solo detectarlos (2026-09-17)
+
+El usuario revisó la salida dibujada y pidió el **conteo**: cada orden trae 3 sellos, y
+la versión por manchas contaba 2, 2 y 1 en tres hojas porque **dos sellos encimados son
+una sola mancha**, y porque un `PAGADO` muy despintado no aparecía.
+
+La solución es mirar **aros en vez de manchas**: dos sellos encimados siguen siendo dos
+aros. Cada píxel de tinta añadida vota por el centro de un posible aro (transformada de
+Hough circular), los votos se concentran en los centros reales, y cada candidato se
+verifica preguntando **qué fracción del anillo tiene tinta** — eso es lo que separa un
+sello de un garabato o de un renglón.
+
+Umbrales calibrados con este PDF: cobertura del anillo ≥ 0.75 y fuerza del pico ≥ 0.60
+del máximo de la hoja. Los sellos legítimos dan cobertura 0.79–0.98; el candidato falso
+que apareció daba 0.71.
+
+**Resultado: 3 sellos en las 7 órdenes, que es el conteo del usuario.**
+
+Quedan dos miradas al mismo problema, cada una para lo suyo:
+
+- **Aros** → cuántos sellos hay.
+- **Manchas** (la detección anterior) → hasta dónde llega la tinta de cada sello, que es
+  lo que se descuenta de las celdas de firma. Una mancha solo cuenta como sello si tiene
+  un aro detectado dentro, para que la mancha de una firma no se descuente a sí misma.
+
+**Límites conocidos:** los radios de búsqueda están calibrados al tamaño de sello de
+este documento; sellos mucho más grandes o más chicos necesitarían reajuste, y con un
+PDF de prueba de geometría distinta el conteo se infla. Hace falta otro PDF real, de
+otra entidad, para saber si los umbrales aguantan.
+
 ### Sello encima de firma: sí se pueden separar (probado el 2026-09-17)
 
 La duda del usuario era técnica: si un sello cae sobre una firma, ¿se puede saber
