@@ -7,7 +7,8 @@ Herramienta web para verificar Órdenes de Pago escaneadas (PDF) contra un Excel
 **Estado:** las dos etapas funcionan. *Preparar Layout* genera el archivo para la plataforma; *Verificar órdenes* lee los PDFs escaneados y arma la tabla de resultados. Sigue habiendo una demostración con datos ficticios para ver la interfaz sin archivos.
 
 - Requisitos y reglas: [`docs/requisitos.md`](docs/requisitos.md)
-- Historial de cambios: [`CHANGELOG.md`](CHANGELOG.md)
+- Historial de cambios: [`CHANGELOG.md`](CHANGELOG.md) · etiqueta `vX.Y.Z` por versión
+- Antes de publicar: `bash tests/revisar.sh` (sello de versión = CHANGELOG, `index.html` regenerado, sin datos reales)
 - Página: [`boceto/index.html`](boceto/index.html) (publicada en GitHub Pages). `boceto/fuente-artifact.html` es la misma página sin `<!doctype>/<head>/<body>`, para republicarla como artifact de Claude; editar esa y regenerar `index.html`.
 
 > Reglas del repositorio (es público):

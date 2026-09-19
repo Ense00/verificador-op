@@ -2,6 +2,15 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.24.3 — 2026-09-18
+
+- **El sello de versión de la página se había quedado en v0.23.0** mientras el historial
+  iba en v0.24.2: lo notó el usuario. Corregido, y para que no vuelva a pasar hay un
+  `tests/revisar.sh` que compara el sello con el CHANGELOG, comprueba que `index.html`
+  esté regenerado a partir de la fuente y busca nombres de entidad reales en el repo.
+- **Etiquetas de git al día:** faltaban todas desde v0.10.0; quedaron puestas sobre su
+  commit.
+
 ## v0.24.2 — 2026-09-18
 
 - **"Abrir página" ya abre la hoja ajustada a la pantalla.** Salía a tamaño completo y
