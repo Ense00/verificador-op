@@ -2,6 +2,55 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.25.0 — 2026-09-18
+
+Lo trajo el usuario al revisar los documentos de Caso C (9,052 páginas, 20 archivos): la
+verificación "se queda congelada" siempre en las 284 páginas, aunque cambió el documento
+base; y **en otra computadora le marcó como correctas órdenes impresas con "-A" cuando el
+documento base pedía la orden sin -A**.
+
+- **Falso positivo corregido, el más importante.** Cuando el OCR veía `X-A` y, en otro
+  intento, `X`, se confirmaba la orden sin -A: se cruzaba una ADEFA con su original, que
+  nunca debe pasar. Ahora una hoja con "-A" no confirma la orden sin -A y queda en
+  **Revisar**, con el archivo, las páginas y el motivo escrito. Comprobado a ojo hoja por
+  hoja: las 14 confirmadas del archivo de 284 páginas no traen "-A".
+- **Se busca el "-A" activamente antes de confirmar.** Pedirle al OCR el número completo
+  con su sufijo falla (la A toca la raya de la caja y se pierde), pero un recorte de solo la
+  cola del renglón sí la muestra: en 16 hojas verificadas a ojo, las 8 con "- A" traen una
+  A en al menos una variante y las 8 sin él, en ninguna. Salió de investigar el problema
+  (documentación de Tesseract: margen blanco de ~10 px, leer una línea a la vez) y de
+  releer mis propias pruebas, que traían la respuesta en los textos crudos.
+- **Las hojas seguidas de una orden son un solo documento**, porque las de continuación de
+  una ADEFA **no repiten el "-A"** (la hoja 41 lo trae y la 43 imprime el mismo número
+  limpio). Solo cuenta entre hojas con la misma forma de caja: en este lote las ADEFA usan
+  una caja de 3 renglones y las originales una de 2, y sin eso las originales pegadas a su
+  ADEFA se tiraban juntas.
+- **Formato nuevo de la caja del número** (Gobierno del Estado, "Página 3 / 711"): letra
+  chica, con las letras tocando las rayas. Zonas de solo el renglón del número, ampliado 5×
+  y como una sola línea; y un filtro que borra lo más claro que 110 para quitar la
+  palomita gris que tacha el número (el dígito es negro, la raya de pluma es gris): 4 de 5
+  hojas contra 3. El archivo de 284 páginas pasó de 5 órdenes leídas a **las 7**.
+- **El congelamiento.** Eran dos cosas. (1) Las fases que releen números difíciles no
+  avisaban nada: el contador se quedaba en las 284 páginas de ese archivo, y eso era lo
+  que se veía, mientras trabajaba. Ahora cada fase avisa y la barra tiene un tramo por
+  fase ("leyendo las órdenes (18 de 38)", "releyendo números difíciles (18 de 33)"). Mayor
+  silencio entre avisos: de ~40 s a 5 s. (2) Las hojas que no se podían leer gastaban 40
+  intentos sin recuperarse nunca (medido: lo que se recupera, se recupera en los primeros
+  5); ahora los reintentos de un archivo tienen un tiempo tope. El archivo de 284 páginas
+  pasó de 90 s a 59 s.
+- **Tope de 75 % del procesador.** La herramienta lanzaba 6 trabajadores de OCR más el hilo
+  principal en una máquina de 6 hilos y topaba el 100 %. Ahora usa `floor(hilos × 0.75) − 1`
+  trabajadores y adelanta una sola página de decodificación en vez de tres. Medido durante
+  la revisión del caso grande: media 32 %, pico de 3 s 52 %, pico instantáneo 70 %. Cuesta
+  algo de velocidad (unos 35 % más lento).
+- La barra nunca retrocede (antes oscilaba <1 % porque usaba el número de página de la
+  tarea que terminaba y no las páginas terminadas).
+- **Corregido un error mío en la lectura del "-A":** un número impreso limpio salía como
+  `…-A` porque el extractor pegaba la "-" de la raya de la caja y la "A" de la palabra
+  ORIGINAL a través del salto de línea, y se descartaban órdenes buenas.
+- Medido, sin regresión: caso grande **65 de 73**, Caso B **8 de 8**, 0 falsos
+  positivos en todos.
+
 ## v0.24.4 — 2026-09-18
 
 - **La lupa del visor ya se puede mover.** Quedaba fija en una esquina, sin forma de

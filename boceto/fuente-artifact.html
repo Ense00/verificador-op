@@ -457,7 +457,7 @@ table.parts td{vertical-align:middle}
   <header class="top">
     <div class="brand">
       <h1>Verificador de Órdenes de Pago</h1>
-      <span class="stamp">v0.24.4</span>
+      <span class="stamp">v0.25.0</span>
     </div>
     <div class="topright">
     <div class="toprow">
@@ -785,7 +785,8 @@ table.parts td{vertical-align:middle}
           </ul>
           <h4>4 · Verificar</h4>
           <p>Pulsa <b>Verificar</b>. Debajo del botón aparece una <b>barra de avance</b> con en qué archivo va, cuántas páginas lleva, cuántas órdenes encontró y cuánto tiempo lleva corriendo. No verás un "faltan X minutos": unas órdenes tardan mucho más que otras y esa cuenta salía tan variable que engañaba más de lo que ayudaba. Con <b>Cancelar</b> se detiene y queda en la tabla lo que alcanzó a leerse. Al terminar, la configuración se oculta y queda una línea con lo que elegiste. Con <b>Cambiar configuración</b> la vuelves a abrir.</p>
-          <p>La revisión no se atora en una orden difícil: si una página tarda demasiado se deja a medias, se marca y se sigue con las demás.</p>
+          <p>La revisión no se atora en una orden difícil: si una página tarda demasiado se deja a medias, se marca y se sigue con las demás. Los reintentos de cada archivo tienen un tiempo tope, y la barra sigue avanzando mientras se releen los números difíciles.</p>
+          <p><b>La herramienta no usa más del 75 % de tu procesador</b> (deja libre al menos una cuarta parte de los hilos), para que puedas seguir usando la computadora mientras corre. Con eso tarda algo más que a tope, pero no la deja inutilizable.</p>
           <p>No cierres ni cambies de pestaña mientras corre: el trabajo lo hace tu navegador y se va más despacio en segundo plano.</p>
         </section>
 
@@ -880,7 +881,7 @@ table.parts td{vertical-align:middle}
           <table class="gtable">
             <thead><tr><th>Dato</th><th>Cuándo es correcto</th></tr></thead>
             <tbody>
-              <tr><td>Orden de pago</td><td>El número que aparece en la orden coincide con una orden del documento base. Se busca en toda la hoja, incluido el folio de arriba: en algunas órdenes el folio <b>es</b> el número de orden. Si el folio no coincide, no se descarta la orden: se sigue buscando el número en el resto de la hoja.</td></tr>
+              <tr><td>Orden de pago</td><td>El número que aparece en la orden coincide con una orden del documento base. Se busca en toda la hoja, incluido el folio de arriba: en algunas órdenes el folio <b>es</b> el número de orden. Si el folio no coincide, no se descarta la orden: se sigue buscando el número en el resto de la hoja. <b>Si la hoja imprime "-A"</b> (una ADEFA, orden distinta) y el documento base pide la orden sin -A, <b>no se confirma</b>: queda como <span class="pill rev">Revisar</span> con el archivo y las páginas donde está. Las hojas de continuación de una ADEFA no repiten el "-A", así que las hojas seguidas de una misma orden se tratan como un solo documento.</td></tr>
               <tr><td>Ejercicio</td><td>El año de la orden es el año de la Fecha Contable del documento base.</td></tr>
               <tr><td>Monto</td><td>El monto solicitado aparece <b>al centavo</b> en la lista de montos de la orden, ya sea en una línea o en el total. Si hay uno casi igual, el motivo lo menciona (por ejemplo, "difiere por $0.01"). Los montos negativos van a Revisar.</td></tr>
               <tr><td>Firmas</td><td>Hay <b>3 firmas</b>, sin importar el cargo de quien firma. Se reporta cuántas hay: 0, 1, 2 o 3. Solo se detecta que exista la firma, no si es auténtica.</td></tr>
@@ -1000,7 +1001,11 @@ function cerrarHuecos(zx, W, H, R){
   zx.putImageData(d, 0, 0);
 }
 
-function recorte(c, fx, fy, fw, fh, amp, limpiar, cerrar, umbralColor){
+/* `oscuro`: umbral de luminosidad. Todo lo más claro que él se borra. Sirve contra la
+   palomita o raya de pluma GRIS que tacha el número: el dígito impreso es negro y la raya
+   de pluma es de un gris más claro, así que un umbral entre los dos deja el dígito y
+   quita la raya, cosa que borrar por color no puede hacer porque no tiene color. */
+function recorte(c, fx, fy, fw, fh, amp, limpiar, cerrar, umbralColor, oscuro){
   const sw = Math.round(c.width * fw), sh = Math.round(c.height * fh);
   const z = document.createElement('canvas');
   z.width = Math.max(8, Math.round(sw * amp)); z.height = Math.max(8, Math.round(sh * amp));
@@ -1013,7 +1018,10 @@ function recorte(c, fx, fy, fw, fh, amp, limpiar, cerrar, umbralColor){
     for (let i = 0; i < a.length; i += 4){
       const r = a[i], g = a[i+1], b = a[i+2];
       if (Math.max(r, g, b) - Math.min(r, g, b) > (umbralColor || 30)) a[i] = a[i+1] = a[i+2] = 255;
-      else a[i] = a[i+1] = a[i+2] = (r * 0.299 + g * 0.587 + b * 0.114) | 0;
+      else {
+        const lum = (r * 0.299 + g * 0.587 + b * 0.114) | 0;
+        a[i] = a[i+1] = a[i+2] = oscuro ? (lum > oscuro ? 255 : Math.round(lum * 0.5)) : lum;
+      }
     }
     zx.putImageData(d, 0, 0);
     if (cerrar) cerrarHuecos(zx, z.width, z.height, cerrar);
@@ -1440,6 +1448,21 @@ function inclinacion(c){
    y ninguna receta sola acierta en todas. Si hay documento base, él decide. */
 const INTENTOS = [
   { fx: 0.67, fy: 0.02, fw: 0.33, fh: 0.15, amp: 1,   psm: '4', limpiar: true,  lista: '0123456789-A' },
+  /* Otro formato de orden (Gobierno del Estado, hojas "Página 3 / 711"): el número va en
+     una cajita chica arriba a la derecha, con "Orden de Pago", "Doc. Logístico" y "Orden
+     de Compra", y las letras tocan las rayas de la tabla. Leer la caja entera fallaba en
+     10 de 11 hojas; solo el renglón del número, ampliado y como una sola línea, lee la
+     mayoría. La altura de la caja cambia un poco con el escaneo, de ahí las tres alturas.
+     Estas zonas también sirven de SONDEO del sufijo -A (ver sondearSufijo). */
+  { fx: 0.85, fy: 0.066, fw: 0.115, fh: 0.028, amp: 5, psm: '7', limpiar: false, lista: '0123456789-A ' },
+  { fx: 0.85, fy: 0.068, fw: 0.115, fh: 0.024, amp: 4, psm: '7', limpiar: true,  lista: '0123456789-A ' },
+  /* La misma caja pero de 2 renglones (el número va en el segundo y más a la izquierda),
+     con la palomita gris que lo tacha: `oscuro` borra lo más claro que 110 y deja el
+     dígito negro. Medido: 4 de 5 hojas, contra 3 sin el filtro. */
+  { fx: 0.82, fy: 0.090, fw: 0.140, fh: 0.028, amp: 5, psm: '7', limpiar: true, oscuro: 110, lista: '0123456789-A ' },
+  { fx: 0.82, fy: 0.090, fw: 0.140, fh: 0.028, amp: 5, psm: '7', limpiar: false, lista: '0123456789-A ' },
+  { fx: 0.85, fy: 0.062, fw: 0.115, fh: 0.030, amp: 4, psm: '7', limpiar: true,  lista: '0123456789-A ' },
+  { fx: 0.84, fy: 0.060, fw: 0.140, fh: 0.036, amp: 3, psm: '7', limpiar: true,  lista: '0123456789-A ' },
   { fx: 0.60, fy: 0.00, fw: 0.40, fh: 0.20, amp: 1,   psm: '4', limpiar: true,  lista: '0123456789-A' },
   { fx: 0.67, fy: 0.02, fw: 0.33, fh: 0.15, amp: 1,   psm: '4', limpiar: false },
   { fx: 0.60, fy: 0.00, fw: 0.40, fh: 0.20, amp: 1.5, psm: '4', limpiar: true },
@@ -1468,6 +1491,23 @@ const INTENTOS = [
    NEGRA encima del dígito, que no se puede borrar porque el dígito también es negro.
    Reducir adelgaza la raya antes que el dígito. */
 const INTENTOS_CHICOS = INTENTOS.map((_, i) => i);   // solo corre en lo que ya falló todo
+/* COLAS: recortes del FINAL del renglón del número, donde va el "- A". Salió de investigar
+   el problema (el OCR pierde el sufijo cuando la A toca la raya de la caja) y de leer bien
+   mis propias pruebas: pedirle al OCR el número completo con su sufijo falla, pero un
+   recorte de solo la cola SÍ muestra la A. Medido en 16 hojas verificadas a ojo: en las
+   8 que imprimen "- A" la cola trae una A en al menos una variante; en las 8 que no, en
+   ninguna (0 falsos avisos en 4 variantes). Hay dos alturas: la caja de 3 renglones lleva
+   el número en el primero y la de 2 renglones, en el segundo. */
+const COLAS = [
+  { fx: 0.915, fy: 0.066, fw: 0.050, fh: 0.028, amp: 8,  psm: '7',  limpiar: true, lista: '0123456789-A ' },
+  { fx: 0.905, fy: 0.064, fw: 0.060, fh: 0.032, amp: 6,  psm: '7',  limpiar: true, lista: '0123456789-A ' },
+  { fx: 0.925, fy: 0.066, fw: 0.035, fh: 0.028, amp: 10, psm: '10', limpiar: true, lista: '-A ' },
+  { fx: 0.900, fy: 0.088, fw: 0.060, fh: 0.032, amp: 6,  psm: '7',  limpiar: true, lista: '0123456789-A ' }
+];
+/* Descartada: una cola a la altura del segundo renglón con amp 8. En la caja de 3 renglones
+   cae sobre "Doc. Logístico" y el OCR lee "A"/"AA" en hojas que no llevan el sufijo:
+   5 falsos avisos en 11 hojas limpias. Las otras cuatro dieron 0. */
+const SONDEO = [1, 2, 3, 4];   // zonas de la celda del número (de las dos cajas) que se releen antes de confirmar
 const ZONA_NUM = INTENTOS[0];
 // el resto de los campos de la orden, cada uno en su zona
 const ZONA_FECHA  = { fx: 0.66, fy: 0.115, fw: 0.34, fh: 0.09, amp: 1, psm: '4', lista: '0123456789/.-' };
@@ -1492,7 +1532,11 @@ function cuadran(ms){
 function candidatosDe(txt){
   const out = new Set();
   for (const bruto of (txt.match(/\d[\d\s-]{7,}(?:-?A\b)?/gi) || [])){
-    const s = bruto.replace(/\s/g, ''), A = /-A$/i.test(s), d = s.replace(/[^0-9]/g, '');
+    // El sufijo "-A" solo vale si va en el MISMO renglón que los dígitos. Antes se pegaba a
+    // través de un salto de línea, y el recorte trae la raya de la caja (que se lee como
+    // "-") y la palabra ORIGINAL del renglón de abajo (de la que la lista de caracteres
+    // deja solo la "A"): un número impreso limpio salía como "…-A" y se descartaba.
+    const s = bruto.replace(/\s/g, ''), A = /\d[ \t]*-[ \t]*A$/i.test(bruto), d = s.replace(/[^0-9]/g, '');
     if (d.length === 10) out.add(d + (A ? '-A' : ''));
     else if (d.length > 10 && d.length <= 13){ out.add(d.slice(0, 10)); out.add(d.slice(-10)); }
   }
@@ -1638,7 +1682,14 @@ function palabras(data){
    trabajadores hacen el OCR 4.05x más rápido que uno solo. El hilo principal se
    queda solo con renderizar y recortar, que es lo que no se puede repartir. */
 let equipo = [], equipoIdioma = null;
-const NUCLEOS = Math.max(1, Math.min(6, navigator.hardwareConcurrency || 4));
+/* Tope de uso del procesador: la herramienta no debe pasar del 75 % de los hilos de la
+   máquina. Con 6 hilos ya usaba 6 trabajadores de OCR MÁS el hilo principal (que también
+   trabaja: dibuja, recorta, analiza) y topaba el 100 %, con la computadora inutilizable
+   para otra cosa. El hilo principal cuenta como uno, y a partir de 6 trabajadores más ya
+   no se gana velocidad (medido). */
+const USO_MAXIMO = 0.75;
+const HILOS = navigator.hardwareConcurrency || 4;
+const NUCLEOS = Math.max(1, Math.min(6, Math.floor(HILOS * USO_MAXIMO) - 1));
 
 async function darEquipo(idioma, n, avisar = () => {}){
   if (equipo.length === n && equipoIdioma === idioma) return equipo;
@@ -1717,11 +1768,11 @@ const conLimite = (promesa, ms) => ms > 0
   : promesa;
 
 async function procesarPDFs(archivos, opciones){
-  const { base, pide, avisar = () => {}, cancelado = () => false,
+  const { base, pide, avisar = () => {}, cancelado = () => false, trabajadores: nTrab = NUCLEOS,
           dpi = 200, dpiClasifica = 100, idioma = 'spa', limitePagina = 45000,
           psmEncab = '4', ampEncab = 2, altoEncab = 0.10 } = opciones;
   const ordenesBase = new Set([...base].map(o => String(o).trim().toUpperCase()));
-  const trabajadores = await darEquipo(idioma, NUCLEOS, avisar);
+  const trabajadores = await darEquipo(idioma, nTrab, avisar);
   const turno = turnos(trabajadores);
   const lienzo = document.createElement('canvas');
   const ctx = lienzo.getContext('2d', { willReadFrequently: true });
@@ -1742,11 +1793,19 @@ async function procesarPDFs(archivos, opciones){
   avisar({ tipo: 'inicio', archivos: utiles.length, duplicados: duplicados.length, bytes: bytesTotal });
 
   let bytesHechos = 0, paginasHechas = 0, paginasOrden = 0, archivosHechos = 0;
+  /* Tramo de la barra que ocupa cada fase dentro de un archivo. Salen de medir un archivo
+     de 284 páginas (clasificar 28 %, leer órdenes 5 %, reintentos 27 %, reintentos en
+     chico 39 %); cuentan para que la barra SIGA AVANZANDO durante los reintentos, que
+     antes no avisaban nada y parecían un congelamiento. */
+  const TRAMO = { clasificar: [0, 0.45], ordenes: [0.45, 0.60], reintentos: [0.60, 0.80], 'reintentos-chico': [0.80, 1] };
+  const avanceDe = (f, fase, i, n) => {
+    const [a, b] = TRAMO[fase];
+    return Math.min(0.999, (bytesHechos + f.size * (a + (b - a) * (i / Math.max(1, n)))) / bytesTotal);
+  };
+  const estado = () => ({ hechas: paginasHechas, ordenes: paginasOrden, archivos: archivosHechos, deArchivos: utiles.length });
   const paso = (f, p, total) => avisar({
-    tipo: 'pagina', archivo: f.name, pagina: p, paginasArchivo: total,
-    hechas: paginasHechas, ordenes: paginasOrden,
-    archivos: archivosHechos, deArchivos: utiles.length,
-    avance: Math.min(0.999, (bytesHechos + f.size * (p / Math.max(1, total))) / bytesTotal)
+    tipo: 'pagina', archivo: f.name, pagina: p, paginasArchivo: total, ...estado(),
+    avance: avanceDe(f, 'clasificar', p, total)
   });
 
   for (const f of utiles){
@@ -1766,13 +1825,20 @@ async function procesarPDFs(archivos, opciones){
 
     const delArchivo = [];
     // ---- fase 1: qué es cada página, a baja resolución
+    avisar({ tipo: 'fase', fase: 'clasificar', archivo: f.name, paginas: pdf.numPages, ...estado(), avance: avanceDe(f, 'clasificar', 0, 1) });
+    const tClasificar0 = Date.now();
+    let clasificadas = 0;      // páginas TERMINADAS de este archivo (las tareas acaban desordenadas)
     {
       const enVuelo = new Set();
       const adelanto = adelantador(jpegs, dpiClasifica, pdf);
-      for (let p = 1; p <= Math.min(3, pdf.numPages); p++) await adelanto.pedir(p);
+      // Se decodifica UNA página por delante, no tres: el decodificador del navegador usa
+      // varios hilos por imagen, y con tres en paralelo más los trabajadores de OCR se
+      // pasaba del tope de uso del procesador (picos de 79 % en promedio de 3 s).
+      const DELANTE = 1;
+      for (let p = 1; p <= Math.min(DELANTE, pdf.numPages); p++) await adelanto.pedir(p);
       for (let p = 1; p <= pdf.numPages; p++){
         if (cancelado()) break;
-        if (p + 3 <= pdf.numPages) await adelanto.pedir(p + 3);
+        if (p + DELANTE <= pdf.numPages) await adelanto.pedir(p + DELANTE);
         const r = { archivo: f.name, pagina: p, cand: [], intentos: 0 };
         delArchivo.push(r);
         await dibujarPagina(pdf, jpegs, p, dpiClasifica, lienzo, ctx, adelanto);
@@ -1784,12 +1850,12 @@ async function procesarPDFs(archivos, opciones){
             r.tipo = tipoDe(r.encabezado).clave;
           } catch (e){ r.tipo = 'desconocido'; }
           finally { turno.soltar(w); }
-          paginasHechas++;
+          paginasHechas++; clasificadas++;
           if (r.tipo === 'orden') paginasOrden++;
-          paso(f, p, pdf.numPages);
+          paso(f, clasificadas, pdf.numPages);
         })();
         enVuelo.add(tarea); tarea.finally(() => enVuelo.delete(tarea));
-        if (enVuelo.size >= NUCLEOS * 2) await Promise.race(enVuelo);
+        if (enVuelo.size >= nTrab * 2) await Promise.race(enVuelo);
       }
       await Promise.all(enVuelo);
       adelanto.limpiar();
@@ -1799,6 +1865,19 @@ async function procesarPDFs(archivos, opciones){
     const ordenes = delArchivo.filter(r => r.tipo === 'orden');
     // Los rótulos de las firmas se buscan una vez por archivo: dentro de un mismo PDF
     // el formato se repite, y buscarlos en cada orden era lo más caro de la revisión.
+    const msClasificar = Date.now() - tClasificar0;
+    avisar({ tipo: 'fase', fase: 'ordenes', archivo: f.name, ordenes: ordenes.length, ...estado(), avance: avanceDe(f, 'ordenes', 0, 1) });
+    let hechasFase = 0;
+    const subaviso = (fase, total) => avisar({ tipo: 'sub', fase, hechasFase: ++hechasFase, total, archivo: f.name, ...estado(), avance: avanceDe(f, fase, hechasFase, total) });
+    /* Presupuesto de reintentos: en un lote donde muchas hojas de orden no se pueden leer
+       (formatos distintos, continuaciones), cada una gastaba los 40 intentos completos y un
+       archivo de 284 páginas se iba más de un minuto sin avanzar. Medido: lo que se
+       recupera en reintentos se recupera en los primeros 5 intentos; las que llegan al
+       intento 40 no se recuperan nunca. Así que los reintentos de un archivo tienen un
+       tiempo tope, del tamaño de lo que costó clasificarlo. */
+    const presupuesto = Math.max(20000, msClasificar);
+    let tReintentos0 = 0;
+    const sinPresupuesto = () => tReintentos0 && Date.now() - tReintentos0 > presupuesto;
     let celdasDelArchivo = null;
     if (pide.firmas && ordenes.length){
       await dibujarPagina(pdf, jpegs, ordenes[0].pagina, dpi, lienzo, ctx);
@@ -1816,12 +1895,14 @@ async function procesarPDFs(archivos, opciones){
         if (cancelado()) break;
         await dibujarPagina(pdf, jpegs, r.pagina, dpi, lienzo, ctx);
         const recortes = {
-          num:    recorte(lienzo, INTENTOS[0].fx, INTENTOS[0].fy, INTENTOS[0].fw, INTENTOS[0].fh, INTENTOS[0].amp, INTENTOS[0].limpiar, INTENTOS[0].cerrar, INTENTOS[0].umbralColor),
+          num:    recorte(lienzo, INTENTOS[0].fx, INTENTOS[0].fy, INTENTOS[0].fw, INTENTOS[0].fh, INTENTOS[0].amp, INTENTOS[0].limpiar, INTENTOS[0].cerrar, INTENTOS[0].umbralColor, INTENTOS[0].oscuro),
           fecha:  pide.ej ? recorte(lienzo, ZONA_FECHA.fx, ZONA_FECHA.fy, ZONA_FECHA.fw, ZONA_FECHA.fh, ZONA_FECHA.amp, true) : null,
           montos: pide.monto ? recorte(lienzo, ZONA_MONTOS.fx, ZONA_MONTOS.fy, ZONA_MONTOS.fw, ZONA_MONTOS.fh, ZONA_MONTOS.amp, true) : null,
           montosAncha: pide.monto ? recorte(lienzo, ZONA_MONTOS_ANCHA.fx, ZONA_MONTOS_ANCHA.fy, ZONA_MONTOS_ANCHA.fw, ZONA_MONTOS_ANCHA.fh, 1, false) : null,
           hoja:   recorte(lienzo, ZONA_HOJA.fx, ZONA_HOJA.fy, ZONA_HOJA.fw, ZONA_HOJA.fh, ZONA_HOJA.amp, true),
-          hoja2:  recorte(lienzo, ZONA_HOJA_2.fx, ZONA_HOJA_2.fy, ZONA_HOJA_2.fw, ZONA_HOJA_2.fh, ZONA_HOJA_2.amp, true)
+          hoja2:  recorte(lienzo, ZONA_HOJA_2.fx, ZONA_HOJA_2.fy, ZONA_HOJA_2.fw, ZONA_HOJA_2.fh, ZONA_HOJA_2.amp, true),
+          sondeo: recortesDeSondeo(lienzo),
+          colas: recortesDeColas(lienzo)
         };
         const chico = document.createElement('canvas');
         chico.width = 700; chico.height = Math.max(1, Math.round(lienzo.height * 700 / lienzo.width));
@@ -1838,6 +1919,7 @@ async function procesarPDFs(archivos, opciones){
               const vistos = new Set(candidatosDe(await leerZona(w, recortes.num, INTENTOS[0].psm, INTENTOS[0].lista || '0123456789-')));
               r.cand = [...vistos];
               resolverNumeroCon(r, vistos, ordenesBase);
+              if (r.numero || r.sufijoA) await sondearSufijo(w, r, recortes.sondeo, ordenesBase, recortes.colas);
               for (const [campo, z, img] of [['fecha', ZONA_FECHA, recortes.fecha], ['montos', ZONA_MONTOS, recortes.montos]]){
                 if (!img) continue;
                 const txt = await leerZona(w, img, z.psm, z.lista);
@@ -1862,14 +1944,14 @@ async function procesarPDFs(archivos, opciones){
             })(), limitePagina);
             if (fin === AGOTADO) r.agotado = true;
           } catch (e){ r.error = e.message; }
-          finally { turno.soltar(w); }
+          finally { turno.soltar(w); subaviso('ordenes', ordenes.length); }
           if (pagina){
             try { analizarImagen(r, pagina, pide, celdasDelArchivo); }
             catch (e){ r.error = r.error || e.message; }
           }
         })();
         enVuelo.add(tarea); tarea.finally(() => enVuelo.delete(tarea));
-        if (enVuelo.size >= NUCLEOS) await Promise.race(enVuelo);
+        if (enVuelo.size >= nTrab) await Promise.race(enVuelo);
       }
       await Promise.all(enVuelo);
     }
@@ -1877,11 +1959,16 @@ async function procesarPDFs(archivos, opciones){
     // ---- fase 3: segundos intentos sobre el número, repartidos entre los trabajadores
     {
       const pendientes = ordenes.filter(r => !r.numero && !r.ambiguo);
+      hechasFase = 0; tReintentos0 = Date.now();
+      if (pendientes.length) avisar({ tipo: 'fase', fase: 'reintentos', archivo: f.name, ordenes: pendientes.length, ...estado(), avance: avanceDe(f, 'reintentos', 0, 1) });
       const enVuelo = new Set();
       for (const r of pendientes){
         if (cancelado()) break;
+        if (sinPresupuesto()){ r.sinPresupuesto = true; subaviso('reintentos', pendientes.length); continue; }
         await dibujarPagina(pdf, jpegs, r.pagina, dpi, lienzo, ctx);
-        const crops = INTENTOS.slice(1).map(it => ({ it, img: recorte(lienzo, it.fx, it.fy, it.fw, it.fh, it.amp, it.limpiar, it.cerrar, it.umbralColor) }));
+        const crops = INTENTOS.slice(1).map(it => ({ it, img: recorte(lienzo, it.fx, it.fy, it.fw, it.fh, it.amp, it.limpiar, it.cerrar, it.umbralColor, it.oscuro) }));
+        const sondeo = crops.slice(0, SONDEO.length);     // son las zonas 1..4 de INTENTOS
+        const colas = recortesDeColas(lienzo);
         const tarea = (async () => {
           const w = await turno.tomar();
           try {
@@ -1894,13 +1981,14 @@ async function procesarPDFs(archivos, opciones){
                 resolverNumeroCon(r, vistos, ordenesBase);
                 if (r.numero || r.ambiguo) break;
               }
+              if (r.numero || r.sufijoA) await sondearSufijo(w, r, sondeo, ordenesBase, colas);
             })(), limitePagina);
             if (fin === AGOTADO) r.agotado = true;
           } catch (e){ r.error = e.message; }
-          finally { turno.soltar(w); }
+          finally { turno.soltar(w); subaviso('reintentos', pendientes.length); }
         })();
         enVuelo.add(tarea); tarea.finally(() => enVuelo.delete(tarea));
-        if (enVuelo.size >= NUCLEOS) await Promise.race(enVuelo);
+        if (enVuelo.size >= nTrab) await Promise.race(enVuelo);
       }
       await Promise.all(enVuelo);
     }
@@ -1908,12 +1996,17 @@ async function procesarPDFs(archivos, opciones){
     // ---- fase 3b: lo que sigue sin leerse, sobre la página decodificada en chico
     {
       const tercos = ordenes.filter(r => !r.numero && !r.ambiguo);
+      hechasFase = 0;
+      if (tercos.length) avisar({ tipo: 'fase', fase: 'reintentos-chico', archivo: f.name, ordenes: tercos.length, ...estado(), avance: avanceDe(f, 'reintentos-chico', 0, 1) });
       const enVuelo = new Set();
       for (const r of tercos){
         if (cancelado()) break;
+        if (sinPresupuesto()){ r.sinPresupuesto = true; subaviso('reintentos-chico', tercos.length); continue; }
         await dibujarPagina(pdf, jpegs, r.pagina, dpi, lienzo, ctx, null, true);
         const crops = INTENTOS_CHICOS.map(i => INTENTOS[i])
-          .map(it => ({ it, img: recorte(lienzo, it.fx, it.fy, it.fw, it.fh, it.amp, it.limpiar, it.cerrar, it.umbralColor) }));
+          .map(it => ({ it, img: recorte(lienzo, it.fx, it.fy, it.fw, it.fh, it.amp, it.limpiar, it.cerrar, it.umbralColor, it.oscuro) }));
+        const sondeo = recortesDeSondeo(lienzo);
+        const colas = recortesDeColas(lienzo);
         const tarea = (async () => {
           const w = await turno.tomar();
           try {
@@ -1926,17 +2019,36 @@ async function procesarPDFs(archivos, opciones){
                 resolverNumeroCon(r, vistos, ordenesBase);
                 if (r.numero || r.ambiguo) break;
               }
+              if (r.numero || r.sufijoA) await sondearSufijo(w, r, sondeo, ordenesBase, colas);
             })(), limitePagina);
             if (fin === AGOTADO) r.agotado = true;
           } catch (e){ r.error = e.message; }
-          finally { turno.soltar(w); }
+          finally { turno.soltar(w); subaviso('reintentos-chico', tercos.length); }
         })();
         enVuelo.add(tarea); tarea.finally(() => enVuelo.delete(tarea));
-        if (enVuelo.size >= NUCLEOS) await Promise.race(enVuelo);
+        if (enVuelo.size >= nTrab) await Promise.race(enVuelo);
       }
       await Promise.all(enVuelo);
     }
 
+    // Un documento son las hojas de orden SEGUIDAS: las hojas de continuación de una ADEFA
+    // no repiten el "-A" (medido: 41 lo trae y 43 imprime el mismo número limpio), así que
+    // una hoja limpia pegada a una con "-A" es parte de ese mismo documento. Si alguna hoja
+    // del tramo lleva el sufijo, las demás con ese número no se confirman.
+    ordenes.sort((x, y) => x.pagina - y.pagina);
+    for (let i = 0; i < ordenes.length;){
+      let j = i; while (j + 1 < ordenes.length && ordenes[j + 1].pagina - ordenes[j].pagina <= 1) j++;
+      const tramo = ordenes.slice(i, j + 1);
+      // Solo cuenta entre hojas de la MISMA forma de caja: las continuaciones de una ADEFA
+      // usan la forma de su primera hoja (3 renglones) y la orden original, otra (2). Sin
+      // esto, las originales pegadas a su ADEFA se tiraban junto con ella.
+      const iguales = (x, y) => !x || !y || x === y;
+      const marcadas = tramo.filter(r => r.sufijoA);
+      for (const r of tramo) if (r.numero && marcadas.some(m => m.sufijoA.includes(r.numero) && iguales(m.familia, r.familia))){
+        r.sufijoA = [r.numero]; r.ambiguo = [r.numero + '-A']; r.numero = null; r.porTramo = true;
+      }
+      i = j + 1;
+    }
     resultados.push(...delArchivo);
     bytesHechos += f.size; archivosHechos++;
     avisar({ tipo: 'archivo', archivo: f.name, ordenes: ordenes.length, paginas: pdf.numPages });
@@ -1945,6 +2057,56 @@ async function procesarPDFs(archivos, opciones){
   avisar({ tipo: 'fin', paginas: paginasHechas });
   return { paginas: resultados, duplicados };
 }
+
+/* Antes de confirmar un número, se busca ACTIVAMENTE el "-A". El lector a veces suelta
+   el sufijo (medido: con una zona lee "5100000101-A" y con la vecina "5100000101"), y una
+   hoja impresa como ADEFA se confirmaba como la orden sin -A: un falso positivo, de los
+   que nunca deben pasar. Así que cada número confirmado sin -A se relee con las zonas de
+   la celda del número; si en cualquiera aparece el sufijo, no se confirma. Cuesta unas
+   lecturas de recortes diminutos por orden. */
+async function sondearSufijo(w, r, imgs, ordenesBase, colas){
+  if (!r.numero && !r.sufijoA) return;
+  const vistos = new Set(r.cand), porZona = [];
+  for (const { it, img } of imgs){
+    const z = new Set(candidatosDe(await leerZona(w, img, it.psm, it.lista || '0123456789-A ')));
+    porZona.push(z); z.forEach(c => vistos.add(c));
+  }
+  r.cand = [...vistos];
+  // Forma de la cajita: las dos primeras zonas apuntan al número de la caja de 3 renglones
+  // y las dos siguientes al de 2 renglones. La que lea un número del documento base dice
+  // de cuál se trata. (En la de 3 renglones, la segunda altura cae sobre "Doc. Logístico",
+  // cuyo número no está en el documento base, así que no se confunde.)
+  const enBase = z => !!z && [...z].some(c => ordenesBase.has(c.replace(/-A$/i, '')));
+  const f3 = enBase(porZona[0]) || enBase(porZona[1]), f2 = enBase(porZona[2]) || enBase(porZona[3]);
+  r.familia = f3 && !f2 ? '3' : f2 && !f3 ? '2' : '';
+  if (!r.numero || /-A$/i.test(r.numero)) return;
+  if (ordenesBase.has(r.numero + '-A')) return;      // el documento base tiene las dos: ya se resuelve por su cuenta
+  // ¿alguna zona de la celda leyó el número? Entonces estaba bien alineada y, si no
+  // apareció el sufijo, hay evidencia real de que la hoja no lo lleva.
+  r.sondeoVioNumero = porZona.some(z => z.has(r.numero));
+  resolverNumeroCon(r, vistos, ordenesBase);
+  // La cola del renglón: si en cualquier variante aparece una A, la hoja lleva el sufijo.
+  // Solo se hace cuando las zonas de la celda leyeron el número (formato alineado): en
+  // otros formatos esas coordenadas caen sobre otro texto y el OCR inventa letras.
+  // Las colas del PRIMER renglón solo están validadas para la caja de 3 renglones (16 hojas
+  // revisadas a ojo, 0 errores). En la de 2 renglones (que es también la de otras
+  // dependencias) ese renglón es la ETIQUETA "Orden de Pago" y el OCR saca una "A" de ella:
+  // marcó como ADEFA 3 órdenes limpias del caso grande. Ahí no se usan.
+  if (r.numero && r.sondeoVioNumero && colas && r.familia === '3'){
+    for (const { it, img } of colas.slice(0, 3)){
+      const t = await leerZona(w, img, it.psm, it.lista);
+      if (/A/i.test(t.replace(/[^A-Za-z]/g, ''))){
+        r.sufijoA = [r.numero]; r.ambiguo = [r.numero + '-A']; r.numero = null; r.colaConA = true;
+        break;
+      }
+    }
+  }
+}
+const recortesDeSondeo = lienzo => SONDEO.map(i => {
+  const it = INTENTOS[i];
+  return { it, img: recorte(lienzo, it.fx, it.fy, it.fw, it.fh, it.amp, it.limpiar, it.cerrar, it.umbralColor, it.oscuro) };
+});
+const recortesDeColas = lienzo => COLAS.map(it => ({ it, img: recorte(lienzo, it.fx, it.fy, it.fw, it.fh, it.amp, it.limpiar, it.cerrar, it.umbralColor, it.oscuro) }));
 
 /* Sellos y firmas sobre la copia de la página: es trabajo de lienzo, no de OCR. */
 function analizarImagen(r, pagina, pide, celdas){
@@ -1998,6 +2160,19 @@ async function dibujarPagina(pdf, jpegs, p, dpi, lienzo, ctx, adelanto, reducir)
    coinciden dos candidatos no se adivina. Así un número mal leído se vuelve "no
    encontrada" y nunca "encontrada la equivocada". */
 function resolverNumeroCon(r, vistos, ordenesBase){
+  // "X-A" es la ADEFA de X: una orden distinta, y la original y su -A nunca se cruzan.
+  // Si en la hoja se lee "X-A" y el documento base pide X sin -A, la hoja NO puede
+  // confirmar esa fila, y tampoco se debe confirmar la sin -A aunque otra lectura de la
+  // misma hoja haya soltado el número sin el sufijo (eso sería cruzarlas). Además no
+  // hay nada más que buscar: se deja de reintentar. Medido en un lote con este formato:
+  // 27 de 38 hojas gastaban los 28 intentos completos por esto.
+  const conA = [...vistos].filter(c => /-A$/i.test(c) && !ordenesBase.has(c) && ordenesBase.has(c.replace(/-A$/i, '')));
+  if (conA.length){
+    r.sufijoA = [...new Set(conA.map(c => c.replace(/-A$/i, '')))];
+    r.ambiguo = conA;
+    r.numero = null;      // si ya se había confirmado la sin -A, se retira: sería cruzarlas
+    return;
+  }
   const enBase = [...vistos].filter(c => ordenesBase.has(c));
   if (enBase.length > 1){ r.ambiguo = enBase; return; }
   if (enBase.length !== 1) return;
@@ -3191,6 +3366,7 @@ let corriendo = false, cancelar = false, libsListas = null, ultimoAviso = 0;
 /* La estimación de "cuánto falta" resultó tan variable que estorbaba (él: "casi
    inútil"), así que se quitó. Queda lo que no puede mentir: una barra con el avance
    —que nunca retrocede, porque se mide en bytes ya procesados— y el tiempo que lleva. */
+let progMax = 0;
 const prog = (txt, frac) => {
   const caja = $('#run-progress');
   caja.hidden = !txt;
@@ -3201,7 +3377,9 @@ const prog = (txt, frac) => {
     box.removeAttribute('aria-valuenow');
   } else {
     box.classList.remove('indet');
-    const pct = Math.max(0, Math.min(100, Math.round(frac * 100)));
+    let pct = Math.max(0, Math.min(100, Math.round(frac * 100)));
+    if (frac > 0 && corriendo) pct = Math.max(pct, progMax);   // una barra que retrocede desconcierta
+    progMax = pct;
     $('#run-bar').style.width = pct + '%';
     box.setAttribute('aria-valuenow', pct);
   }
@@ -3267,9 +3445,9 @@ async function correr(){
                 firmas:$('#chk-firmas').checked, sellos:$('#chk-sellos').checked};
   corriendo = true; cancelar = false;
   $('#run').disabled = true; $('#run-cancel').hidden = false;
-  $('#run-bar').style.width = '0%';
+  $('#run-bar').style.width = '0%'; progMax = 0;
   const t0 = performance.now();
-  let paginas = 0;
+  let paginas = 0, faseActual = 'clasificar';
   try {
     prog('Preparando el lector de PDF…');
     await libs();
@@ -3284,12 +3462,22 @@ async function correr(){
             ? `${fmtInt(a.duplicados)} archivo${a.duplicados === 1 ? ' repetido se omite' : 's repetidos se omiten'} · empezando…`
             : 'Empezando…', 0);
         }
-        else if (a.tipo === 'pagina'){
+        else if (a.tipo === 'pagina' || a.tipo === 'fase' || a.tipo === 'sub'){
+          // Cada fase avisa su avance: antes, mientras se releían los números difíciles,
+          // el contador se quedaba quieto y parecía congelado aunque estuviera trabajando.
           const ahora = performance.now();
-          if (ahora - ultimoAviso < 250) return;
+          if (a.tipo !== 'fase' && ahora - ultimoAviso < 250) return;
           ultimoAviso = ahora;
           paginas = a.hechas;
-          prog(`Archivo ${fmtInt(Math.min(a.archivos + 1, a.deArchivos))} de ${fmtInt(a.deArchivos)}`
+          if (a.tipo === 'fase') faseActual = a.fase;
+          const que = {
+            clasificar: 'clasificando páginas',
+            ordenes: 'leyendo las órdenes',
+            reintentos: 'releyendo números difíciles',
+            'reintentos-chico': 'último intento con los números difíciles'
+          }[a.tipo === 'pagina' ? 'clasificar' : (a.fase || faseActual)];
+          const detalle = a.tipo === 'sub' ? ` (${fmtInt(a.hechasFase)} de ${fmtInt(a.total)})` : '';
+          prog(`Archivo ${fmtInt(Math.min(a.archivos + 1, a.deArchivos))} de ${fmtInt(a.deArchivos)} · ${que}${detalle}`
              + ` · ${fmtInt(a.hechas)} páginas · ${fmtInt(a.ordenes)} órdenes`
              + ` · lleva ${tiempo((ahora - t0) / 1000)}`, a.avance);
         }
@@ -3325,8 +3513,10 @@ function agrupar(leido){
       // después a una orden del documento base y marcarla Ilegible en vez de perderla.
       ilegibles.push({
         archivo: r.archivo, pagina: r.pagina, cand: r.cand || [], sinColor: !!r.sinColor,
-        agotado: !!r.agotado, ambiguo: r.ambiguo || null,
-        motivo: r.agotado ? 'La página tardó demasiado y se dejó a medias'
+        agotado: !!r.agotado, sinPresupuesto: !!r.sinPresupuesto, ambiguo: r.ambiguo || null, sufijoA: r.sufijoA || null,
+        motivo: r.sufijoA ? `La orden impresa lleva "-A" (una ADEFA, orden distinta): el documento base pide ${r.sufijoA.join(', ')} sin -A, así que no se confirma`
+          : r.sinPresupuesto ? 'No se alcanzó a reintentar: se acabó el tiempo destinado a los reintentos de este archivo'
+          : r.agotado ? 'La página tardó demasiado y se dejó a medias'
           : r.ambiguo ? 'Coinciden dos órdenes del documento base: ' + r.ambiguo.join(' y ')
           : r.sinColor ? 'Escaneo sin color: no se pudo leer el número'
           : (r.cand || []).length ? 'Se leyó ' + r.cand.join(', ') + ', que no está en el documento base'
@@ -3535,6 +3725,18 @@ function construir(leido, pide){
   const usadas = new Set();
   for (const { d, pedidos } of sinHallar){
     const libres = ilegibles.filter(x => !usadas.has(x));
+    // la orden SÍ está en los PDF, pero impresa como ADEFA (-A): duda, no "no encontrada"
+    const conSufijo = libres.filter(x => x.sufijoA && x.sufijoA.includes(d.op));
+    if (conSufijo.length){
+      const motivo = `En ${conSufijo[0].archivo} (pág. ${conSufijo.map(x => x.pagina).slice(0, 4).join(', ')}${conSufijo.length > 4 ? '…' : ''}) aparece impresa como ${d.op}-A, una ADEFA: orden distinta de la que pide el documento base. No se confirma; revisa si corresponde.`;
+      conSufijo.forEach(x => usadas.add(x));
+      pedidos.forEach(pedido => nRows.push({
+        op: d.op, ej: d.ejercicio || '—', file: conSufijo[0].archivo, pag: String(conSufijo[0].pagina),
+        lines: [], total: 0, montoNum: pedido, sheet: {blurTable:true, blurFoot:true},
+        r: { op: ['rev', motivo], ej: NA_REV, monto: NA_REV, firmas: NA_REV, sellos: NA_REV }
+      }));
+      continue;
+    }
     const pista = pistaDe(d.op, libres, ordenesBase, mudos);
     if (!pista){ pedidos.forEach(m => nNotFound.push([d.op, d.ejercicio || '—', m])); continue; }
     usadas.add(pista.pagina);

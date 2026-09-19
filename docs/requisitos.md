@@ -846,6 +846,71 @@ nombre: un archivo llamado como una sola orden resultó traer cuatro.
 - Reducir el recorte del número (en vez de la página entera) antes de leerlo: no
   recupera el número tachado. Lo que sirve es reducir la página completa.
 
+## El caso Caso C: ADEFA y original en el mismo PDF (2026-09-18)
+
+Es un formato distinto de todo lo visto y fue lo que destapó un falso positivo.
+
+**Cómo es el documento.** Cada PDF empieza con un **reporte de SAP** horizontal (la lista
+de los números de documento, los mismos que trae el nombre del archivo, con la clave
+`ADEFAS27012026`), luego la transferencia del banco, y luego las hojas de orden de pago
+del Gobierno del Estado. **Conviven la orden original y su ADEFA en el mismo PDF**:
+
+| | ADEFA | Original |
+|---|---|---|
+| Impresión del número | `5100000101 - A` en la primera hoja | `5100000101` |
+| Fecha de expedición | 05/01/2026 | 19/12/2025 – 31/12/2025 |
+| Pie | "Página 3 / 711" | "Página 2 / 003" |
+| Caja del número | **3 renglones** (con "Doc. Logístico" y "Orden de Compra") | **2 renglones** |
+
+**Lo que hay que saber de las ADEFA:** solo la **primera hoja** imprime el "-A"; las hojas
+de continuación traen el mismo número **limpio**. Por eso una hoja limpia no prueba que sea
+la original.
+
+**El falso positivo.** El OCR a veces suelta el sufijo: con una zona leía `5100000101-A` y
+con la vecina `5100000101`. Al confirmar, tomaba la lectura limpia y confirmaba la orden
+sin -A —justo lo que el usuario vio en otra computadora—. Comprobado a ojo: las hojas 41 y
+119 de uno de los archivos imprimen `- A` y se confirmaban como la orden sin -A; solo el
+año ("2026, se esperaba 2025") las delataba, por suerte.
+
+**Investigación.** Búsqueda de técnicas para leer texto pegado a las rayas de una tabla: la
+documentación de Tesseract recomienda ~10 px de borde blanco y no recortar justo; el
+seguimiento de errores de "caracteres perdidos" advierte que solo borrar las rayas
+cambia cuáles caracteres se pierden; lo estándar es aislar la celda con las propias rayas
+(morfología) y leerla como una línea. **Lo probé y no funcionó aquí:** la detección de rayas
+falla justo en las hojas con "- A" (rayas finas y claras) y el OCR lee ceros como "A" en
+esos recortes.
+
+**Lo que sí funcionó** salió de releer mis propias pruebas, cuyo criterio de éxito solo
+contaba números completos y escondía los textos crudos: un recorte de solo la **cola del
+renglón** muestra la A (`27 -A`, `15 - A`, `92 - A`) aunque el número completo no la
+traiga. En 16 hojas verificadas a ojo: 8 con "- A", una A en al menos una variante; 8 sin
+él, en ninguna.
+
+**Lo que se probó y NO sirvió:**
+- Una cola a la altura del segundo renglón (amp 8): en la caja de 3 renglones cae sobre
+  "Doc. Logístico" y lee "A"/"AA" en hojas limpias (5 falsos avisos en 11).
+- Las colas del primer renglón en la caja de **2 renglones**: ahí ese renglón es la
+  etiqueta "Orden de Pago" y el OCR saca una A de ella; marcó como ADEFA 3 órdenes limpias
+  del caso grande. Solo se usan con la caja de 3 renglones.
+- Descartar todas las hojas de una orden si una lleva "-A": dejaba 1 de 233, porque las
+  originales van pegadas a su ADEFA. Hay que distinguir por la **forma de la caja**.
+- Unir en el extractor la "-" de la raya y la "A" de "ORIGINAL" a través de un salto de
+  línea: inventaba un "-A" en números limpios.
+
+**Regla final.** Una hoja con "-A" no confirma la orden sin -A y queda en **Revisar**. Un
+número limpio se confirma solo si (1) no lleva "-A" en la cola del renglón (caja de 3
+renglones), (2) ninguna hoja **seguida** de la misma forma de caja la lleva. Las hojas de
+continuación de una ADEFA con la misma forma que su primera hoja quedan bloqueadas.
+
+**Medido, Caso C (dos primeros archivos, 548 páginas):** en la página, **8 Correcto**
+(las 7 originales con sus montos exactos y la hoja 156), **6 Revisar** (ADEFA con su motivo)
+y **0 Incorrecto**. Las hojas confirmadas se revisaron a ojo una por una.
+
+**Sin resolver:** una ADEFA de una sola hoja cuyo "-A" el OCR pierda en todas las variantes
+sigue pudiendo confirmarse (riesgo residual). Y no se sabe si TODA hoja con caja de 3
+renglones es ADEFA: si lo fuera, se podría exigir la caja de 2 renglones y cerrar ese
+hueco por completo. **Pregunta pendiente al usuario.**
+
 ## Pendiente
 
 Estado al 2026-09-17 (v0.10.0):
@@ -854,7 +919,7 @@ Estado al 2026-09-17 (v0.10.0):
 - **Etapa 2, Verificar órdenes:** interfaz lista con demostración; todavía no procesa PDFs.
 - **Fase 0: terminada.** La lectura de PDFs reales está medida y resuelta (arriba).
 
-Al 2026-09-18 (v0.24.0), después de la primera prueba del usuario con carpetas reales.
+Al 2026-09-18 (v0.25.0), después de que el usuario probó Caso C.
 
 **Lo que él pidió dejar para el final: firmas y sellos.** Sus palabras: "eso es muy
 difícil todavía y sería desperdiciar tiempo". Lo que importa es orden de pago, ejercicio

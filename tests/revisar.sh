@@ -26,5 +26,12 @@ if git grep -nIE "(BOMBEROS|Bomberos|CRUZ ROJA|Cruz Roja|Caborca)" -- . ':!tests
   aviso "hay nombres de entidad reales en el repo (usar Caso A/B/C)"
 fi
 
+# números de orden reales: los ficticios son 19000000xx / 51000000xx. Cualquier otro de 10
+# dígitos que empiece con 19 o 51 es sospechoso (se me coló en la documentación).
+if git grep -nIE '(^|[^0-9])(19|51)[0-9]{8}([^0-9]|$)' -- . ':!tests/revisar.sh' ':!fase0/*' 2>/dev/null | grep -vE '(19|51)0000[0-9]{4}' | grep -q .; then
+  git grep -nIE '(^|[^0-9])(19|51)[0-9]{8}([^0-9]|$)' -- . ':!tests/revisar.sh' ':!fase0/*' | grep -vE '(19|51)0000[0-9]{4}' | head -3
+  aviso "hay números de orden que parecen reales (usar 19000000xx / 51000000xx)"
+fi
+
 if [ "$fallas" -eq 0 ]; then echo "todo en orden"; else echo "$fallas problema(s)"; fi
 exit $((fallas > 0))
