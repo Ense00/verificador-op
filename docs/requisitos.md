@@ -808,6 +808,19 @@ segundos por orden, uno detrás de otro, buscando rótulos de firma. En una revi
 
 Cero falsos positivos en todas las corridas, y **una orden más que antes**.
 
+**Y en la página, no solo en el motor** (mismo caso, revisando orden, ejercicio y monto):
+
+| | |
+|---|---|
+| Tiempo | **1 min 50 s** |
+| PDFs | 36 revisados de 67 · **31 repetidos omitidos** |
+| Páginas | 414 (de 1,123 que había) |
+| Resultado | **63 Correcto · 0 Incorrecto · 1 Revisar · 2 Ilegible** |
+| Otros | 7 no encontradas · 1 a revisión manual · **11 renombrados** |
+
+Los renombres salen con las órdenes que el PDF trae de verdad, que no son las del
+nombre: un archivo llamado como una sola orden resultó traer cuatro.
+
 **Lectura del número**
 
 - **Rayas de pluma NEGRA encima del dígito** (el caso sin arreglo por color, porque el

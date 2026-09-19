@@ -2169,7 +2169,9 @@ function renderStatic(){
   $('#s-files').textContent = nArch ? `${fmtInt(nArch)} PDF${nArch === 1 ? '' : 's'}` : state.demo ? `${fmtInt(TOTAL_FILES)} archivos · ${fmtInt(TOTAL_PAGES)} págs.` : 'Sin elegir';
   $('#s-excel').textContent = real.base ? `${fmtInt(real.base.ordenes.length)} órdenes` : state.demo ? `${fmtInt(rows.length)} filas` : 'Sin elegir';
   $('#s-pages').textContent = real.on
-    ? `${fmtInt(real.paginas)} págs. · ${fmtInt(nArch)} PDFs · ${fmtInt(real.ordenes)} órdenes halladas${real.sinIdentificar ? ` · ${fmtInt(real.sinIdentificar)} sin identificar` : ''}`
+    ? `${fmtInt(nArch - dups.length)} de ${fmtInt(nArch)} PDFs revisados${dups.length ? ` · ${fmtInt(dups.length)} repetidos omitidos` : ''}`
+      + ` · ${fmtInt(real.paginas)} págs. · ${fmtInt(real.ordenes)} órdenes halladas`
+      + `${real.sinIdentificar ? ` · ${fmtInt(real.sinIdentificar)} sin identificar` : ''}`
     : `${fmtInt(TOTAL_PAGES)} págs. · ${fmtInt(TOTAL_FILES)} PDFs · ${fmtInt(dupPages)} omitidas`;
 }
 function partSum(){
