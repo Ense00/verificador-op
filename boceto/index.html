@@ -103,20 +103,23 @@ button,input,select,textarea{font:inherit;color:inherit}
 .aviso b{color:inherit}
 /* ---------- Visor de la página escaneada ---------- */
 .visor{position:fixed;inset:0;background:rgba(10,14,26,.72);display:grid;place-items:center;z-index:20;padding:16px}
-.visorcaja{background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.35);display:flex;flex-direction:column;max-width:min(1000px,100%);max-height:100%;min-width:0}
+.visorcaja{background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.35);display:flex;flex-direction:column;width:min(1100px,100%);height:calc(100vh - 32px);height:calc(100dvh - 32px);min-width:0;overflow:hidden}
 .visorbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line-soft)}
 .visorbar b{font-family:var(--mono);font-size:14px}
 .visorbar .hint{margin-right:auto}
-.visorpag{flex:1;min-height:0;overflow:auto;padding:12px;background:var(--desk);display:grid;place-items:center}
-.visorpag canvas{background:#fff;box-shadow:0 4px 16px rgba(0,0,0,.25);display:block}
+/* margin:auto y no place-items:center: centrar con grid recorta el lado izquierdo y el
+   de arriba de lo que desborda, y esa parte ya no se puede alcanzar con el scroll. */
+.visorpag{flex:1;min-height:0;overflow:auto;padding:12px;background:var(--desk);display:flex;overscroll-behavior:contain}
+.visorpag canvas{background:#fff;box-shadow:0 4px 16px rgba(0,0,0,.25);display:block;margin:auto;flex:none;touch-action:none;user-select:none;-webkit-user-drag:none}
 /* Ajustada: la hoja entera cabe en lo que se ve. Es lo que se muestra al abrir.
    El tope va en unidades de ventana y no en %: un % se mide contra el alto del padre,
    que aquí depende del propio contenido, así que el navegador lo ignoraba y la hoja
    salía a tamaño completo con la mitad fuera de la pantalla. Los 120 px descontados son
    la barra de arriba más los márgenes. */
-.visorpag canvas.ajustada{max-width:100%;max-height:calc(100vh - 120px);max-height:calc(100dvh - 120px);width:auto;height:auto;cursor:zoom-in}
-/* Tamaño real: para leer el número de cerca; el recuadro se desplaza. */
-.visorpag canvas.grande{width:auto;height:auto;cursor:zoom-out}
+.visorpag canvas.ajustada{max-width:100%;max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px);width:auto;height:auto;cursor:zoom-in}
+/* Tamaño real: para leer el número de cerca. Se arrastra con el ratón para recorrerla. */
+.visorpag canvas.grande{width:auto;height:auto;max-width:none;max-height:none;cursor:grab}
+.visorpag.arrastrando canvas{cursor:grabbing}
 .field{display:flex;flex-direction:column;gap:4px}
 .field label{font-size:13px;font-weight:500}
 select{padding:6px 10px;border:1px solid var(--line);border-radius:var(--r);background:var(--sunken)}
@@ -459,7 +462,7 @@ table.parts td{vertical-align:middle}
   <header class="top">
     <div class="brand">
       <h1>Verificador de Órdenes de Pago</h1>
-      <span class="stamp">v0.24.3</span>
+      <span class="stamp">v0.24.4</span>
     </div>
     <div class="topright">
     <div class="toprow">
@@ -819,7 +822,13 @@ table.parts td{vertical-align:middle}
 
           <h4>Vista previa</h4>
           <p>Al seleccionar una fila, a la derecha aparece el detalle: el resultado de cada dato con su explicación y una página con las <b>zonas detectadas</b> marcadas con el color de su estado (número, año, monto encontrado, firmas y sellos).</p>
-          <p>Con <b>Abrir página</b> ves el escaneo de verdad, tal cual está en el PDF. Se abre <b>ajustado a la pantalla</b>, para que veas la hoja completa de un vistazo; con <b>Tamaño real</b> (o haciendo clic sobre la hoja) te acercas a leer el número o los importes, y el recuadro se desplaza. Cambias de página con los botones o con <kbd>←</kbd> <kbd>→</kbd>, y cierras con <kbd>Esc</kbd>.</p>
+          <p>Con <b>Abrir página</b> ves el escaneo de verdad, tal cual está en el PDF. Se abre <b>ajustado a la pantalla</b>, para que veas la hoja completa de un vistazo.</p>
+          <ul>
+            <li><b>Acercar:</b> haz clic <b>en el punto que quieres ver</b> (por ejemplo, el número de orden arriba a la derecha) y se acerca justo ahí. El botón <b>Tamaño real</b> hace lo mismo hacia el centro.</li>
+            <li><b>Recorrer la hoja ampliada:</b> arrástrala con el ratón, usa la rueda o las flechas <kbd>←</kbd> <kbd>↑</kbd> <kbd>→</kbd> <kbd>↓</kbd>. Se puede llegar a las cuatro esquinas.</li>
+            <li><b>Volver:</b> un clic sin mover (o <b>Ajustar a la pantalla</b>) regresa a la hoja completa.</li>
+            <li>Con la hoja ajustada, <kbd>←</kbd> <kbd>→</kbd> cambian de página; <kbd>Esc</kbd> cierra.</li>
+          </ul>
 
           <h4>Otras pestañas</h4>
           <table class="gtable">
@@ -3563,7 +3572,7 @@ function construir(leido, pide){
 /* ---------- Ver la página escaneada ----------
    La verificación dice qué pasó; esto deja comprobarlo sin salir de la página, con el
    PDF que ya está cargado (nunca sale de la máquina). */
-const visor = { pdf: null, archivo: null, pagina: 1, total: 1, grande: false };
+const visor = { pdf: null, archivo: null, pagina: 1, total: 1, grande: false, arrastro: false };
 async function abrirPaginaDe(fila){
   if (!fila) return;
   const f = real.archivos.find(x => x.name === fila.file);
@@ -3604,16 +3613,46 @@ async function verPagina(n){
   $('#visor-prev').disabled = visor.pagina <= 1;
   $('#visor-next').disabled = visor.pagina >= visor.total;
 }
-function ajustarVisor(grande){
+/* `foco` = punto de la hoja (0-1 en cada eje) que debe quedar en el centro de lo que se
+   ve al acercar. Sin él, al pulsar el botón se acerca al centro de la hoja. */
+function ajustarVisor(grande, foco){
   visor.grande = grande;
-  const c = $('#visor-canvas');
+  const c = $('#visor-canvas'), area = $('.visorpag');
   c.classList.toggle('ajustada', !grande);
   c.classList.toggle('grande', grande);
   const b = $('#visor-zoom');
   b.textContent = grande ? 'Ajustar a la pantalla' : 'Tamaño real';
   b.setAttribute('aria-pressed', String(grande));
-  if (!grande) $('.visorpag').scrollTo(0, 0);
+  if (!grande){ area.scrollTo(0, 0); return; }
+  const f = foco || { x: 0.5, y: 0.3 };   // el número de orden está arriba a la derecha
+  area.scrollLeft = c.offsetLeft + f.x * c.offsetWidth - area.clientWidth / 2;
+  area.scrollTop = c.offsetTop + f.y * c.offsetHeight - area.clientHeight / 2;
 }
+
+/* Arrastrar para recorrer la hoja ampliada. Un clic sin mover sigue alternando el zoom. */
+(function arrastreVisor(){
+  const area = $('.visorpag');
+  let d = null;
+  area.addEventListener('pointerdown', e => {
+    if (e.button !== 0 || e.target.id !== 'visor-canvas' || !visor.grande) return;
+    d = { x: e.clientX, y: e.clientY, l: area.scrollLeft, t: area.scrollTop, movio: false };
+    try { area.setPointerCapture(e.pointerId); } catch (err) {}   // sigue el arrastre aunque el cursor salga de la hoja
+  });
+  area.addEventListener('pointermove', e => {
+    if (!d) return;
+    const dx = e.clientX - d.x, dy = e.clientY - d.y;
+    if (!d.movio && Math.hypot(dx, dy) > 4){ d.movio = true; area.classList.add('arrastrando'); }
+    if (d.movio){ area.scrollLeft = d.l - dx; area.scrollTop = d.t - dy; }
+  });
+  const soltar = e => {
+    if (!d) return;
+    if (d.movio) visor.arrastro = true;          // ese clic fue un arrastre, no un cambio de zoom
+    area.classList.remove('arrastrando');
+    d = null;
+  };
+  area.addEventListener('pointerup', soltar);
+  area.addEventListener('pointercancel', soltar);
+})();
 function cerrarVisor(){ $('#visor').hidden = true; }
 
 /* ---------- Carpeta de PDFs ya renombrados ----------
@@ -3654,11 +3693,27 @@ document.addEventListener('click', e => {
   if (e.target.closest('#visor-cerrar') || e.target.id === 'visor'){ cerrarVisor(); return; }
   if (e.target.closest('#visor-prev')){ verPagina(visor.pagina - 1); return; }
   if (e.target.closest('#visor-next')){ verPagina(visor.pagina + 1); return; }
-  if (e.target.closest('#visor-zoom') || e.target.id === 'visor-canvas'){ ajustarVisor(!visor.grande); return; }
+  if (e.target.closest('#visor-zoom')){ ajustarVisor(!visor.grande); return; }
+  if (e.target.id === 'visor-canvas'){
+    if (visor.arrastro){ visor.arrastro = false; return; }
+    if (visor.grande){ ajustarVisor(false); return; }
+    const r = e.target.getBoundingClientRect();
+    ajustarVisor(true, { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height });
+    return;
+  }
 });
 document.addEventListener('keydown', e => {
   if ($('#visor').hidden) return;
   if (e.key === 'Escape') cerrarVisor();
+  if (visor.grande && e.key.startsWith('Arrow')){
+    e.preventDefault();
+    const a = $('.visorpag'), paso = 80;
+    if (e.key === 'ArrowLeft') a.scrollLeft -= paso;
+    if (e.key === 'ArrowRight') a.scrollLeft += paso;
+    if (e.key === 'ArrowUp') a.scrollTop -= paso;
+    if (e.key === 'ArrowDown') a.scrollTop += paso;
+    return;
+  }
   if (e.key === 'ArrowLeft') verPagina(visor.pagina - 1);
   if (e.key === 'ArrowRight') verPagina(visor.pagina + 1);
 });

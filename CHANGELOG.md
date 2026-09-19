@@ -2,6 +2,18 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.24.4 — 2026-09-18
+
+- **La lupa del visor ya se puede mover.** Quedaba fija en una esquina, sin forma de
+  recorrer la hoja. Eran dos causas: la caja del visor no tenía alto propio (medía 2,046 px
+  en una ventana de 682), así que el área con scroll nunca desbordaba y lo que se salía era
+  la caja entera; y el centrado con `place-items` recorta el lado izquierdo y el de arriba
+  de lo que desborda, por lo que esa parte era inalcanzable (la hoja empezaba en −110 px).
+- **Se acerca al punto donde haces clic** (el número de orden, unos importes), no a una
+  posición fija. **Se arrastra** con el ratón, y también sirven la rueda y las flechas. Un
+  clic sin mover vuelve a la hoja completa; un arrastre no lo cierra por accidente.
+- Medido: se llega a las cuatro esquinas, y el arrastre mueve exactamente lo pedido.
+
 ## v0.24.3 — 2026-09-18
 
 - **El sello de versión de la página se había quedado en v0.23.0** mientras el historial
