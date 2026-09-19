@@ -763,6 +763,76 @@ Las dos órdenes que salen "Correcto" con todo marcado y las seis que salen "Inc
 por firmas se revisaron a ojo: en ese caso el recuadro de *Páguese* viene de verdad sin
 firmar, así que "solo 2 de 3" es correcto.
 
+## Lo que salió de probarlo con carpetas reales (2026-09-18)
+
+El usuario corrió varios documentos base con sus carpetas y trajo una lista de fallas.
+Casi todas venían de **hacer el trabajo en el orden equivocado**, no de leer mal.
+
+**Primero medir.** Antes de tocar nada, se cronometró cada etapa sobre 62 páginas:
+
+| Etapa | Costo | Dónde corre |
+|---|---|---|
+| Buscar los rótulos de firma | **2.2 s por orden** | en serie |
+| Dibujar la página | 137 ms por página | en serie |
+| OCR del encabezado | 269 ms por página | repartido entre 6 trabajadores |
+| Sellos y tinta de firmas | 154 ms por orden | en serie |
+
+Con eso quedó claro que "se queda congelado en ciertas OP" no era un cuelgue: eran 2.2
+segundos por orden, uno detrás de otro, buscando rótulos de firma. En una revisión de
+1,000 órdenes eso solo son **37 minutos**.
+
+**Lo que se cambió**
+
+1. **Los archivos repetidos se apartan antes de abrirlos**, por huella de contenido
+   (tamaño + los primeros y últimos 256 KB; no se lee el archivo entero). En el caso
+   grande **31 de 67 PDFs eran copias byte a byte** —comprobado con SHA-256 completo—,
+   así que de 1,123 páginas solo 414 eran distintas.
+2. **Las páginas se clasifican a baja resolución** (100 dpi) leyendo solo el
+   encabezado; únicamente las que son orden de pago se vuelven a dibujar en grande. El
+   soporte deja de analizarse.
+3. **Los rótulos de firma se buscan una vez por archivo**, no una por orden, y sobre un
+   recorte de 900 px.
+4. **Los parámetros del OCR ya no se reescriben en cada zona**: cambiarlos reinicia su
+   diccionario, y en la pasada de clasificación todas las páginas usan los mismos.
+5. **La página siguiente se decodifica mientras se lee la actual.**
+6. **Ninguna página detiene la revisión:** si una tarda más de 45 s se deja a medias, se
+   marca y se sigue.
+
+**Resultado medido, caso Caso A (67 PDF, 1,123 páginas, 73 órdenes en el documento base)**
+
+| Qué se revisa | Antes | Ahora | Órdenes |
+|---|---|---|---|
+| Solo orden de pago | — | **82 s** | 64 |
+| Orden + ejercicio + monto | — | **2.2 min** | **65** |
+| Todo, con firmas y sellos | 9.4 min | ver abajo | — |
+
+Cero falsos positivos en todas las corridas, y **una orden más que antes**.
+
+**Lectura del número**
+
+- **Rayas de pluma NEGRA encima del dígito** (el caso sin arreglo por color, porque el
+  dígito también es negro): última vuelta sobre la **misma página decodificada en
+  chico**. Reducir adelgaza la raya antes que el dígito. Salió de un accidente —al
+  probar el decodificado reducido apareció leída una orden que nunca se leía— y recupera
+  justo ese caso. Solo corre sobre lo que ya falló todo lo demás.
+- **Los importes se comprueban solos:** en la tabla de la orden un renglón es la suma de
+  los demás. Si no cuadra, falta alguno por leer, así que se relee una zona más ancha; y
+  si aun así no cuadra, el monto sale **Ilegible** en vez de acusar un "Incorrecto" que
+  era de la lectura, no del papel. Medido: sin esto, un renglón de $469.00 que sí estaba
+  salía marcado como incorrecto.
+- **Una orden que no se pudo leer ya no se pierde.** Si alguna página sin identificar
+  parece ser esa orden —por el nombre del archivo, o porque lo leído se le parece a dos
+  caracteres de distancia y a ninguna otra— la fila sale **Ilegible** con el archivo y la
+  página donde está. Nunca Correcto: la atribución es una pista, no una confirmación.
+
+**Lo que se probó y NO sirvió** (queda escrito para no repetirlo)
+
+- Clasificar con PSM 7 o con un recorte de encabezado más chico: **rompe la
+  clasificación entera** (414 páginas pasaron a "soporte"). El encabezado necesita el
+  recorte de 0.10 de alto a doble tamaño y PSM 4.
+- Reducir el recorte del número (en vez de la página entera) antes de leerlo: no
+  recupera el número tachado. Lo que sirve es reducir la página completa.
+
 ## Pendiente
 
 Estado al 2026-09-17 (v0.10.0):
@@ -771,17 +841,29 @@ Estado al 2026-09-17 (v0.10.0):
 - **Etapa 2, Verificar órdenes:** interfaz lista con demostración; todavía no procesa PDFs.
 - **Fase 0: terminada.** La lectura de PDFs reales está medida y resuelta (arriba).
 
-Al 2026-09-18 (v0.23.0) la etapa 2 ya verifica PDFs reales. Lo que sigue:
+Al 2026-09-18 (v0.24.0), después de la primera prueba del usuario con carpetas reales.
 
-1. **Probarlo el usuario** con sus carpetas: es lo único que puede decir si el ritmo y
-   los estados sirven en el trabajo de verdad.
-2. **El caso Caso C (~8,600 páginas) nunca se ha corrido entero.** Es la prueba de
-   resistencia: memoria, tiempo y la posibilidad de cancelar a medias.
-3. **Tres órdenes del Caso A siguen sin leerse** por tener la pluma encima de los
-   dígitos. El barrido de parámetros no las alcanzó.
-4. **El conteo de sellos no es de fiar** cuando se traslapan; por eso solo se informa si
-   hay o no hay, que es lo que pidió el usuario.
-5. **Sin medir todavía:** una ADEFA real (no hubo ninguna en los documentos base
+**Lo que él pidió dejar para el final: firmas y sellos.** Sus palabras: "eso es muy
+difícil todavía y sería desperdiciar tiempo". Lo que importa es orden de pago, ejercicio
+y monto. Queda anotado lo que reportó, para cuando se retome:
+
+1. **Falso positivo de firma:** un sello encima del lugar de la firma se cuenta como
+   firma. La señal de "tinta fina de color" (pensada para la pluma DEBAJO de un sello)
+   recoge también el borde suavizado del propio sello. La idea sin probar: contar solo la
+   tinta fina que **no toca** tinta gruesa, porque el borde de un trazo grueso siempre la
+   toca y una pluma delgada no.
+2. **Dice 3 firmas donde hay 2.** Ya se puso una defensa: si no se localizan los tres
+   rótulos se usan las coordenadas fijas, para no decir "2 de 2, correcto" en un formato
+   que lleva tres.
+3. El conteo de sellos sigue sin ser de fiar cuando se traslapan; por eso solo se informa
+   si hay o no hay, que es lo que él eligió.
+
+**Lo demás que sigue pendiente**
+
+4. **El caso Caso C (~8,600 páginas) nunca se ha corrido entero.** Es la prueba de
+   resistencia: memoria, tiempo y cancelar a medias.
+5. **Queda una página de orden sin identificar** en el caso Caso A, y cuatro órdenes del
+   documento base cuyo PDF no aparece por ningún lado (su archivo resultó ser copia de
+   otro).
+6. **Sin medir todavía:** una ADEFA real (no hubo ninguna en los documentos base
    revisados) y páginas giradas 90°.
-6. **Falta la descarga de la carpeta de PDFs renombrados** (botón "Descargar carpeta"):
-   hoy sigue diciendo "Próximamente".

@@ -2,6 +2,44 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.24.0 — 2026-09-18
+
+Primera prueba del usuario con varios documentos base y sus carpetas. Casi todas las
+fallas que trajo venían de **hacer el trabajo en el orden equivocado**, no de leer mal.
+Antes de tocar nada se cronometró cada etapa: buscar los rótulos de firma costaba
+**2.2 s por orden y en serie** (en una revisión de 1,000 órdenes, 37 minutos), y dibujar
+cada página otros 137 ms también en serie. Eso era el "se queda congelado".
+
+- **Los archivos repetidos se apartan antes de abrirlos**, por huella de contenido. En
+  el caso grande resultó que **31 de 67 PDFs eran copias byte a byte**: de 1,123 páginas
+  solo 414 eran distintas.
+- **El soporte ya no se analiza.** Las páginas se clasifican a baja resolución leyendo
+  solo el encabezado, y únicamente las que son orden de pago se vuelven a dibujar en
+  grande.
+- **Los rótulos de firma se buscan una vez por archivo**, no una por orden.
+- **Los parámetros del OCR ya no se reescriben en cada zona** (reiniciaban su
+  diccionario) y la página siguiente se decodifica mientras se lee la actual.
+- **Ninguna página detiene la revisión:** si tarda de más se deja a medias y se sigue.
+- **Medido, caso grande (67 PDF, 1,123 páginas, 73 órdenes):** de **9.4 min** a
+  **2.2 min** revisando orden, ejercicio y monto, y **82 s** revisando solo la orden.
+  Cero falsos positivos y **una orden más que antes** (65 de 73).
+- **Números tachados con pluma negra:** última vuelta sobre la misma página decodificada
+  en chico, que adelgaza la raya antes que el dígito. Solo corre sobre lo que ya falló
+  todo lo demás.
+- **Los importes se comprueban solos:** un renglón es la suma de los demás. Si no cuadra
+  se relee una zona más ancha, y si aun así no cuadra el monto sale **Ilegible** en vez
+  de acusar un "Incorrecto" que era de la lectura. Medido: sin esto, un renglón que sí
+  estaba salía marcado como incorrecto.
+- **Una orden que no se pudo leer ya no se pierde:** si alguna página sin identificar
+  parece ser esa orden (por el nombre del archivo o por lo leído), la fila sale Ilegible
+  con dónde está. Nunca Correcto.
+- **Renombres de verdad:** cada PDF con las órdenes que trae, y el botón de carpeta arma
+  el ZIP ya renombrado (los originales no se tocan).
+- **"Abrir página" funciona:** muestra la página escaneada, con anterior y siguiente.
+- **El aviso de firmas y sellos** va arriba de las casillas y como Advertencia.
+- Firmas y sellos quedan para el final por decisión del usuario: lo que importa es
+  orden, ejercicio y monto.
+
 ## v0.23.0 — 2026-09-18
 
 - **La etapa 2 ya verifica de verdad.** Elegir la carpeta de PDFs, elegir el documento

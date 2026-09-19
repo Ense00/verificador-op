@@ -769,7 +769,8 @@ table.parts td{vertical-align:middle}
             <li><b>Formato de la carpeta:</b> ZIP (recomendado), 7z, TAR.GZ o sin comprimir.</li>
           </ul>
           <h4>4 · Verificar</h4>
-          <p>Pulsa <b>Verificar</b>. Debajo del botón verás cuántas páginas lleva y cuánto falta; con <b>Cancelar</b> se detiene y queda en la tabla lo que alcanzó a leerse. Al terminar, la configuración se oculta y queda una línea con lo que elegiste. Con <b>Cambiar configuración</b> la vuelves a abrir.</p>
+          <p>Pulsa <b>Verificar</b>. Debajo del botón verás en qué archivo va, cuántas páginas lleva, cuántas órdenes encontró y cuánto falta; con <b>Cancelar</b> se detiene y queda en la tabla lo que alcanzó a leerse. Al terminar, la configuración se oculta y queda una línea con lo que elegiste. Con <b>Cambiar configuración</b> la vuelves a abrir.</p>
+          <p>La revisión no se atora en una orden difícil: si una página tarda demasiado se deja a medias, se marca y se sigue con las demás.</p>
           <p>No cierres ni cambies de pestaña mientras corre: el trabajo lo hace tu navegador y se va más despacio en segundo plano.</p>
         </section>
 
@@ -801,12 +802,13 @@ table.parts td{vertical-align:middle}
 
           <h4>Vista previa</h4>
           <p>Al seleccionar una fila, a la derecha aparece el detalle: el resultado de cada dato con su explicación y una página con las <b>zonas detectadas</b> marcadas con el color de su estado (número, año, monto encontrado, firmas y sellos).</p>
+          <p>Con <b>Abrir página</b> ves el escaneo de verdad, tal cual está en el PDF, y puedes moverte a la página anterior o siguiente con los botones o con <kbd>←</kbd> <kbd>→</kbd>. Se cierra con <kbd>Esc</kbd>.</p>
 
           <h4>Otras pestañas</h4>
           <table class="gtable">
             <thead><tr><th>Pestaña</th><th>Qué contiene</th></tr></thead>
             <tbody>
-              <tr><td>No encontradas</td><td>Órdenes del documento base (o de la parte elegida) que no aparecen en ningún PDF. Debajo, si las hay, se listan las <b>páginas con forma de orden de pago que no se pudieron identificar</b>, con su archivo, su página y qué pasó: ahí es donde conviene buscar las órdenes que faltan.</td></tr>
+              <tr><td>No encontradas</td><td>Órdenes del documento base (o de la parte elegida) que no aparecen en ningún PDF. Debajo, si las hay, se listan las <b>páginas con forma de orden de pago que no se pudieron identificar</b>, con su archivo, su página y qué pasó: ahí es donde conviene buscar las órdenes que faltan. Cuando una de esas páginas <b>parece ser</b> una orden del documento base —por el nombre del archivo o porque lo leído se le parece— la orden no se da por perdida: aparece en la tabla como <span class="pill ile">Ilegible</span> con la página donde está.</td></tr>
               <tr><td>Revisión manual</td><td>Órdenes que están en dos o más archivos distintos con el mismo ejercicio. Sus archivos van a la carpeta <b>Revisión manual</b>.</td></tr>
               <tr><td>Duplicados omitidos</td><td>Archivos idénticos a otro que no se incluyen en la descarga. Quedan listados como evidencia.</td></tr>
               <tr><td>Renombres</td><td>Archivo original y nombre nuevo. Solo si marcaste "Incluir hoja Renombres".</td></tr>
@@ -842,8 +844,8 @@ table.parts td{vertical-align:middle}
             </tbody>
           </table>
           <p>Cada hoja trae filtros y, arriba, la entidad, el ejercicio, la fecha en que se generó, los conteos y la parte verificada.</p>
-          <h4>Carpeta de archivos · botón Carpeta <span class="soonchip">Próximamente</span></h4>
-          <p>Los PDFs sin duplicados y ya renombrados, más la subcarpeta <b>Revisión manual</b>. Los archivos originales nunca se modifican: los cambios solo existen en la descarga.</p>
+          <h4>Carpeta de archivos · botón Carpeta</h4>
+          <p>Los PDFs sin duplicados y ya renombrados, más la subcarpeta <b>Revisión manual</b>. <b>Los archivos originales nunca se modifican:</b> el renombre solo existe dentro de la descarga. Si la carpeta pasa de 2 GB el navegador no la puede armar; en ese caso descarga el Excel y renombra por partes.</p>
           <h4>Nombres</h4>
           <ul>
             <li>Excel: <code>Tabla ｜ Entidad ｜ 2021 ｜ 16-09-2026 ｜ 17-54.xlsx</code></li>
@@ -874,7 +876,7 @@ table.parts td{vertical-align:middle}
           </ul>
           <h4>Duplicados</h4>
           <ol>
-            <li><b>Archivo idéntico:</b> se omite y queda en <b>Duplicados omitidos</b>.</li>
+            <li><b>Archivo idéntico:</b> se reconoce <b>antes de abrirlo</b>, comparando su contenido y no su nombre; se omite y queda en <b>Duplicados omitidos</b>. Esto es más común de lo que parece: en una carpeta de prueba, 31 de 67 PDFs eran copias exactas con distinto nombre.</li>
             <li><b>Página repetida o una orden ya verificada como Correcta</b> en otro archivo: no se vuelve a revisar.</li>
             <li><b>La misma orden y ejercicio en archivos distintos:</b> los archivos van a <b>Revisión manual</b> con una nota.</li>
           </ol>
@@ -3343,7 +3345,7 @@ function distancia(a, b){
    dos débiles a propósito: el nombre del archivo (que él dijo usar como guía, nunca
    como dato) y un número leído que se parece mucho. Con una pista la fila sale
    Ilegible —hay que ir a verla— y nunca Correcto. */
-function pistaDe(op, ilegibles, ordenesBase){
+function pistaDe(op, ilegibles, ordenesBase, mudos){
   const porNombre = ilegibles.filter(x => x.archivo.includes(op));
   if (porNombre.length === 1) return { pagina: porNombre[0], por: 'el nombre del archivo' };
   for (const x of ilegibles){
@@ -3353,6 +3355,15 @@ function pistaDe(op, ilegibles, ordenesBase){
     const otras = [...ordenesBase].filter(o => o !== op && cerca.some(c => distancia(c, o) <= 2));
     if (!otras.length) return { pagina: x, por: 'lo leído (' + cerca.join(', ') + ')' };
   }
+  // Un PDF donde no se reconoció NINGUNA orden de pago es sospechoso: la plataforma no
+  // entrega archivos sin orden. Pasa con escaneos en blanco y negro muy sucios, donde
+  // ni el encabezado se lee. Si además se llama como la orden que falta, ahí está.
+  const mudo = (mudos || []).filter(m => m.archivo.includes(op));
+  if (mudo.length === 1) return {
+    pagina: { archivo: mudo[0].archivo, pagina: mudo[0].pagina,
+              motivo: 'En ese archivo no se reconoció ninguna orden de pago (escaneo ilegible)' },
+    por: 'el nombre del archivo'
+  };
   return null;
 }
 
@@ -3474,10 +3485,17 @@ function construir(leido, pide){
   // Las que no se hallaron: si alguna página ilegible parece ser esa orden, va a la
   // tabla como Ilegible (hay que ir a verla); si no hay ninguna pista, no aparece.
   const ordenesBase = new Set(real.base.ordenes);
+  // archivos en los que no se reconoció ninguna orden de pago
+  const porNombreArchivo = new Map();
+  for (const r of leido.paginas){
+    if (!porNombreArchivo.has(r.archivo)) porNombreArchivo.set(r.archivo, { archivo: r.archivo, pagina: r.pagina, ordenes: 0 });
+    if (r.tipo === 'orden') porNombreArchivo.get(r.archivo).ordenes++;
+  }
+  const mudos = [...porNombreArchivo.values()].filter(a => a.ordenes === 0);
   const usadas = new Set();
   for (const { d, pedidos } of sinHallar){
     const libres = ilegibles.filter(x => !usadas.has(x));
-    const pista = pistaDe(d.op, libres, ordenesBase);
+    const pista = pistaDe(d.op, libres, ordenesBase, mudos);
     if (!pista){ pedidos.forEach(m => nNotFound.push([d.op, d.ejercicio || '—', m])); continue; }
     usadas.add(pista.pagina);
     const motivo = `${pista.pagina.motivo}. Se ubicó por ${pista.por}: revísala a mano.`;
