@@ -107,8 +107,16 @@ button,input,select,textarea{font:inherit;color:inherit}
 .visorbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line-soft)}
 .visorbar b{font-family:var(--mono);font-size:14px}
 .visorbar .hint{margin-right:auto}
-.visorpag{overflow:auto;padding:12px;background:var(--desk);display:grid;place-items:center}
-.visorpag canvas{max-width:100%;height:auto;background:#fff;box-shadow:0 4px 16px rgba(0,0,0,.25)}
+.visorpag{flex:1;min-height:0;overflow:auto;padding:12px;background:var(--desk);display:grid;place-items:center}
+.visorpag canvas{background:#fff;box-shadow:0 4px 16px rgba(0,0,0,.25);display:block}
+/* Ajustada: la hoja entera cabe en lo que se ve. Es lo que se muestra al abrir.
+   El tope va en unidades de ventana y no en %: un % se mide contra el alto del padre,
+   que aquí depende del propio contenido, así que el navegador lo ignoraba y la hoja
+   salía a tamaño completo con la mitad fuera de la pantalla. Los 120 px descontados son
+   la barra de arriba más los márgenes. */
+.visorpag canvas.ajustada{max-width:100%;max-height:calc(100vh - 120px);max-height:calc(100dvh - 120px);width:auto;height:auto;cursor:zoom-in}
+/* Tamaño real: para leer el número de cerca; el recuadro se desplaza. */
+.visorpag canvas.grande{width:auto;height:auto;cursor:zoom-out}
 .field{display:flex;flex-direction:column;gap:4px}
 .field label{font-size:13px;font-weight:500}
 select{padding:6px 10px;border:1px solid var(--line);border-radius:var(--r);background:var(--sunken)}
@@ -811,7 +819,7 @@ table.parts td{vertical-align:middle}
 
           <h4>Vista previa</h4>
           <p>Al seleccionar una fila, a la derecha aparece el detalle: el resultado de cada dato con su explicación y una página con las <b>zonas detectadas</b> marcadas con el color de su estado (número, año, monto encontrado, firmas y sellos).</p>
-          <p>Con <b>Abrir página</b> ves el escaneo de verdad, tal cual está en el PDF, y puedes moverte a la página anterior o siguiente con los botones o con <kbd>←</kbd> <kbd>→</kbd>. Se cierra con <kbd>Esc</kbd>.</p>
+          <p>Con <b>Abrir página</b> ves el escaneo de verdad, tal cual está en el PDF. Se abre <b>ajustado a la pantalla</b>, para que veas la hoja completa de un vistazo; con <b>Tamaño real</b> (o haciendo clic sobre la hoja) te acercas a leer el número o los importes, y el recuadro se desplaza. Cambias de página con los botones o con <kbd>←</kbd> <kbd>→</kbd>, y cierras con <kbd>Esc</kbd>.</p>
 
           <h4>Otras pestañas</h4>
           <table class="gtable">
@@ -915,6 +923,7 @@ table.parts td{vertical-align:middle}
     <div class="visorbar">
       <b id="visor-tit"></b>
       <span class="hint" id="visor-info"></span>
+      <button type="button" class="btn small ghost" id="visor-zoom" aria-pressed="false">Tamaño real</button>
       <button type="button" class="btn small ghost" id="visor-prev">&lsaquo; Anterior</button>
       <button type="button" class="btn small ghost" id="visor-next">Siguiente &rsaquo;</button>
       <button type="button" class="btn small" id="visor-cerrar">Cerrar</button>
@@ -3554,7 +3563,7 @@ function construir(leido, pide){
 /* ---------- Ver la página escaneada ----------
    La verificación dice qué pasó; esto deja comprobarlo sin salir de la página, con el
    PDF que ya está cargado (nunca sale de la máquina). */
-const visor = { pdf: null, archivo: null, pagina: 1, total: 1 };
+const visor = { pdf: null, archivo: null, pagina: 1, total: 1, grande: false };
 async function abrirPaginaDe(fila){
   if (!fila) return;
   const f = real.archivos.find(x => x.name === fila.file);
@@ -3582,15 +3591,28 @@ async function verPagina(n){
   visor.pagina = Math.max(1, Math.min(visor.total, n));
   const page = await visor.pdf.getPage(visor.pagina);
   const base = page.getViewport({ scale: 1 });
-  const vp = page.getViewport({ scale: Math.min(2, 1000 / base.width) });
+  // Se dibuja con detalle (≈1500 px de ancho) para que acercarse sirva de algo, pero se
+  // muestra ajustada a la pantalla: antes salía a tamaño completo y solo se veía la mitad.
+  const vp = page.getViewport({ scale: Math.min(2.5, 1500 / base.width) });
   const c = $('#visor-canvas'), cx = c.getContext('2d');
   c.width = Math.round(vp.width); c.height = Math.round(vp.height);
   cx.fillStyle = '#fff'; cx.fillRect(0, 0, c.width, c.height);
   await page.render({ canvasContext: cx, viewport: vp }).promise;
   page.cleanup();
+  ajustarVisor(false);
   $('#visor-info').textContent = `${visor.archivo} · página ${visor.pagina} de ${visor.total}`;
   $('#visor-prev').disabled = visor.pagina <= 1;
   $('#visor-next').disabled = visor.pagina >= visor.total;
+}
+function ajustarVisor(grande){
+  visor.grande = grande;
+  const c = $('#visor-canvas');
+  c.classList.toggle('ajustada', !grande);
+  c.classList.toggle('grande', grande);
+  const b = $('#visor-zoom');
+  b.textContent = grande ? 'Ajustar a la pantalla' : 'Tamaño real';
+  b.setAttribute('aria-pressed', String(grande));
+  if (!grande) $('.visorpag').scrollTo(0, 0);
 }
 function cerrarVisor(){ $('#visor').hidden = true; }
 
@@ -3632,6 +3654,7 @@ document.addEventListener('click', e => {
   if (e.target.closest('#visor-cerrar') || e.target.id === 'visor'){ cerrarVisor(); return; }
   if (e.target.closest('#visor-prev')){ verPagina(visor.pagina - 1); return; }
   if (e.target.closest('#visor-next')){ verPagina(visor.pagina + 1); return; }
+  if (e.target.closest('#visor-zoom') || e.target.id === 'visor-canvas'){ ajustarVisor(!visor.grande); return; }
 });
 document.addEventListener('keydown', e => {
   if ($('#visor').hidden) return;

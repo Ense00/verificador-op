@@ -2,6 +2,16 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.24.2 — 2026-09-18
+
+- **"Abrir página" ya abre la hoja ajustada a la pantalla.** Salía a tamaño completo y
+  solo se veía la mitad: el tope de altura estaba en porcentaje, que se mide contra el
+  alto del padre, y ese alto dependía del propio contenido, así que el navegador lo
+  ignoraba. Ahora el tope va en unidades de ventana.
+- Botón **Tamaño real** (o clic sobre la hoja) para acercarse a leer el número o los
+  importes, y volver a ajustar. La página se dibuja con más detalle (≈1500 px) para que
+  acercarse sirva de algo.
+
 ## v0.24.1 — 2026-09-18
 
 - **Fuera la estimación de "cuánto falta"**, que él describió como "muy variable, casi
