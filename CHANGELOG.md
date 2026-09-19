@@ -2,6 +2,23 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.26.1 — 2026-09-19
+
+- **"-A" falso en órdenes que no la traen.** La "cola del renglón" marcaba ADEFA con una sola
+  "A" en una sola variante, y las rayas de pluma que cruzan la caja se leen como "A" (71
+  hojas en la corrida del usuario, ninguna imprime "-A"). Ahora hacen falta **2 de las 3
+  variantes con "A", o una que lea la A con su guion**. Medido: una ADEFA real da 3 de 3 y
+  una con "-A" explícito; las hojas normales, 0 de 3. La caja de 3 renglones NO significa
+  ADEFA (aclarado por el usuario): esa suposición de la v0.25 era falsa.
+- **Un solo importe leído ya no es una lectura completa.** Con un solo valor se daba por
+  completa y se acusaba "Incorrecto" ("el más cercano es el IVA"). Ahora solo cuenta si ese
+  valor salió impreso 3 veces (Monto, Importe y Neto a pagar); si no, Ilegible, y se relee
+  con la zona ancha. Medido en la muestra: una acusación falsa pasó a Ilegible; Caso B sin
+  cambio (8 de 8 Correcto).
+- **Sigue pendiente** (medido, sin arreglar): páginas cuyo número está cruzado por rayas de
+  pluma no se resuelven ni en 40 intentos, y en este formato la tabla de montos casi nunca se
+  lee completa.
+
 ## v0.26.0 — 2026-09-19
 
 **Falsos positivos de número**, lo que más le importa al usuario. Los encontró él con una

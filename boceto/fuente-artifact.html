@@ -457,7 +457,7 @@ table.parts td{vertical-align:middle}
   <header class="top">
     <div class="brand">
       <h1>Verificador de Órdenes de Pago</h1>
-      <span class="stamp">v0.26.0</span>
+      <span class="stamp">v0.26.1</span>
     </div>
     <div class="topright">
     <div class="toprow">
@@ -1523,6 +1523,13 @@ const ZONA_HOJA_2 = { fx: 0.62, fy: 0.030, fw: 0.36, fh: 0.060, amp: 2, psm: '4'
 const RE_MONTO = /\d{1,3}(?:,\d{3})*\.\d{2}/g;
 /* La tabla de importes trae los renglones y su total: si el mayor es la suma de los
    demás, lo leído está completo. Es la única comprobación que el propio papel permite. */
+/* Cuántas veces sale impreso el importe que más se repite (Monto, Importe y Neto a pagar
+   suelen ser el mismo). */
+function repeticiones(lista){
+  const c = {}; let mx = 0;
+  for (const m of lista){ c[m] = (c[m] || 0) + 1; if (c[m] > mx) mx = c[m]; }
+  return mx;
+}
 function cuadran(ms){
   const n = [...new Set((ms || []).map(m => parseFloat(String(m).replace(/,/g, ''))))]
     .filter(x => Number.isFinite(x) && x > 0).sort((a, b) => b - a);
@@ -1928,13 +1935,16 @@ async function procesarPDFs(archivos, opciones){
                   r.fecha = (txt.match(/\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b/g) || [])[0] || null;
                   r.ejercicio = r.fecha ? ('20' + r.fecha.slice(-2)).slice(-4) : null;
                 } else {
-                  r.montos = [...new Set(txt.match(RE_MONTO) || [])];
+                  const impresos = txt.match(RE_MONTO) || [];
+                  r.montos = [...new Set(impresos)];
+                  r.montosRep = repeticiones(impresos);
                   // La tabla de importes se comprueba sola: uno de los renglones es la
                   // suma de los demás. Si no cuadra es que falta alguno —medido: se
                   // perdía el último de la lista— y se relee una zona más ancha.
-                  if (!cuadran(r.montos) && recortes.montosAncha){
+                  if ((!cuadran(r.montos) || (r.montos.length === 1 && r.montosRep < 3)) && recortes.montosAncha){
                     const otra = (await leerZona(w, recortes.montosAncha, ZONA_MONTOS_ANCHA.psm, ZONA_MONTOS_ANCHA.lista)).match(RE_MONTO) || [];
                     const union = [...new Set(r.montos.concat(otra))];
+                    r.montosRep = Math.max(r.montosRep || 0, repeticiones(otra));
                     if (cuadran(union) || !r.montos.length) r.montos = union;
                   }
                 }
@@ -2116,12 +2126,18 @@ async function sondearSufijo(w, r, imgs, ordenesBase, colas, contar){
   // dependencias) ese renglón es la ETIQUETA "Orden de Pago" y el OCR saca una "A" de ella:
   // marcó como ADEFA 3 órdenes limpias del caso grande. Ahí no se usan.
   if (r.numero && r.sondeoVioNumero && colas && r.familia === '3'){
+    // Una "A" suelta en UNA variante no basta: las rayas de pluma (rojas, rosas, azules) que
+    // cruzan la caja se leen como "A". Medido: en una ADEFA real las 3 variantes leen "A" y
+    // una lee "751 -A"; en las hojas normales, 0 de 3. Hacen falta 2 variantes con A, o una
+    // que lea la A CON su guion.
+    let conA = 0, conGuion = false;
     for (const { it, img } of colas.slice(0, 3)){
       const t = await leerZona(w, img, it.psm, it.lista);
-      if (/A/i.test(t.replace(/[^A-Za-z]/g, ''))){
-        r.sufijoA = [r.numero]; r.ambiguo = [r.numero + '-A']; r.numero = null; r.colaConA = true;
-        break;
-      }
+      if (/A/i.test(t.replace(/[^A-Za-z]/g, ''))) conA++;
+      if (/-\s*A/i.test(t)) conGuion = true;
+    }
+    if (conA >= 2 || conGuion){
+      r.sufijoA = [r.numero]; r.ambiguo = [r.numero + '-A']; r.numero = null; r.colaConA = true;
     }
   }
 }
@@ -3582,6 +3598,7 @@ function agrupar(leido){
     g.archivos.get(r.archivo).push(r.pagina);
     if (r.ejercicio && !g.ejercicio) g.ejercicio = r.ejercicio;
     if (r.montos) g.montos.push(...r.montos);
+    if (r.montosRep) g.rep = Math.max(g.rep || 0, r.montosRep);
     if (r.firmas){
       const buenas = f => f.filter(x => x === 'si').length;
       if (!g.firmas || buenas(r.firmas) > buenas(g.firmas)) g.firmas = r.firmas;
@@ -3603,7 +3620,10 @@ function montosDe(g){
   if (n.length > 1 && cerca(n.slice(1).reduce((a, b) => a + b, 0), n[0]))
     return {lineas:n.slice(1), total:n[0], cuadra:true};
   // No cuadra: lo leído está incompleto, así que no se puede decir que un monto falte
-  return {lineas:n, total:n[0] || 0, cuadra:n.length === 1};
+  // Un solo importe leído solo vale como lectura completa si ese mismo valor salió impreso 3 veces
+  // o más (Monto = Importe = Neto). Si no, puede ser un renglón suelto —medido: se
+  // leyó solo el IVA— y acusar "no aparece" sería culpar a la orden de un fallo de lectura.
+  return {lineas:n, total:n[0] || 0, cuadra:n.length === 1 && (g.rep || 0) >= 3};
 }
 
 /* Distancia de edición, para saber si lo leído se parece a una orden del documento
