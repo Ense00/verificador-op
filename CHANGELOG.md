@@ -2,6 +2,14 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.24.1 — 2026-09-18
+
+- **Fuera la estimación de "cuánto falta"**, que él describió como "muy variable, casi
+  inútil": unas órdenes tardan mucho más que otras y la cuenta oscilaba sin parar. En su
+  lugar, una **barra de avance** que no puede mentir —se mide en bytes ya procesados, así
+  que nunca retrocede— con el archivo, las páginas, las órdenes halladas y el **tiempo
+  transcurrido**. Medido en una corrida: 0 → 17 → 45 → 58 → 67 → 85 → 100 %.
+
 ## v0.24.0 — 2026-09-18
 
 Primera prueba del usuario con varios documentos base y sus carpetas. Casi todas las

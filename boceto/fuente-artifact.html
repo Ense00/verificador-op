@@ -110,6 +110,12 @@ select{padding:6px 10px;border:1px solid var(--line);border-radius:var(--r);back
 .runbox{justify-content:center}
 .runbox .btn{width:100%}
 .runmeta{margin:0;font-size:12px;color:var(--muted);text-align:center}
+.prog{display:flex;flex-direction:column;gap:5px}
+.progbar{height:7px;border-radius:4px;background:var(--sunken);border:1px solid var(--line-soft);overflow:hidden}
+.progbar i{display:block;height:100%;width:0;background:var(--accent);border-radius:3px;transition:width .3s linear}
+.progbar.indet i{width:35%;animation:vaiven 1.1s ease-in-out infinite}
+@keyframes vaiven{0%{margin-left:-35%}100%{margin-left:100%}}
+.prog .hint{margin:0;text-align:center}
 
 /* Resumen */
 .summary{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 16px;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px 20px;align-items:center}
@@ -572,7 +578,10 @@ table.parts td{vertical-align:middle}
         <button class="btn primary" type="button" id="run">Verificar</button>
         <button class="btn small ghost" type="button" id="run-cancel" hidden>Cancelar</button>
         <p class="runmeta num" id="runmeta" hidden>Última verificación: 14 min 22 s</p>
-        <p class="hint" id="run-progress" aria-live="polite" hidden></p>
+        <div class="prog" id="run-progress" hidden>
+          <div class="progbar" role="progressbar" id="run-bar-box" aria-valuemin="0" aria-valuemax="100"><i id="run-bar"></i></div>
+          <p class="hint" id="run-text" aria-live="polite"></p>
+        </div>
       </div>
     </div>
   </section>
@@ -764,7 +773,7 @@ table.parts td{vertical-align:middle}
             <li><b>Formato de la carpeta:</b> ZIP (recomendado), 7z, TAR.GZ o sin comprimir.</li>
           </ul>
           <h4>4 · Verificar</h4>
-          <p>Pulsa <b>Verificar</b>. Debajo del botón verás en qué archivo va, cuántas páginas lleva, cuántas órdenes encontró y cuánto falta; con <b>Cancelar</b> se detiene y queda en la tabla lo que alcanzó a leerse. Al terminar, la configuración se oculta y queda una línea con lo que elegiste. Con <b>Cambiar configuración</b> la vuelves a abrir.</p>
+          <p>Pulsa <b>Verificar</b>. Debajo del botón aparece una <b>barra de avance</b> con en qué archivo va, cuántas páginas lleva, cuántas órdenes encontró y cuánto tiempo lleva corriendo. No verás un "faltan X minutos": unas órdenes tardan mucho más que otras y esa cuenta salía tan variable que engañaba más de lo que ayudaba. Con <b>Cancelar</b> se detiene y queda en la tabla lo que alcanzó a leerse. Al terminar, la configuración se oculta y queda una línea con lo que elegiste. Con <b>Cambiar configuración</b> la vuelves a abrir.</p>
           <p>La revisión no se atora en una orden difícil: si una página tarda demasiado se deja a medias, se marca y se sigue con las demás.</p>
           <p>No cierres ni cambies de pestaña mientras corre: el trabajo lo hace tu navegador y se va más despacio en segundo plano.</p>
         </section>
@@ -3161,7 +3170,24 @@ const tiempo = (seg) => seg < 60 ? `${Math.round(seg)} s` : `${Math.floor(seg / 
 const rango = (ps) => { const a = [...new Set(ps)].sort((x, y) => x - y); return a.length === 1 ? String(a[0]) : `${a[0]}–${a[a.length-1]}`; };
 
 let corriendo = false, cancelar = false, libsListas = null, ultimoAviso = 0;
-const prog = (txt) => { const p = $('#run-progress'); p.hidden = !txt; p.textContent = txt || ''; };
+/* La estimación de "cuánto falta" resultó tan variable que estorbaba (él: "casi
+   inútil"), así que se quitó. Queda lo que no puede mentir: una barra con el avance
+   —que nunca retrocede, porque se mide en bytes ya procesados— y el tiempo que lleva. */
+const prog = (txt, frac) => {
+  const caja = $('#run-progress');
+  caja.hidden = !txt;
+  $('#run-text').textContent = txt || '';
+  const box = $('#run-bar-box');
+  if (frac == null){
+    box.classList.add('indet');
+    box.removeAttribute('aria-valuenow');
+  } else {
+    box.classList.remove('indet');
+    const pct = Math.max(0, Math.min(100, Math.round(frac * 100)));
+    $('#run-bar').style.width = pct + '%';
+    box.setAttribute('aria-valuenow', pct);
+  }
+};
 
 function cargarScript(src){
   return new Promise((ok, mal) => {
@@ -3223,6 +3249,7 @@ async function correr(){
                 firmas:$('#chk-firmas').checked, sellos:$('#chk-sellos').checked};
   corriendo = true; cancelar = false;
   $('#run').disabled = true; $('#run-cancel').hidden = false;
+  $('#run-bar').style.width = '0%';
   const t0 = performance.now();
   let paginas = 0;
   try {
@@ -3237,28 +3264,26 @@ async function correr(){
         else if (a.tipo === 'inicio'){
           prog(a.duplicados
             ? `${fmtInt(a.duplicados)} archivo${a.duplicados === 1 ? ' repetido se omite' : 's repetidos se omiten'} · empezando…`
-            : 'Empezando…');
+            : 'Empezando…', 0);
         }
         else if (a.tipo === 'pagina'){
           const ahora = performance.now();
           if (ahora - ultimoAviso < 250) return;
           ultimoAviso = ahora;
           paginas = a.hechas;
-          const seg = (ahora - t0) / 1000;
-          const falta = a.avance > 0.02 ? Math.round(seg / a.avance - seg) : 0;
           prog(`Archivo ${fmtInt(Math.min(a.archivos + 1, a.deArchivos))} de ${fmtInt(a.deArchivos)}`
              + ` · ${fmtInt(a.hechas)} páginas · ${fmtInt(a.ordenes)} órdenes`
-             + ` · ${Math.round(a.avance * 100)}%${falta ? ' · quedan ' + tiempo(falta) : ''}`);
+             + ` · lleva ${tiempo((ahora - t0) / 1000)}`, a.avance);
         }
       }
     });
     real.ms = performance.now() - t0;
     real.paginas = leido.paginas.length;
     construir(leido, pide);
-    prog(cancelar ? 'Cancelado: se muestran las páginas que alcanzaron a leerse.' : '');
+    prog(cancelar ? 'Cancelado: se muestran las páginas que alcanzaron a leerse.' : '', 1);
     if (cancelar) toast('Verificación cancelada. Lo leído hasta ese punto está en la tabla.');
   } catch (err){
-    prog('');
+    prog('', 0);
     toast('No se pudo terminar la verificación: ' + err.message);
     console.error(err);
   } finally {
