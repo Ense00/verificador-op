@@ -98,6 +98,17 @@ button,input,select,textarea{font:inherit;color:inherit}
 .check input{width:16px;height:16px;accent-color:var(--accent);margin:0;flex:none}
 .check small{color:var(--muted);font-size:11px}
 .fixed{margin:0;color:var(--muted);font-size:12px}
+.aviso{margin:0;font-size:12px;line-height:1.45;color:var(--rev);background:var(--rev-bg);border:1px solid currentColor;border-left-width:4px;border-radius:var(--r);padding:8px 10px}
+.aviso b:first-child{display:block;font-family:var(--display);font-stretch:110%;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:2px}
+.aviso b{color:inherit}
+/* ---------- Visor de la página escaneada ---------- */
+.visor{position:fixed;inset:0;background:rgba(10,14,26,.72);display:grid;place-items:center;z-index:20;padding:16px}
+.visorcaja{background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.35);display:flex;flex-direction:column;max-width:min(1000px,100%);max-height:100%;min-width:0}
+.visorbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line-soft)}
+.visorbar b{font-family:var(--mono);font-size:14px}
+.visorbar .hint{margin-right:auto}
+.visorpag{overflow:auto;padding:12px;background:var(--desk);display:grid;place-items:center}
+.visorpag canvas{max-width:100%;height:auto;background:#fff;box-shadow:0 4px 16px rgba(0,0,0,.25)}
 .field{display:flex;flex-direction:column;gap:4px}
 .field label{font-size:13px;font-weight:500}
 select{padding:6px 10px;border:1px solid var(--line);border-radius:var(--r);background:var(--sunken)}
@@ -539,6 +550,7 @@ table.parts td{vertical-align:middle}
       </div>
       <div class="cgroup">
         <h3><span>2</span> Qué revisar</h3>
+        <p class="aviso" id="aviso-imagen" hidden><b>Advertencia</b>Firmas y sellos se leen de la imagen del escaneo y <b>no son exactos</b> como el número de orden, el ejercicio y el monto. Lo dudoso se marca para revisar, nunca se da por bueno. Además tardan bastante más: desmárcalos si no los necesitas.</p>
         <div class="checks" id="checks">
           <label class="check"><input type="checkbox" id="chk-op" data-k="op" checked> Orden de pago</label>
           <label class="check"><input type="checkbox" id="chk-ej" data-k="ej" checked> Ejercicio <small>año</small></label>
@@ -547,7 +559,6 @@ table.parts td{vertical-align:middle}
           <label class="check"><input type="checkbox" id="chk-sellos" data-k="sellos" checked> Sellos</label>
         </div>
         <p class="fixed">Buscar las órdenes y detectar duplicados se hace siempre.</p>
-        <p class="hint" id="aviso-imagen" hidden>Firmas y sellos se leen de la imagen del escaneo: <b>no son tan exactos</b> como el número de orden, el ejercicio y el monto. Lo dudoso se marca para revisar, nunca se da por bueno.</p>
       </div>
       <div class="cgroup">
         <h3><span>3</span> Resultados</h3>
@@ -888,6 +899,18 @@ table.parts td{vertical-align:middle}
     </div>
   </div>
 </div>
+<div class="visor" id="visor" hidden>
+  <div class="visorcaja" role="dialog" aria-modal="true" aria-label="Página escaneada">
+    <div class="visorbar">
+      <b id="visor-tit"></b>
+      <span class="hint" id="visor-info"></span>
+      <button type="button" class="btn small ghost" id="visor-prev">&lsaquo; Anterior</button>
+      <button type="button" class="btn small ghost" id="visor-next">Siguiente &rsaquo;</button>
+      <button type="button" class="btn small" id="visor-cerrar">Cerrar</button>
+    </div>
+    <div class="visorpag"><canvas id="visor-canvas" width="10" height="10"></canvas></div>
+  </div>
+</div>
 <div class="toast" id="toast" hidden role="status"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
@@ -1065,15 +1088,27 @@ function tintaAnadida(c){
 const RE_ETIQUETA = /^(SOLICITANTE|ELABOR[OÓ]|AUTORIZACI[OÓ]N|P[AÁ]GUESE|PAGUESE|TESORER[OÍ]A?|VISTO)$/;
 const CELDAS_FIJAS = [0, 1, 2].map(i => ({ x: 0.06 + i * 0.30, y: 0.82, an: 0.28, al: 0.16 }));
 
-async function ubicarCeldasFirma(w, lienzo, limpiar){
-  for (const [fy, fh] of [[0.55, 0.45], [0.10, 0.50]]){
-    await w.setParameters({ tessedit_pageseg_mode: '4', tessedit_char_whitelist: '' });
-    const img = recorte(lienzo, 0, fy, 1, fh, 1, limpiar);
+/* Buscar los rótulos costaba 2.2 s por orden y encima en serie: era, con mucho, lo más
+   caro de toda la revisión. Se parte en dos: los recortes (trabajo de lienzo) y la
+   lectura (trabajo de OCR, que ya se reparte entre los trabajadores), el recorte baja a
+   900 px de ancho —los rótulos son letra de molde grande y se leen igual— y el
+   resultado se guarda por archivo, porque dentro de un mismo PDF el formato se repite. */
+const CELDAS_AN = 900;
+function recortesDeCeldas(lienzo){
+  const amp = Math.min(1, CELDAS_AN / lienzo.width);
+  return [[0.70, 0.30], [0.10, 0.45]].map(([fy, fh]) => ({ fy, fh, img: recorte(lienzo, 0, fy, 1, fh, amp, true) }));
+}
+
+async function celdasDesdeCrops(w, crops){
+  for (const { fy, fh, img } of crops){
+    // Los rótulos son letra de molde en mayúsculas: acotar el alfabeto y pedir un
+    // bloque uniforme hace la lectura mucho más corta, y es lo único que se busca aquí.
+    await ajustar(w, '6', 'ABCDEFGHIJKLMNÑOPQRSTUVWXYZÁÉÍÓÚabcdefghijklmnñopqrstuvwxyzáéíóú .:');
     const d = (await w.recognize(img, {}, { blocks: true, text: true })).data;
     const et = palabras(d).filter(p => p.bbox && RE_ETIQUETA.test(sinAcentos((p.text || '').replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ]/g, ''))));
     if (et.length < 2) continue;
     // agrupar por renglón: los rótulos de la tabla de firmas están a la misma altura
-    const alto = img.height;
+    const alto = img.height, ancho = img.width;
     const filas = [];
     for (const p of et){
       const yc = (p.bbox.y0 + p.bbox.y1) / 2;
@@ -1086,15 +1121,15 @@ async function ubicarCeldasFirma(w, lienzo, limpiar){
     const items = fila.items.sort((a, b) => a.bbox.x0 - b.bbox.x0);
     // una celda por rótulo: del punto medio con el vecino de la izquierda al de la derecha
     const celdas = items.map((p, i) => {
-      const cx = (p.bbox.x0 + p.bbox.x1) / 2 / lienzo.width;
-      const izq = i > 0 ? ((items[i-1].bbox.x0 + items[i-1].bbox.x1) / 2 / lienzo.width + cx) / 2 : Math.max(0, cx - 0.16);
-      const der = i < items.length - 1 ? ((items[i+1].bbox.x0 + items[i+1].bbox.x1) / 2 / lienzo.width + cx) / 2 : Math.min(1, cx + 0.16);
+      const cx = (p.bbox.x0 + p.bbox.x1) / 2 / ancho;
+      const izq = i > 0 ? ((items[i-1].bbox.x0 + items[i-1].bbox.x1) / 2 / ancho + cx) / 2 : Math.max(0, cx - 0.16);
+      const der = i < items.length - 1 ? ((items[i+1].bbox.x0 + items[i+1].bbox.x1) / 2 / ancho + cx) / 2 : Math.min(1, cx + 0.16);
       const y0 = fy + (p.bbox.y1 / alto) * fh;
       return { x: izq, y: y0, an: der - izq, al: Math.min(0.13, 1 - y0), rotulo: (p.text || '').trim() };
     });
-    if (celdas.length >= 2) return { celdas, via: 'rótulos' };
+    if (celdas.length >= 3) return celdas;
   }
-  return { celdas: CELDAS_FIJAS, via: 'coordenadas fijas' };
+  return null;
 }
 
 /* La tinta de un sello encima de una celda no puede contarse como firma. Se mide la
@@ -1271,8 +1306,8 @@ function contarAros(add, W, H){
   return fuera;
 }
 
-function manchasDeSello(c){
-  const { add, W, H } = tintaAnadida(c);
+function manchasDeSello(c, previo){
+  const { add, W, H } = previo || tintaAnadida(c);
   const CEL = SELLO.CEL, GW = Math.ceil(W / CEL), GH = Math.ceil(H / CEL);
   const celda = new Int32Array(GW * GH);
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++)
@@ -1334,11 +1369,12 @@ function manchasDeSello(c){
    (dos encimados siguen siendo dos aros), y las **manchas** dicen hasta dónde llega
    la tinta de cada sello, que es lo que hay que descontar de las celdas de firma. */
 function sellos(c){
-  const { add, W, H } = tintaAnadida(c);
+  const mascara = tintaAnadida(c);
+  const { add, W, H } = mascara;
   const sellos = contarAros(add, W, H);
   // una mancha marca la extensión de un sello solo si hay un aro detectado dentro:
   // así la mancha de una firma no se descuenta a sí misma
-  const zonas = manchasDeSello(c).filter(m => sellos.some(s => {
+  const zonas = manchasDeSello(c, mascara).filter(m => sellos.some(s => {
     const cx = s.x + s.an / 2, cy = s.y + s.al / 2;
     return cx >= m.x && cx <= m.x + m.an && cy >= m.y && cy <= m.y + m.al;
   }));
@@ -1399,8 +1435,15 @@ const INTENTOS = [
   { fx: 0.67, fy: 0.02, fw: 0.33, fh: 0.15, amp: 2, psm: '3', limpiar: true, umbralColor: 60 },
   { fx: 0.67, fy: 0.02, fw: 0.33, fh: 0.15, amp: 2, psm: '6', limpiar: true },
   { fx: 0.67, fy: 0.02, fw: 0.33, fh: 0.15, amp: 3, psm: '6', limpiar: true, umbralColor: 60 },
-  { fx: 0.60, fy: 0.00, fw: 0.40, fh: 0.20, amp: 2, psm: '6', limpiar: true }
+  { fx: 0.60, fy: 0.00, fw: 0.40, fh: 0.20, amp: 2, psm: '6', limpiar: true },
 ];
+
+/* Última carta para el número: la MISMA página pero decodificada en chico. Salió de un
+   accidente —al reducir el escaneo se leyó un número que a tamaño completo no se leía
+   nunca— y sirve justo para el caso que no tiene arreglo por color: una raya de pluma
+   NEGRA encima del dígito, que no se puede borrar porque el dígito también es negro.
+   Reducir adelgaza la raya antes que el dígito. */
+const INTENTOS_CHICOS = INTENTOS.map((_, i) => i);   // solo corre en lo que ya falló todo
 const ZONA_NUM = INTENTOS[0];
 // el resto de los campos de la orden, cada uno en su zona
 const ZONA_FECHA  = { fx: 0.66, fy: 0.115, fw: 0.34, fh: 0.09, amp: 1, psm: '4', lista: '0123456789/.-' };
@@ -1414,6 +1457,14 @@ const ZONA_MONTOS_ANCHA = { fx: 0.04, fy: 0.26, fw: 0.94, fh: 0.24, amp: 1, psm:
 const ZONA_HOJA   = { fx: 0.70, fy: 0.960, fw: 0.28, fh: 0.035, amp: 3, psm: '7', lista: '0123456789/' };
 const ZONA_HOJA_2 = { fx: 0.62, fy: 0.030, fw: 0.36, fh: 0.060, amp: 2, psm: '4', lista: '0123456789/dePag. ' };
 const RE_MONTO = /\d{1,3}(?:,\d{3})*\.\d{2}/g;
+/* La tabla de importes trae los renglones y su total: si el mayor es la suma de los
+   demás, lo leído está completo. Es la única comprobación que el propio papel permite. */
+function cuadran(ms){
+  const n = [...new Set((ms || []).map(m => parseFloat(String(m).replace(/,/g, ''))))]
+    .filter(x => Number.isFinite(x) && x > 0).sort((a, b) => b - a);
+  if (n.length < 2) return n.length === 1;
+  return Math.abs(n.slice(1).reduce((a, b) => a + b, 0) - n[0]) < 0.005;
+}
 function candidatosDe(txt){
   const out = new Set();
   for (const bruto of (txt.match(/\d[\d\s-]{7,}(?:-?A\b)?/gi) || [])){
@@ -1522,8 +1573,21 @@ function extraerJpegs(buf){
   return segs;
 }
 
-async function dibujarRapido(blob, vp, lienzo, ctx){
-  const bm = await createImageBitmap(blob);
+/* `reducir` solo se usa en la pasada que decide qué es cada página: ahí conviene la
+   imagen chica y basta. En la pasada fina se decodifica al tamaño original del escaneo,
+   porque de ahí salen el número de orden y los importes, y reducir los empeora. */
+async function dibujarRapido(blob, vp, lienzo, ctx, reducir){
+  let bm;
+  if (reducir){
+    const destino = Math.round(Math.max(vp.width, vp.height));
+    try { bm = await createImageBitmap(blob, { resizeWidth: destino, resizeQuality: 'medium' }); }
+    catch (e){ bm = null; }
+  }
+  if (!bm){ try { bm = await createImageBitmap(blob); } catch (e){ return false; } }
+  return ponerBitmap(bm, vp, lienzo, ctx);
+}
+
+function ponerBitmap(bm, vp, lienzo, ctx){
   const gira = (vp.width > vp.height) !== (bm.width > bm.height);   // la página puede venir girada
   const w = gira ? bm.height : bm.width, h = gira ? bm.width : bm.height;
   const propPag = vp.width / vp.height, propImg = w / h;
@@ -1571,148 +1635,334 @@ function turnos(trabajadores){
   };
 }
 
-async function leerZona(w, img, psm, lista){
+/* Cambiar los parámetros del OCR no es gratis: reinicia su diccionario. En la pasada
+   de clasificación todas las páginas usan los mismos, así que se recuerdan por
+   trabajador y solo se cambian cuando de verdad cambian. */
+const ajustes = new WeakMap();
+async function ajustar(w, psm, lista){
+  const clave = psm + '|' + lista;
+  if (ajustes.get(w) === clave) return;
   await w.setParameters({ tessedit_pageseg_mode: psm, tessedit_char_whitelist: lista });
+  ajustes.set(w, clave);
+}
+async function leerZona(w, img, psm, lista){
+  await ajustar(w, psm, lista);
   return (await w.recognize(img)).data.text;
 }
 
 /* ---------- orquestador sin interfaz ----------
    Recibe los PDF y la lista de órdenes del documento base, y devuelve lo leído de cada
-   página de orden. No sabe nada de la pantalla: avisa del progreso por callback. */
+   página de orden. No sabe nada de la pantalla: avisa del progreso por callback.
+
+   El orden de las fases sale de medir dónde se iba el tiempo (62 páginas, 8 órdenes):
+     ubicar las celdas de firma   2.2 s por orden, y en serie   ← lo más caro con mucho
+     dibujar la página           137 ms por página, y en serie
+     OCR del encabezado          269 ms por página, repartido entre los trabajadores
+   De ahí las tres decisiones: los archivos repetidos no se abren, las páginas se
+   clasifican a baja resolución (dibujar cuesta la cuarta parte) y solo las que son
+   orden de pago se vuelven a dibujar en grande. */
+
+/* Huella del archivo sin leerlo entero: tamaño + los primeros y últimos 256 KB. Dos
+   descargas del mismo PDF coinciden; leer 800 MB para comprobarlo no vale la pena. */
+async function huella(f){
+  const trozo = async (a, b) => new Uint8Array(await f.slice(a, b).arrayBuffer());
+  const cacho = 262144;
+  const partes = [await trozo(0, Math.min(cacho, f.size))];
+  if (f.size > cacho * 2) partes.push(await trozo(f.size - cacho, f.size));
+  const largo = partes.reduce((a, p) => a + p.length, 0);
+  const todo = new Uint8Array(largo);
+  let o = 0; for (const p of partes){ todo.set(p, o); o += p.length; }
+  const h = await crypto.subtle.digest('SHA-256', todo);
+  return f.size + ':' + [...new Uint8Array(h)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/* Una copia propia de la página: el lienzo de trabajo se sobrescribe con la siguiente,
+   y el análisis de sellos y firmas ocurre después, cuando el OCR ya contestó. */
+function copiaDe(lienzo){
+  const c = document.createElement('canvas');
+  c.width = lienzo.width; c.height = lienzo.height;
+  c.getContext('2d', { willReadFrequently: true }).drawImage(lienzo, 0, 0);
+  return c;
+}
+
+/* Ninguna página puede detener la revisión entera: si una tarda más de la cuenta se
+   deja a medias, se marca y se sigue. */
+const AGOTADO = Symbol('agotado');
+const conLimite = (promesa, ms) => ms > 0
+  ? Promise.race([promesa, new Promise(r => setTimeout(() => r(AGOTADO), ms))])
+  : promesa;
+
 async function procesarPDFs(archivos, opciones){
-  const { base, pide, avisar = () => {}, cancelado = () => false, dpi = 200, idioma = 'spa' } = opciones;
+  const { base, pide, avisar = () => {}, cancelado = () => false,
+          dpi = 200, dpiClasifica = 100, idioma = 'spa', limitePagina = 45000,
+          psmEncab = '4', ampEncab = 2, altoEncab = 0.10 } = opciones;
   const ordenesBase = new Set([...base].map(o => String(o).trim().toUpperCase()));
   const trabajadores = await darEquipo(idioma, NUCLEOS, avisar);
   const turno = turnos(trabajadores);
   const lienzo = document.createElement('canvas');
   const ctx = lienzo.getContext('2d', { willReadFrequently: true });
-  const resultados = [];
-  let paginasHechas = 0, totalPaginas = 0;
+  const resultados = [], duplicados = [];
 
-  // Primera pasada barata: solo cuántas páginas hay en total, para el progreso.
-  // Se cierra cada PDF al terminar de contarlo: uno de estos archivos trae 1,660
-  // páginas y guardarlos todos abiertos a la vez no cabe en memoria.
+  // ---- archivos repetidos: se apartan antes de abrir ninguno
+  const porHuella = new Map();
+  const utiles = [];
   for (const f of archivos){
-    const datos = await f.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: datos }).promise;
-    totalPaginas += pdf.numPages;
-    await pdf.destroy();
+    if (cancelado()) break;
+    let h;
+    try { h = await huella(f); } catch (e){ h = 'sin-huella:' + f.name; }
+    const antes = porHuella.get(h);
+    if (antes) duplicados.push({ archivo: f.name, copiaDe: antes, paginas: 0 });
+    else { porHuella.set(h, f.name); utiles.push(f); }
   }
-  avisar({ tipo: 'inicio', archivos: archivos.length, paginas: totalPaginas });
+  const bytesTotal = utiles.reduce((a, f) => a + f.size, 0) || 1;
+  avisar({ tipo: 'inicio', archivos: utiles.length, duplicados: duplicados.length, bytes: bytesTotal });
 
-  for (const f of archivos){
-    const datos = await f.arrayBuffer();
-    let jpegs = extraerJpegs(datos);                 // antes de entregar los bytes a pdf.js
-    const pdf = await pdfjsLib.getDocument({ data: datos }).promise;
-    if (jpegs.length !== pdf.numPages) jpegs = [];
-    const delArchivo = [];
-    const enVuelo = new Set();
-    for (let p = 1; p <= pdf.numPages; p++){
-      if (cancelado()) break;
-      const r = { archivo: f.name, pagina: p, cand: [], intentos: 0 };
-      const page = await pdf.getPage(p);
-      const vp = page.getViewport({ scale: dpi / 72 });
-      const rapido = jpegs.length ? await dibujarRapido(jpegs[p - 1], vp, lienzo, ctx) : false;
-      if (!rapido){
-        lienzo.width = Math.round(vp.width); lienzo.height = Math.round(vp.height);
-        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, lienzo.width, lienzo.height);
-        await page.render({ canvasContext: ctx, viewport: vp }).promise;
-      }
-      page.cleanup();
+  let bytesHechos = 0, paginasHechas = 0, paginasOrden = 0, archivosHechos = 0;
+  const paso = (f, p, total) => avisar({
+    tipo: 'pagina', archivo: f.name, pagina: p, paginasArchivo: total,
+    hechas: paginasHechas, ordenes: paginasOrden,
+    archivos: archivosHechos, deArchivos: utiles.length,
+    avance: Math.min(0.999, (bytesHechos + f.size * (p / Math.max(1, total))) / bytesTotal)
+  });
 
-      const recortes = {
-        encab:  recorte(lienzo, 0.10, 0, 0.55, 0.10, 1, true),
-        num:    recorte(lienzo, INTENTOS[0].fx, INTENTOS[0].fy, INTENTOS[0].fw, INTENTOS[0].fh, INTENTOS[0].amp, INTENTOS[0].limpiar, INTENTOS[0].cerrar, INTENTOS[0].umbralColor),
-        fecha:  pide.ej ? recorte(lienzo, ZONA_FECHA.fx, ZONA_FECHA.fy, ZONA_FECHA.fw, ZONA_FECHA.fh, ZONA_FECHA.amp, true) : null,
-        montos: pide.monto ? recorte(lienzo, ZONA_MONTOS.fx, ZONA_MONTOS.fy, ZONA_MONTOS.fw, ZONA_MONTOS.fh, ZONA_MONTOS.amp, true) : null,
-        montosAncha: pide.monto ? recorte(lienzo, ZONA_MONTOS_ANCHA.fx, ZONA_MONTOS_ANCHA.fy, ZONA_MONTOS_ANCHA.fw, ZONA_MONTOS_ANCHA.fh, 1, false) : null,
-        hoja:   recorte(lienzo, ZONA_HOJA.fx, ZONA_HOJA.fy, ZONA_HOJA.fw, ZONA_HOJA.fh, ZONA_HOJA.amp, true),
-        hoja2:  recorte(lienzo, ZONA_HOJA_2.fx, ZONA_HOJA_2.fy, ZONA_HOJA_2.fw, ZONA_HOJA_2.fh, ZONA_HOJA_2.amp, true)
-      };
-      const chico = document.createElement('canvas');
-      chico.width = 800; chico.height = Math.round(lienzo.height * 800 / lienzo.width);
-      chico.getContext('2d').drawImage(lienzo, 0, 0, chico.width, chico.height);
-      r.color = tinta(chico, 0, 0, 1, 1).color;
-      r.sinColor = r.color < SIN_COLOR;
-
-      const tarea = (async () => {
-        const w = await turno.tomar();
-        try {
-          r.encabezado = sinAcentos((await leerZona(w, recortes.encab, '4', '')).replace(/\s+/g, ' ')).trim();
-          r.tipo = tipoDe(r.encabezado).clave;
-          if (r.tipo === 'orden'){
-            r.intentos = 1;
-            const vistos = new Set(candidatosDe(await leerZona(w, recortes.num, INTENTOS[0].psm, INTENTOS[0].lista || '0123456789-')));
-            r.cand = [...vistos];
-            resolverNumeroCon(r, vistos, ordenesBase);
-            for (const [campo, z, img] of [['fecha', ZONA_FECHA, recortes.fecha], ['montos', ZONA_MONTOS, recortes.montos]]){
-              if (!img) continue;
-              const txt = await leerZona(w, img, z.psm, z.lista);
-              if (campo === 'fecha'){
-                r.fecha = (txt.match(/\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b/g) || [])[0] || null;
-                r.ejercicio = r.fecha ? ('20' + r.fecha.slice(-2)).slice(-4) : null;
-              } else {
-                r.montos = [...new Set(txt.match(RE_MONTO) || [])];
-                if (!r.montos.some(m => parseFloat(m.replace(/,/g, '')) > 0) && recortes.montosAncha)
-                  r.montos = [...new Set((await leerZona(w, recortes.montosAncha, ZONA_MONTOS_ANCHA.psm, ZONA_MONTOS_ANCHA.lista)).match(RE_MONTO) || [])];
-              }
-            }
-            const leerHoja = t => { const m = t.replace(/\s+/g, ' ').match(/(\d+)\s*(?:\/|de)\s*(\d+)/i); return m ? m[1] + ' de ' + m[2] : null; };
-            r.hoja = leerHoja(await leerZona(w, recortes.hoja, ZONA_HOJA.psm, ZONA_HOJA.lista))
-                  || leerHoja(await leerZona(w, recortes.hoja2, ZONA_HOJA_2.psm, ZONA_HOJA_2.lista));
-          }
-        } finally { turno.soltar(w); }
-        paginasHechas++;
-        avisar({ tipo: 'pagina', hechas: paginasHechas, total: totalPaginas, archivo: f.name, pagina: p });
-      })();
-      enVuelo.add(tarea); tarea.finally(() => enVuelo.delete(tarea));
-      delArchivo.push(r);
-      if (enVuelo.size >= NUCLEOS * 2) await Promise.race(enVuelo);
+  for (const f of utiles){
+    if (cancelado()) break;
+    let pdf = null, jpegs = [];
+    try {
+      const datos = await f.arrayBuffer();
+      jpegs = extraerJpegs(datos);                    // antes de entregar los bytes a pdf.js
+      pdf = await pdfjsLib.getDocument({ data: datos }).promise;
+      if (jpegs.length !== pdf.numPages) jpegs = [];
+    } catch (e){
+      avisar({ tipo: 'archivo-malo', archivo: f.name, error: e.message });
+      bytesHechos += f.size; archivosHechos++;
+      continue;
     }
-    await Promise.all(enVuelo);
+    for (const d of duplicados) if (d.copiaDe === f.name) d.paginas = pdf.numPages;
 
-    // segundas vueltas, solo sobre las páginas de orden de este archivo
+    const delArchivo = [];
+    // ---- fase 1: qué es cada página, a baja resolución
+    {
+      const enVuelo = new Set();
+      const adelanto = adelantador(jpegs, dpiClasifica, pdf);
+      for (let p = 1; p <= Math.min(3, pdf.numPages); p++) await adelanto.pedir(p);
+      for (let p = 1; p <= pdf.numPages; p++){
+        if (cancelado()) break;
+        if (p + 3 <= pdf.numPages) await adelanto.pedir(p + 3);
+        const r = { archivo: f.name, pagina: p, cand: [], intentos: 0 };
+        delArchivo.push(r);
+        await dibujarPagina(pdf, jpegs, p, dpiClasifica, lienzo, ctx, adelanto);
+        const encab = recorte(lienzo, 0.10, 0, 0.55, altoEncab, ampEncab, true);
+        const tarea = (async () => {
+          const w = await turno.tomar();
+          try {
+            r.encabezado = sinAcentos((await leerZona(w, encab, psmEncab, '')).replace(/\s+/g, ' ')).trim();
+            r.tipo = tipoDe(r.encabezado).clave;
+          } catch (e){ r.tipo = 'desconocido'; }
+          finally { turno.soltar(w); }
+          paginasHechas++;
+          if (r.tipo === 'orden') paginasOrden++;
+          paso(f, p, pdf.numPages);
+        })();
+        enVuelo.add(tarea); tarea.finally(() => enVuelo.delete(tarea));
+        if (enVuelo.size >= NUCLEOS * 2) await Promise.race(enVuelo);
+      }
+      await Promise.all(enVuelo);
+      adelanto.limpiar();
+    }
+
+    // ---- fase 2: solo las órdenes, ya en grande
     const ordenes = delArchivo.filter(r => r.tipo === 'orden');
-    if (pide.sellos || pide.firmas){
+    // Los rótulos de las firmas se buscan una vez por archivo: dentro de un mismo PDF
+    // el formato se repite, y buscarlos en cada orden era lo más caro de la revisión.
+    let celdasDelArchivo = null;
+    if (pide.firmas && ordenes.length){
+      await dibujarPagina(pdf, jpegs, ordenes[0].pagina, dpi, lienzo, ctx);
+      const crops = recortesDeCeldas(lienzo);
+      const w = await turno.tomar();
+      try {
+        const fin = await conLimite(celdasDesdeCrops(w, crops), limitePagina);
+        celdasDelArchivo = fin === AGOTADO ? null : fin;
+      } catch (e){ celdasDelArchivo = null; }
+      finally { turno.soltar(w); }
+    }
+    {
+      const enVuelo = new Set();
       for (const r of ordenes){
         if (cancelado()) break;
         await dibujarPagina(pdf, jpegs, r.pagina, dpi, lienzo, ctx);
-        const se = sellos(lienzo);
-        if (pide.sellos){
-          r.sellos = se.sellos.length; r.selloEnFirma = se.sobreFirma.length > 0;
-          r.selloIlegible = r.sinColor && !se.sellos.length;
-        }
-        if (pide.firmas){
-          const ub = await ubicarCeldasFirma(trabajadores[0], lienzo, true);
-          r.celdas = ub.celdas;
-          r.firmas = tintaFirmas(lienzo, se.zonas.concat(se.sellos), ub.celdas, r.sinColor).map(estadoFirma);
-        }
+        const recortes = {
+          num:    recorte(lienzo, INTENTOS[0].fx, INTENTOS[0].fy, INTENTOS[0].fw, INTENTOS[0].fh, INTENTOS[0].amp, INTENTOS[0].limpiar, INTENTOS[0].cerrar, INTENTOS[0].umbralColor),
+          fecha:  pide.ej ? recorte(lienzo, ZONA_FECHA.fx, ZONA_FECHA.fy, ZONA_FECHA.fw, ZONA_FECHA.fh, ZONA_FECHA.amp, true) : null,
+          montos: pide.monto ? recorte(lienzo, ZONA_MONTOS.fx, ZONA_MONTOS.fy, ZONA_MONTOS.fw, ZONA_MONTOS.fh, ZONA_MONTOS.amp, true) : null,
+          montosAncha: pide.monto ? recorte(lienzo, ZONA_MONTOS_ANCHA.fx, ZONA_MONTOS_ANCHA.fy, ZONA_MONTOS_ANCHA.fw, ZONA_MONTOS_ANCHA.fh, 1, false) : null,
+          hoja:   recorte(lienzo, ZONA_HOJA.fx, ZONA_HOJA.fy, ZONA_HOJA.fw, ZONA_HOJA.fh, ZONA_HOJA.amp, true),
+          hoja2:  recorte(lienzo, ZONA_HOJA_2.fx, ZONA_HOJA_2.fy, ZONA_HOJA_2.fw, ZONA_HOJA_2.fh, ZONA_HOJA_2.amp, true)
+        };
+        const chico = document.createElement('canvas');
+        chico.width = 700; chico.height = Math.max(1, Math.round(lienzo.height * 700 / lienzo.width));
+        chico.getContext('2d').drawImage(lienzo, 0, 0, chico.width, chico.height);
+        r.color = tinta(chico, 0, 0, 1, 1).color;
+        r.sinColor = r.color < SIN_COLOR;
+        const pagina = (pide.firmas || pide.sellos) ? copiaDe(lienzo) : null;
+
+        const tarea = (async () => {
+          const w = await turno.tomar();
+          try {
+            const fin = await conLimite((async () => {
+              r.intentos = 1;
+              const vistos = new Set(candidatosDe(await leerZona(w, recortes.num, INTENTOS[0].psm, INTENTOS[0].lista || '0123456789-')));
+              r.cand = [...vistos];
+              resolverNumeroCon(r, vistos, ordenesBase);
+              for (const [campo, z, img] of [['fecha', ZONA_FECHA, recortes.fecha], ['montos', ZONA_MONTOS, recortes.montos]]){
+                if (!img) continue;
+                const txt = await leerZona(w, img, z.psm, z.lista);
+                if (campo === 'fecha'){
+                  r.fecha = (txt.match(/\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b/g) || [])[0] || null;
+                  r.ejercicio = r.fecha ? ('20' + r.fecha.slice(-2)).slice(-4) : null;
+                } else {
+                  r.montos = [...new Set(txt.match(RE_MONTO) || [])];
+                  // La tabla de importes se comprueba sola: uno de los renglones es la
+                  // suma de los demás. Si no cuadra es que falta alguno —medido: se
+                  // perdía el último de la lista— y se relee una zona más ancha.
+                  if (!cuadran(r.montos) && recortes.montosAncha){
+                    const otra = (await leerZona(w, recortes.montosAncha, ZONA_MONTOS_ANCHA.psm, ZONA_MONTOS_ANCHA.lista)).match(RE_MONTO) || [];
+                    const union = [...new Set(r.montos.concat(otra))];
+                    if (cuadran(union) || !r.montos.length) r.montos = union;
+                  }
+                }
+              }
+              const leerHoja = t => { const m = t.replace(/\s+/g, ' ').match(/(\d+)\s*(?:\/|de)\s*(\d+)/i); return m ? m[1] + ' de ' + m[2] : null; };
+              r.hoja = leerHoja(await leerZona(w, recortes.hoja, ZONA_HOJA.psm, ZONA_HOJA.lista))
+                    || leerHoja(await leerZona(w, recortes.hoja2, ZONA_HOJA_2.psm, ZONA_HOJA_2.lista));
+            })(), limitePagina);
+            if (fin === AGOTADO) r.agotado = true;
+          } catch (e){ r.error = e.message; }
+          finally { turno.soltar(w); }
+          if (pagina){
+            try { analizarImagen(r, pagina, pide, celdasDelArchivo); }
+            catch (e){ r.error = r.error || e.message; }
+          }
+        })();
+        enVuelo.add(tarea); tarea.finally(() => enVuelo.delete(tarea));
+        if (enVuelo.size >= NUCLEOS) await Promise.race(enVuelo);
       }
+      await Promise.all(enVuelo);
     }
-    for (const r of ordenes.filter(r => !r.numero && !r.ambiguo)){
-      if (cancelado()) break;
-      await dibujarPagina(pdf, jpegs, r.pagina, dpi, lienzo, ctx);
-      const vistos = new Set(r.cand);
-      for (const it of INTENTOS.slice(1)){
-        r.intentos++;
-        for (const c of candidatosDe(await leerZona(trabajadores[0], recorte(lienzo, it.fx, it.fy, it.fw, it.fh, it.amp, it.limpiar, it.cerrar, it.umbralColor), it.psm, it.lista || '0123456789-'))) vistos.add(c);
-        r.cand = [...vistos];
-        resolverNumeroCon(r, vistos, ordenesBase);
-        if (r.numero || r.ambiguo) break;
+
+    // ---- fase 3: segundos intentos sobre el número, repartidos entre los trabajadores
+    {
+      const pendientes = ordenes.filter(r => !r.numero && !r.ambiguo);
+      const enVuelo = new Set();
+      for (const r of pendientes){
+        if (cancelado()) break;
+        await dibujarPagina(pdf, jpegs, r.pagina, dpi, lienzo, ctx);
+        const crops = INTENTOS.slice(1).map(it => ({ it, img: recorte(lienzo, it.fx, it.fy, it.fw, it.fh, it.amp, it.limpiar, it.cerrar, it.umbralColor) }));
+        const tarea = (async () => {
+          const w = await turno.tomar();
+          try {
+            const fin = await conLimite((async () => {
+              const vistos = new Set(r.cand);
+              for (const { it, img } of crops){
+                r.intentos++;
+                for (const c of candidatosDe(await leerZona(w, img, it.psm, it.lista || '0123456789-'))) vistos.add(c);
+                r.cand = [...vistos];
+                resolverNumeroCon(r, vistos, ordenesBase);
+                if (r.numero || r.ambiguo) break;
+              }
+            })(), limitePagina);
+            if (fin === AGOTADO) r.agotado = true;
+          } catch (e){ r.error = e.message; }
+          finally { turno.soltar(w); }
+        })();
+        enVuelo.add(tarea); tarea.finally(() => enVuelo.delete(tarea));
+        if (enVuelo.size >= NUCLEOS) await Promise.race(enVuelo);
       }
+      await Promise.all(enVuelo);
     }
+
+    // ---- fase 3b: lo que sigue sin leerse, sobre la página decodificada en chico
+    {
+      const tercos = ordenes.filter(r => !r.numero && !r.ambiguo);
+      const enVuelo = new Set();
+      for (const r of tercos){
+        if (cancelado()) break;
+        await dibujarPagina(pdf, jpegs, r.pagina, dpi, lienzo, ctx, null, true);
+        const crops = INTENTOS_CHICOS.map(i => INTENTOS[i])
+          .map(it => ({ it, img: recorte(lienzo, it.fx, it.fy, it.fw, it.fh, it.amp, it.limpiar, it.cerrar, it.umbralColor) }));
+        const tarea = (async () => {
+          const w = await turno.tomar();
+          try {
+            const fin = await conLimite((async () => {
+              const vistos = new Set(r.cand);
+              for (const { it, img } of crops){
+                r.intentos++;
+                for (const c of candidatosDe(await leerZona(w, img, it.psm, it.lista || '0123456789-'))) vistos.add(c);
+                r.cand = [...vistos];
+                resolverNumeroCon(r, vistos, ordenesBase);
+                if (r.numero || r.ambiguo) break;
+              }
+            })(), limitePagina);
+            if (fin === AGOTADO) r.agotado = true;
+          } catch (e){ r.error = e.message; }
+          finally { turno.soltar(w); }
+        })();
+        enVuelo.add(tarea); tarea.finally(() => enVuelo.delete(tarea));
+        if (enVuelo.size >= NUCLEOS) await Promise.race(enVuelo);
+      }
+      await Promise.all(enVuelo);
+    }
+
     resultados.push(...delArchivo);
-    avisar({ tipo: 'archivo', archivo: f.name, ordenes: ordenes.length });
+    bytesHechos += f.size; archivosHechos++;
+    avisar({ tipo: 'archivo', archivo: f.name, ordenes: ordenes.length, paginas: pdf.numPages });
     await pdf.destroy();
   }
   avisar({ tipo: 'fin', paginas: paginasHechas });
-  return resultados;
+  return { paginas: resultados, duplicados };
 }
 
-async function dibujarPagina(pdf, jpegs, p, dpi, lienzo, ctx){
+/* Sellos y firmas sobre la copia de la página: es trabajo de lienzo, no de OCR. */
+function analizarImagen(r, pagina, pide, celdas){
+  const se = (pide.sellos || pide.firmas) ? sellos(pagina) : null;
+  if (pide.sellos && se){
+    r.sellos = se.sellos.length;
+    r.selloEnFirma = se.sobreFirma.length > 0;
+    r.selloIlegible = r.sinColor && !se.sellos.length;
+  }
+  if (pide.firmas && se){
+    r.celdas = celdas || CELDAS_FIJAS;
+    r.firmas = tintaFirmas(pagina, se.zonas.concat(se.sellos), r.celdas, r.sinColor).map(estadoFirma);
+  }
+}
+
+/* Decodificar cuesta ~160 ms por página y bloquea el hilo principal mientras el OCR
+   espera. Se adelanta el trabajo: la imagen de las páginas siguientes se va
+   decodificando mientras se lee la de ahora. */
+function adelantador(jpegs, dpi, pdf){
+  const listas = new Map();
+  const pedir = async (p) => {
+    if (!jpegs.length || listas.has(p)) return;
+    const page = await pdf.getPage(p);
+    const vp = page.getViewport({ scale: dpi / 72 });
+    page.cleanup();
+    const destino = Math.round(Math.max(vp.width, vp.height));
+    listas.set(p, createImageBitmap(jpegs[p - 1], { resizeWidth: destino, resizeQuality: 'medium' })
+      .catch(() => createImageBitmap(jpegs[p - 1]).catch(() => null)));
+  };
+  return {
+    pedir,
+    tomar: (p) => { const b = listas.get(p); listas.delete(p); return b || null; },
+    limpiar: () => { for (const b of listas.values()) b.then(x => x && x.close(), () => {}); listas.clear(); }
+  };
+}
+
+async function dibujarPagina(pdf, jpegs, p, dpi, lienzo, ctx, adelanto, reducir){
   const page = await pdf.getPage(p);
   const vp = page.getViewport({ scale: dpi / 72 });
-  if (!(jpegs.length && await dibujarRapido(jpegs[p - 1], vp, lienzo, ctx))){
+  const listo = adelanto ? await adelanto.tomar(p) : null;
+  if (listo){ page.cleanup(); if (ponerBitmap(listo, vp, lienzo, ctx)) return; }
+  if (!(jpegs.length && await dibujarRapido(jpegs[p - 1], vp, lienzo, ctx, reducir === undefined ? !!adelanto : reducir))){
     lienzo.width = Math.round(vp.width); lienzo.height = Math.round(vp.height);
     ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, lienzo.width, lienzo.height);
     await page.render({ canvasContext: ctx, viewport: vp }).promise;
@@ -1956,7 +2206,7 @@ function renderBody(){
   const simple = (head, body, right=[]) => `<div class="tablewrap simple"><table><thead><tr>${head.map((h,i)=>`<th class="${right.includes(i)?'r':''}">${h}</th>`).join('')}</tr></thead><tbody>${body.map(r=>`<tr>${r.map((v,i)=>`<td class="${right.includes(i)?'r num':''} ${i===0?'num':''}">${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
   if (state.tab === 'nf') b.innerHTML = simple(['Orden','Ejercicio','Monto solicitado'], notFound.map(r=>[r[0], r[1], r[2] == null ? '—' : '$' + money(r[2])]), [2])
     + (real.on && real.ilegibles.length ? `<div class="toolbar"><span class="hint"><b>${fmtInt(real.ilegibles.length)} página${real.ilegibles.length === 1 ? '' : 's'} con forma de orden de pago</b> que no se pudo identificar. Ahí es donde conviene buscar las órdenes de arriba.</span></div>`
-        + simple(['Archivo','Pág.','Qué pasó'], real.ilegibles.map(r => [r[0], r[1], r[2]]), [1]) : '');
+        + simple(['Archivo','Pág.','Qué pasó'], real.ilegibles.map(x => [x.archivo, x.pagina, x.motivo]), [1]) : '');
   if (state.tab === 'man') b.innerHTML = `<div class="toolbar"><span class="hint">Estos archivos van en la carpeta <b>Revisión manual</b> dentro de la descarga.</span></div>` + simple(['Orden','Ejercicio','Archivos','Motivo'], manual);
   if (state.tab === 'dup') b.innerHTML = `<div class="toolbar"><span class="hint">No se incluyen en la carpeta de descarga. Quedan listados como evidencia.</span></div>` + simple(['Archivo omitido','Es copia de','Páginas','Motivo'], dups.map(d => [d[0], d[1], fmtInt(d[2]), d[3]]), [2]);
   if (state.tab === 'ren') b.innerHTML = simple(['Nombre original','Nombre nuevo','Órdenes'], renames, [2]);
@@ -2085,7 +2335,7 @@ function renderPreview(){
     <figure class="sheet">${sheetSVG(r)}<figcaption>Zonas detectadas</figcaption></figure>
     ${overrideHTML(state.sel)}
     <div class="pactions">
-      <button type="button" class="btn small" id="open-page" data-toast="Próximamente.">Abrir página</button>
+      <button type="button" class="btn small" id="open-page">Abrir página</button>
       ${state.editing === state.sel || overrides.has(state.sel) ? '' : '<button type="button" class="btn small" id="ov-open">Corregir estado</button>'}
     </div>`;
   if (state.editing === state.sel){ const note = $('#ov-note'); if (note && state.focusNote){ note.focus(); state.focusNote = false; } }
@@ -2413,7 +2663,7 @@ async function buildWorkbook(){
   if (real.on && real.ilegibles.length) addStyledSheet(wb, 'Páginas sin identificar', {
     title:'Páginas con forma de orden de pago que no se pudieron identificar', meta:meta(`${real.ilegibles.length} páginas`), tab:'FF6B4FA8',
     columns:[{header:'Archivo', width:50, muted:true}, {header:'Página', width:9, int:true, align:'center', mono:true}, {header:'Qué pasó', width:70}],
-    data: real.ilegibles
+    data: real.ilegibles.map(x => [x.archivo, x.pagina, x.motivo])
   });
   addStyledSheet(wb, 'Revisión manual', {
     title:'Órdenes para revisión manual', meta:meta(`${manual.length} órdenes`), tab:'FF9A5608',
@@ -2881,7 +3131,7 @@ document.addEventListener('click', e => {
   if (e.target.closest('#next-row')) return step(1);
   const tr = e.target.closest('tr.sel'); if (tr){ if (suppressClick) return; select(+tr.dataset.i, true); return; }
   if (e.target.closest('#dl-xlsx')){ exportExcel(); return; }
-  if (e.target.closest('#dl-zip')){ if (!requireEntity()) return; toast('Próximamente.'); return; }
+  if (e.target.closest('#dl-zip')){ if (real.on) return; if (!requireEntity()) return; toast('La carpeta se arma con los PDFs de una verificación real.'); return; }
 });
 document.addEventListener('submit', e => {
   if (e.target.id === 'ov-form'){ e.preventDefault(); saveOverride(); }
@@ -2985,19 +3235,26 @@ async function correr(){
       cancelado: () => cancelar,
       avisar: a => {
         if (a.tipo === 'ocr') prog(a.texto);
-        else if (a.tipo === 'inicio'){ paginas = a.paginas; prog(`0 de ${fmtInt(a.paginas)} páginas`); }
+        else if (a.tipo === 'inicio'){
+          prog(a.duplicados
+            ? `${fmtInt(a.duplicados)} archivo${a.duplicados === 1 ? ' repetido se omite' : 's repetidos se omiten'} · empezando…`
+            : 'Empezando…');
+        }
         else if (a.tipo === 'pagina'){
           const ahora = performance.now();
-          if (ahora - ultimoAviso < 200 && a.hechas < a.total) return;
+          if (ahora - ultimoAviso < 250) return;
           ultimoAviso = ahora;
+          paginas = a.hechas;
           const seg = (ahora - t0) / 1000;
-          const falta = Math.round(seg / a.hechas * (a.total - a.hechas));
-          prog(`${fmtInt(a.hechas)} de ${fmtInt(a.total)} páginas · quedan ${tiempo(falta)}`);
+          const falta = a.avance > 0.02 ? Math.round(seg / a.avance - seg) : 0;
+          prog(`Archivo ${fmtInt(Math.min(a.archivos + 1, a.deArchivos))} de ${fmtInt(a.deArchivos)}`
+             + ` · ${fmtInt(a.hechas)} páginas · ${fmtInt(a.ordenes)} órdenes`
+             + ` · ${Math.round(a.avance * 100)}%${falta ? ' · quedan ' + tiempo(falta) : ''}`);
         }
       }
     });
     real.ms = performance.now() - t0;
-    real.paginas = paginas;
+    real.paginas = leido.paginas.length;
     construir(leido, pide);
     prog(cancelar ? 'Cancelado: se muestran las páginas que alcanzaron a leerse.' : '');
     if (cancelar) toast('Verificación cancelada. Lo leído hasta ese punto está en la tabla.');
@@ -3022,11 +3279,17 @@ function agrupar(leido){
     paginasOrden++;
     if (!r.numero){
       // La página es una orden de pago, pero su número no está en el documento base.
-      // No se adivina: se apunta dónde está para revisarla a mano.
-      ilegibles.push([r.archivo, r.pagina, r.ambiguo
-        ? 'Coinciden dos órdenes del documento base: ' + r.ambiguo.join(' y ')
-        : (r.cand || []).length ? 'Se leyó ' + r.cand.join(', ') + ', que no está en el documento base'
-        : 'No se pudo leer ningún número']);
+      // No se adivina: se apunta dónde está, con qué se leyó, para poder atribuirla
+      // después a una orden del documento base y marcarla Ilegible en vez de perderla.
+      ilegibles.push({
+        archivo: r.archivo, pagina: r.pagina, cand: r.cand || [], sinColor: !!r.sinColor,
+        agotado: !!r.agotado, ambiguo: r.ambiguo || null,
+        motivo: r.agotado ? 'La página tardó demasiado y se dejó a medias'
+          : r.ambiguo ? 'Coinciden dos órdenes del documento base: ' + r.ambiguo.join(' y ')
+          : r.sinColor ? 'Escaneo sin color: no se pudo leer el número'
+          : (r.cand || []).length ? 'Se leyó ' + r.cand.join(', ') + ', que no está en el documento base'
+          : 'No se pudo leer ningún número'
+      });
       continue;
     }
     let g = porOp.get(r.numero);
@@ -3054,28 +3317,88 @@ function agrupar(leido){
 function montosDe(g){
   const n = [...new Set(g.montos.map(m => parseFloat(String(m).replace(/,/g, ''))))]
     .filter(x => Number.isFinite(x) && x > 0).sort((a, b) => b - a);
-  if (n.length > 1 && cerca(n.slice(1).reduce((a, b) => a + b, 0), n[0])) return {lineas:n.slice(1), total:n[0]};
-  return {lineas:n, total:Math.round(n.reduce((a, b) => a + b, 0) * 100) / 100};
+  if (n.length > 1 && cerca(n.slice(1).reduce((a, b) => a + b, 0), n[0]))
+    return {lineas:n.slice(1), total:n[0], cuadra:true};
+  // No cuadra: lo leído está incompleto, así que no se puede decir que un monto falte
+  return {lineas:n, total:n[0] || 0, cuadra:n.length === 1};
 }
 
+/* Distancia de edición, para saber si lo leído se parece a una orden del documento
+   base. No sirve para confirmar nada —eso solo lo hace una coincidencia exacta— sino
+   para poder decir "esta orden está aquí pero no se pudo leer" en vez de perderla. */
+function distancia(a, b){
+  if (Math.abs(a.length - b.length) > 2) return 9;
+  const m = a.length, n = b.length;
+  let prev = Array.from({length:n + 1}, (_, j) => j);
+  for (let i = 1; i <= m; i++){
+    const cur = [i];
+    for (let j = 1; j <= n; j++)
+      cur[j] = Math.min(prev[j] + 1, cur[j-1] + 1, prev[j-1] + (a[i-1] === b[j-1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[n];
+}
+
+/* ¿Alguna de las páginas que no se pudieron identificar es esta orden? Dos pistas, las
+   dos débiles a propósito: el nombre del archivo (que él dijo usar como guía, nunca
+   como dato) y un número leído que se parece mucho. Con una pista la fila sale
+   Ilegible —hay que ir a verla— y nunca Correcto. */
+function pistaDe(op, ilegibles, ordenesBase){
+  const porNombre = ilegibles.filter(x => x.archivo.includes(op));
+  if (porNombre.length === 1) return { pagina: porNombre[0], por: 'el nombre del archivo' };
+  for (const x of ilegibles){
+    const cerca = (x.cand || []).filter(c => distancia(c, op) <= 2);
+    if (!cerca.length) continue;
+    // si lo leído se parece igual a otra orden del documento base, no se atribuye
+    const otras = [...ordenesBase].filter(o => o !== op && cerca.some(c => distancia(c, o) <= 2));
+    if (!otras.length) return { pagina: x, por: 'lo leído (' + cerca.join(', ') + ')' };
+  }
+  return null;
+}
+
+/* Un PDF se renombra con las órdenes que de verdad trae, en orden de aparición. */
+function nombrePara(ops){
+  if (!ops.length) return null;
+  if (ops.length === 1) return ops[0] + '.pdf';
+  if (ops.length <= 20) return ops.join('_') + '.pdf';
+  return `${ops[0]}_al_${ops[ops.length - 1]}_(${ops.length} OPs).pdf`;
+}
+
+const NA_REV = ['na', 'No se revisó'];
 function construir(leido, pide){
-  const {porOp, ilegibles, paginasOrden} = agrupar(leido);
+  const {porOp, ilegibles, paginasOrden} = agrupar(leido.paginas);
   real.ordenes = porOp.size;
   real.ilegibles = ilegibles;
   real.sinIdentificar = ilegibles.length;
   real.paginasOrden = paginasOrden;
   if (!copiaDemo) copiaDemo = juegoActual();
 
-  const nRows = [], nNotFound = [], nManual = [];
-  const ok = m => ['ok', m];
-  const NA = ['na', 'No se revisó'];
+  const nRows = [], nNotFound = [], nManual = [], nDups = [], nRenames = [];
+  for (const d of (leido.duplicados || []))
+    nDups.push([d.archivo, d.copiaDe, d.paginas || 0, 'Archivo idéntico: no se revisó']);
 
+  // renombres: por archivo, las órdenes confirmadas en orden de aparición
+  const porArchivo = new Map();
+  for (const r of leido.paginas){
+    if (r.tipo !== 'orden' || !r.numero) continue;
+    if (!porArchivo.has(r.archivo)) porArchivo.set(r.archivo, []);
+    const lista = porArchivo.get(r.archivo);
+    if (!lista.includes(r.numero)) lista.push(r.numero);
+  }
+  for (const [archivo, ops] of porArchivo){
+    const nuevo = nombrePara(ops);
+    if (nuevo && nuevo !== archivo) nRenames.push([archivo, nuevo, ops.length]);
+  }
+  const ok = m => ['ok', m];
+  const NA = NA_REV;
+
+  const sinHallar = [];
   for (const d of real.base.detalle){
     const g = porOp.get(d.op);
     const pedidos = d.montos.length ? d.montos : [null];
-    if (!g){ pedidos.forEach(m => nNotFound.push([d.op, d.ejercicio || '—', m])); continue; }
+    if (!g){ sinHallar.push({ d, pedidos }); continue; }
 
-    const {lineas, total} = montosDe(g);
+    const {lineas, total, cuadra} = montosDe(g);
     const archivos = [...g.archivos.keys()];
     const varios = archivos.length > 1;
     if (varios) nManual.push([d.op, d.ejercicio || '—', archivos.join(' · '), 'El mismo número de orden aparece en más de un archivo']);
@@ -3125,6 +3448,11 @@ function construir(leido, pide){
         const i = lineas.findIndex(x => cerca(x, pedido));
         if (i >= 0){ row.hit = i; r.monto = ok(`Línea ${i + 1} de la lista`); }
         else if (cerca(total, pedido)){ row.hit = 't'; r.monto = ok('Es el total de la orden'); }
+        else if (!cuadra){
+          // los renglones leídos no suman el total: faltó leer alguno, no se acusa
+          r.monto = ['ile', 'La tabla de montos no se pudo leer completa (los renglones no suman el total)'];
+          row.sheet.blurTable = true;
+        }
         else {
           const todos = lineas.map((x, k) => [x, k]).concat([[total, 't']]);
           const [v, k] = todos.reduce((a, b) => Math.abs(b[0] - pedido) < Math.abs(a[0] - pedido) ? b : a);
@@ -3143,7 +3471,30 @@ function construir(leido, pide){
     });
   }
 
-  ponerJuego({rows:nRows, manual:nManual, renames:[], dups:[], notFound:nNotFound});
+  // Las que no se hallaron: si alguna página ilegible parece ser esa orden, va a la
+  // tabla como Ilegible (hay que ir a verla); si no hay ninguna pista, no aparece.
+  const ordenesBase = new Set(real.base.ordenes);
+  const usadas = new Set();
+  for (const { d, pedidos } of sinHallar){
+    const libres = ilegibles.filter(x => !usadas.has(x));
+    const pista = pistaDe(d.op, libres, ordenesBase);
+    if (!pista){ pedidos.forEach(m => nNotFound.push([d.op, d.ejercicio || '—', m])); continue; }
+    usadas.add(pista.pagina);
+    const motivo = `${pista.pagina.motivo}. Se ubicó por ${pista.por}: revísala a mano.`;
+    pedidos.forEach(pedido => {
+      const ile = ['ile', motivo];
+      nRows.push({
+        op: d.op, ej: d.ejercicio || '—', file: pista.pagina.archivo, pag: String(pista.pagina.pagina),
+        lines: [], total: 0, montoNum: pedido, sheet: {blurTable:true, blurFoot:true},
+        r: { op: ile, ej: pide.ej ? ile : NA_REV, monto: pide.monto ? ile : NA_REV,
+             firmas: pide.firmas ? ile : NA_REV, sellos: pide.sellos ? ile : NA_REV }
+      });
+    });
+  }
+
+  ponerJuego({rows:nRows, manual:nManual, renames:nRenames, dups:nDups, notFound:nNotFound});
+  real.ilegibles = ilegibles.filter(x => !usadas.has(x));
+  real.sinIdentificar = real.ilegibles.length;
   copiaReal = juegoActual();
   real.on = true; state.demo = false;
   overrideSet = 'real:' + (real.baseNombre || '') + ':' + nRows.length;
@@ -3154,6 +3505,95 @@ function construir(leido, pide){
   $('#runmeta').textContent = 'Última verificación: ' + tiempo(real.ms / 1000);
   renderStatic(); renderAll(); queuePaint();
 }
+
+/* ---------- Ver la página escaneada ----------
+   La verificación dice qué pasó; esto deja comprobarlo sin salir de la página, con el
+   PDF que ya está cargado (nunca sale de la máquina). */
+const visor = { pdf: null, archivo: null, pagina: 1, total: 1 };
+async function abrirPaginaDe(fila){
+  if (!fila) return;
+  const f = real.archivos.find(x => x.name === fila.file);
+  if (!f) return toast(real.archivos.length
+    ? `El archivo "${fila.file}" no está entre los PDFs elegidos.`
+    : 'Elige la carpeta de PDFs para poder ver las páginas.');
+  const pag = parseInt(String(fila.pag).replace(/[^\d].*$/, ''), 10) || 1;
+  $('#visor').hidden = false;
+  $('#visor-tit').textContent = fila.op;
+  $('#visor-info').textContent = 'Abriendo…';
+  try {
+    await libs();
+    if (visor.archivo !== f.name){
+      if (visor.pdf) await visor.pdf.destroy();
+      visor.pdf = await pdfjsLib.getDocument({ data: await f.arrayBuffer() }).promise;
+      visor.archivo = f.name;
+    }
+    visor.total = visor.pdf.numPages;
+    await verPagina(Math.min(pag, visor.total));
+  } catch (err){
+    $('#visor-info').textContent = 'No se pudo abrir: ' + err.message;
+  }
+}
+async function verPagina(n){
+  visor.pagina = Math.max(1, Math.min(visor.total, n));
+  const page = await visor.pdf.getPage(visor.pagina);
+  const base = page.getViewport({ scale: 1 });
+  const vp = page.getViewport({ scale: Math.min(2, 1000 / base.width) });
+  const c = $('#visor-canvas'), cx = c.getContext('2d');
+  c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+  cx.fillStyle = '#fff'; cx.fillRect(0, 0, c.width, c.height);
+  await page.render({ canvasContext: cx, viewport: vp }).promise;
+  page.cleanup();
+  $('#visor-info').textContent = `${visor.archivo} · página ${visor.pagina} de ${visor.total}`;
+  $('#visor-prev').disabled = visor.pagina <= 1;
+  $('#visor-next').disabled = visor.pagina >= visor.total;
+}
+function cerrarVisor(){ $('#visor').hidden = true; }
+
+/* ---------- Carpeta de PDFs ya renombrados ----------
+   Los archivos originales no se tocan: el renombre solo existe en la descarga. */
+async function descargarCarpeta(){
+  if (!real.on) return toast('Primero corre una verificación.');
+  if (!requireEntity()) return;
+  if (!window.JSZip) return toast('No se pudo cargar el compresor ZIP.');
+  const omitidos = new Set(dups.map(d => d[0]));
+  const nuevos = new Map(renames.map(r => [r[0], r[1]]));
+  const mano = new Set(manual.flatMap(m => String(m[2]).split(' · ')));
+  const incluidos = real.archivos.filter(f => !omitidos.has(f.name));
+  const bytes = incluidos.reduce((a, f) => a + f.size, 0);
+  if (bytes > 2e9) return toast('La carpeta pasa de 2 GB: el navegador no la puede armar. Descarga el Excel y renombra por partes.');
+  const btn = $('#dl-zip');
+  btn.disabled = true;
+  const original = $('#dl-zip-label').textContent;
+  $('#dl-zip-label').textContent = 'Armando…';
+  try {
+    const zip = new JSZip();
+    for (const f of incluidos){
+      const nombre = nuevos.get(f.name) || f.name;
+      const destino = mano.has(f.name) ? 'Revisión manual/' + nombre : nombre;
+      zip.file(destino, f, { compression: 'STORE' });
+    }
+    const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/zip' },
+      m => { $('#dl-zip-label').textContent = 'Armando… ' + Math.round(m.percent) + '%'; });
+    if (await saveFile(fileName('', '.zip', verifyPartName()), blob))
+      toast(`${fmtInt(incluidos.length)} archivos, ${fmtInt(nuevos.size)} renombrados.`);
+  } catch (err){
+    toast('No se pudo armar la carpeta: ' + err.message);
+  } finally { btn.disabled = false; $('#dl-zip-label').textContent = original; }
+}
+
+document.addEventListener('click', e => {
+  if (e.target.closest('#open-page')){ abrirPaginaDe(rows[state.sel]); return; }
+  if (e.target.closest('#dl-zip')){ if (real.on) descargarCarpeta(); return; }
+  if (e.target.closest('#visor-cerrar') || e.target.id === 'visor'){ cerrarVisor(); return; }
+  if (e.target.closest('#visor-prev')){ verPagina(visor.pagina - 1); return; }
+  if (e.target.closest('#visor-next')){ verPagina(visor.pagina + 1); return; }
+});
+document.addEventListener('keydown', e => {
+  if ($('#visor').hidden) return;
+  if (e.key === 'Escape') cerrarVisor();
+  if (e.key === 'ArrowLeft') verPagina(visor.pagina - 1);
+  if (e.key === 'ArrowRight') verPagina(visor.pagina + 1);
+});
 
 avisoImagen();
 })();
