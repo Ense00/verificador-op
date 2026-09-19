@@ -2,6 +2,32 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.26.0 — 2026-09-19
+
+**Falsos positivos de número**, lo que más le importa al usuario. Los encontró él con una
+corrida de 1,356 órdenes y se midieron con su tabla: el OCR confunde 6, 8, 0, 5 y 9, y como
+el número mal leído casi siempre es OTRA orden del documento base, se daba por bueno.
+Medido: los dígitos mal leídos salen con confianza 87-100 %, así que la confianza del OCR
+no sirve para detectarlos.
+
+- **Un número contradicho se retira.** Si dos lecturas de la misma hoja daban órdenes
+  distintas, se marcaba "ambiguo" pero el número ya confirmado se quedaba puesto y se usaba.
+  Caso real: una hoja que imprime …064 se confirmaba como …084.
+- **Una sola lectura no confirma.** Hacen falta dos lecturas (recortes distintos) que den la
+  misma orden. Con una sola, la hoja queda sin identificar ("se leyó X una sola vez") y se
+  reintenta con más variantes.
+- **Hojas contiguas con números casi iguales no se confirman.** En su tabla, de 18 pares de
+  hojas seguidas con números distintos, 14 diferían en 2 dígitos o menos: una hoja bien leída
+  junto a su hermana mal leída (…125 / …025, …286 / …288). No hay forma de saber cuál es
+  la buena, así que ninguna se confirma y salen Ilegible con la página.
+- **Costo, medido contra el banco de evaluación:** Caso B igual (8 de 8 órdenes, 31 → 35 s).
+  Caso A 65 → 63 órdenes halladas (63 → 61 Correcto) y 120 → 158 s. Las dos que se
+  perdieron eran lecturas correctas (1900000048 y 1900000060 en los ejemplos) contradichas por una lectura ruidosa de
+  la raya de pluma, con 1 voto cada una: no hay forma honesta de decidir, y quedan Ilegible
+  con su página.
+- El nombre del archivo NO manda: un archivo llamado 5100000085.pdf puede traer la orden 5100000088, y la lectura
+  era correcta.
+
 ## v0.25.3 — 2026-09-19
 
 - **"No encontrada" ya no es un fallo de lectura disfrazado.** Solo se dice cuando ninguna

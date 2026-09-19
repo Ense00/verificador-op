@@ -462,7 +462,7 @@ table.parts td{vertical-align:middle}
   <header class="top">
     <div class="brand">
       <h1>Verificador de Órdenes de Pago</h1>
-      <span class="stamp">v0.25.3</span>
+      <span class="stamp">v0.26.0</span>
     </div>
     <div class="topright">
     <div class="toprow">
@@ -1922,9 +1922,10 @@ async function procesarPDFs(archivos, opciones){
             const fin = await conLimite((async () => {
               r.intentos = 1;
               const vistos = new Set(candidatosDe(await leerZona(w, recortes.num, INTENTOS[0].psm, INTENTOS[0].lista || '0123456789-')));
+              anotar(r, vistos);
               r.cand = [...vistos];
               resolverNumeroCon(r, vistos, ordenesBase);
-              if (r.numero || r.sufijoA) await sondearSufijo(w, r, recortes.sondeo, ordenesBase, recortes.colas);
+              if (r.numero || r.sufijoA || r.unaLectura) await sondearSufijo(w, r, recortes.sondeo, ordenesBase, recortes.colas, true);
               for (const [campo, z, img] of [['fecha', ZONA_FECHA, recortes.fecha], ['montos', ZONA_MONTOS, recortes.montos]]){
                 if (!img) continue;
                 const txt = await leerZona(w, img, z.psm, z.lista);
@@ -1981,12 +1982,14 @@ async function procesarPDFs(archivos, opciones){
               const vistos = new Set(r.cand);
               for (const { it, img } of crops){
                 r.intentos++;
-                for (const c of candidatosDe(await leerZona(w, img, it.psm, it.lista || '0123456789-'))) vistos.add(c);
+                const lectura = candidatosDe(await leerZona(w, img, it.psm, it.lista || '0123456789-'));
+                anotar(r, lectura);
+                for (const c of lectura) vistos.add(c);
                 r.cand = [...vistos];
                 resolverNumeroCon(r, vistos, ordenesBase);
                 if (r.numero || r.ambiguo) break;
               }
-              if (r.numero || r.sufijoA) await sondearSufijo(w, r, sondeo, ordenesBase, colas);
+              if (r.numero || r.sufijoA) await sondearSufijo(w, r, sondeo, ordenesBase, colas, false);
             })(), limitePagina);
             if (fin === AGOTADO) r.agotado = true;
           } catch (e){ r.error = e.message; }
@@ -2019,12 +2022,14 @@ async function procesarPDFs(archivos, opciones){
               const vistos = new Set(r.cand);
               for (const { it, img } of crops){
                 r.intentos++;
-                for (const c of candidatosDe(await leerZona(w, img, it.psm, it.lista || '0123456789-'))) vistos.add(c);
+                const lectura = candidatosDe(await leerZona(w, img, it.psm, it.lista || '0123456789-'));
+                anotar(r, lectura);
+                for (const c of lectura) vistos.add(c);
                 r.cand = [...vistos];
                 resolverNumeroCon(r, vistos, ordenesBase);
                 if (r.numero || r.ambiguo) break;
               }
-              if (r.numero || r.sufijoA) await sondearSufijo(w, r, sondeo, ordenesBase, colas);
+              if (r.numero || r.sufijoA) await sondearSufijo(w, r, sondeo, ordenesBase, colas, false);
             })(), limitePagina);
             if (fin === AGOTADO) r.agotado = true;
           } catch (e){ r.error = e.message; }
@@ -2052,6 +2057,20 @@ async function procesarPDFs(archivos, opciones){
       for (const r of tramo) if (r.numero && marcadas.some(m => m.sufijoA.includes(r.numero) && iguales(m.familia, r.familia))){
         r.sufijoA = [r.numero]; r.ambiguo = [r.numero + '-A']; r.numero = null; r.porTramo = true;
       }
+      /* Hojas contiguas con números casi iguales. Medido en una corrida real (Caso D, 794
+         órdenes): de 18 pares de hojas seguidas con números distintos, 14 diferían en 2
+         dígitos o menos, y eran una hoja bien leída junto a su hermana mal leída (6↔8, 0↔1…),
+         no órdenes distintas. Como la lectura equivocada suele ser otra orden del documento
+         base, no hay forma de saber cuál de las dos es la buena: ninguna se confirma. */
+      const enConflicto = new Set();
+      for (let k = 0; k + 1 < tramo.length; k++){
+        const x = tramo[k], y = tramo[k + 1];
+        if (x.numero && y.numero && x.numero !== y.numero && x.numero.length === y.numero.length
+            && [...x.numero].filter((ch, q) => ch !== y.numero[q]).length <= 2){
+          enConflicto.add(x); enConflicto.add(y); x.vecinas = y.vecinas = [x.numero, y.numero];
+        }
+      }
+      for (const r of enConflicto) r.numero = null;
       i = j + 1;
     }
     resultados.push(...delArchivo);
@@ -2069,14 +2088,18 @@ async function procesarPDFs(archivos, opciones){
    que nunca deben pasar. Así que cada número confirmado sin -A se relee con las zonas de
    la celda del número; si en cualquiera aparece el sufijo, no se confirma. Cuesta unas
    lecturas de recortes diminutos por orden. */
-async function sondearSufijo(w, r, imgs, ordenesBase, colas){
-  if (!r.numero && !r.sufijoA) return;
+async function sondearSufijo(w, r, imgs, ordenesBase, colas, contar){
+  if (!r.numero && !r.sufijoA && !r.unaLectura) return;
   const vistos = new Set(r.cand), porZona = [];
   for (const { it, img } of imgs){
     const z = new Set(candidatosDe(await leerZona(w, img, it.psm, it.lista || '0123456789-A ')));
+    // Solo cuentan como votos en el primer pase: en los reintentos esas mismas zonas ya
+    // votaron dentro del ciclo, y releerlas no es una lectura nueva.
+    if (contar) anotar(r, z);
     porZona.push(z); z.forEach(c => vistos.add(c));
   }
   r.cand = [...vistos];
+  resolverNumeroCon(r, vistos, ordenesBase);
   // Forma de la cajita: las dos primeras zonas apuntan al número de la caja de 3 renglones
   // y las dos siguientes al de 2 renglones. La que lea un número del documento base dice
   // de cuál se trata. (En la de 3 renglones, la segunda altura cae sobre "Doc. Logístico",
@@ -2179,11 +2202,26 @@ function resolverNumeroCon(r, vistos, ordenesBase){
     return;
   }
   const enBase = [...vistos].filter(c => ordenesBase.has(c));
-  if (enBase.length > 1){ r.ambiguo = enBase; return; }
+  // Si dos lecturas de la misma hoja dan órdenes distintas del documento base, ninguna vale:
+  // el número que ya estuviera confirmado se RETIRA. (Antes se quedaba puesto: en una hoja
+  // que impresa dice …15064, una lectura dio …15084 y otra …15064, se marcó ambiguo y aun
+  // así se confirmó la equivocada.)
+  if (enBase.length > 1){ r.ambiguo = enBase; r.numero = null; return; }
   if (enBase.length !== 1) return;
   const c = enBase[0];
-  if (/-A$/i.test(c) && ordenesBase.has(c.replace(/-A$/i, ''))){ r.ambiguo = [c, c.replace(/-A$/i, '')]; return; }
+  if (/-A$/i.test(c) && ordenesBase.has(c.replace(/-A$/i, ''))){ r.ambiguo = [c, c.replace(/-A$/i, '')]; r.numero = null; return; }
+  // Una sola lectura no confirma: el OCR confunde 6, 8, 0, 5 y 9 CON CONFIANZA ALTA (medido:
+  // …15064 leído como …15084 con 87-99 de confianza por dígito), y como el número mal leído
+  // suele ser otra orden del documento base, se confirmaba la equivocada. Hacen falta dos
+  // lecturas (recortes distintos) que den la misma orden.
+  if (((r.votos || {})[c] || 0) < 2){ r.unaLectura = c; r.numero = null; return; }
+  r.unaLectura = null;
   r.numero = c;
+}
+/* Cada lectura del OCR (un recorte, una variante) es un voto por cada número que produjo. */
+function anotar(r, cands){
+  r.votos = r.votos || {};
+  for (const c of cands) r.votos[c] = (r.votos[c] || 0) + 1;
 }
 
 /* Tres señales, cada una para un caso que las otras no ven (todas medidas en órdenes
@@ -3534,6 +3572,8 @@ function agrupar(leido){
           : r.sinPresupuesto ? 'No se alcanzó a reintentar: se acabó el tiempo destinado a los reintentos de este archivo'
           : r.agotado ? 'La página tardó demasiado y se dejó a medias'
           : r.ambiguo ? 'Coinciden dos órdenes del documento base: ' + r.ambiguo.join(' y ')
+          : r.vecinas ? `Dos hojas seguidas se leyeron con números casi iguales (${r.vecinas.join(' y ')}): una es lectura equivocada, no se confirma ninguna`
+          : r.unaLectura ? `Se leyó ${r.unaLectura} una sola vez y ninguna otra lectura lo confirma, así que no se da por bueno`
           : r.sinColor ? 'Escaneo sin color: no se pudo leer el número'
           : (r.cand || []).length ? 'Se leyó ' + r.cand.join(', ') + ', que no está en el documento base'
           : 'No se pudo leer ningún número'

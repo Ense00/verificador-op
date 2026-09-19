@@ -747,6 +747,11 @@ llena la tabla con el resultado real.
 
 - **Nada llega a "Correcto" sin que el número esté confirmado contra el documento base.**
   Una orden que no se confirma no se inventa.
+- **Un número solo se confirma con dos lecturas que coincidan, sin contradicción** (v0.26.0).
+  Una sola lectura no basta; si dos lecturas de la hoja dan órdenes distintas del documento
+  base, no se confirma ninguna (y se retira la ya puesta); y dos hojas contiguas con números
+  que difieren en 2 dígitos o menos tampoco se confirman: una es lectura equivocada y no se
+  sabe cuál. Nada de esto usa el nombre del archivo como dato.
 - **"No encontrada" quiere decir que no aparece por ninguna parte** (regla del usuario,
   2026-09-19). Solo se usa cuando NINGUNA página con forma de orden quedó sin leer y ningún
   archivo quedó mudo: entonces de verdad no puede estar. Si quedan páginas sin leer, la orden
