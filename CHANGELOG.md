@@ -2,6 +2,17 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.25.3 — 2026-09-19
+
+- **"No encontrada" ya no es un fallo de lectura disfrazado.** Solo se dice cuando ninguna
+  página con forma de orden quedó sin leer ni hay archivos mudos. Si quedan, la orden sale
+  **Ilegible** ("No se identificó en ninguna página, pero quedan N páginas… sin poder leer"),
+  sin archivo ni página asignados. Con la corrida del usuario (1,356 órdenes, 1,264 páginas
+  sin leer) las 583 sin fila eran de este tipo. Medido con una muestra de 10 PDFs: 0 no
+  encontradas y 1,367 Ilegible (antes 1,348 no encontradas).
+- "Abrir página" en una fila sin página avisa qué pasa en vez de decir que falta un archivo.
+- Requisitos: orden, ejercicio y monto son lo único que se compara (nada de proveedor).
+
 ## v0.25.2 — 2026-09-19
 
 Lo trajo el usuario al verificar la parte 3 de 4 de un documento base de 5,426 órdenes

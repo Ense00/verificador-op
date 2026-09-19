@@ -746,7 +746,19 @@ llena la tabla con el resultado real.
 | Sellos | hay sello | no se detectó ninguno | — | sin color y sin sello |
 
 - **Nada llega a "Correcto" sin que el número esté confirmado contra el documento base.**
-  Una orden que no se confirma no se inventa: va a *No encontradas*.
+  Una orden que no se confirma no se inventa.
+- **"No encontrada" quiere decir que no aparece por ninguna parte** (regla del usuario,
+  2026-09-19). Solo se usa cuando NINGUNA página con forma de orden quedó sin leer y ningún
+  archivo quedó mudo: entonces de verdad no puede estar. Si quedan páginas sin leer, la orden
+  puede estar en una de ellas: sale en la tabla como **Ilegible**, con la cuenta de páginas
+  sin leer y sin archivo ni página asignados. (Antes cualquier orden que el lector no lograba
+  ubicar caía en *No encontradas*, que era un fallo de lectura presentado como un hecho sobre
+  los PDF: en su corrida de 1,356 órdenes, 583 salían así, y había 1,264 páginas sin leer.)
+- **Los conteos son de órdenes, no de filas.** Una orden con varios montos ocupa una fila por
+  monto (11,421 filas para 5,426 órdenes).
+- **Solo se comparan orden, ejercicio y monto** (aclarado por el usuario, 2026-09-19). El
+  proveedor y demás datos no se revisan: si el sistema que dio el documento base trae otro
+  proveedor para el mismo número, lo revisa él.
 - **Páginas con forma de orden que no se pudieron identificar**: se listan aparte, en la
   misma pestaña de *No encontradas* y en una hoja propia del Excel, con archivo, página
   y qué pasó ("se leyó 7220472021, que no está en el documento base"). Es justo donde

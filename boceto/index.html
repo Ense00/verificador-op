@@ -462,7 +462,7 @@ table.parts td{vertical-align:middle}
   <header class="top">
     <div class="brand">
       <h1>Verificador de Órdenes de Pago</h1>
-      <span class="stamp">v0.25.2</span>
+      <span class="stamp">v0.25.3</span>
     </div>
     <div class="topright">
     <div class="toprow">
@@ -835,7 +835,7 @@ table.parts td{vertical-align:middle}
           <table class="gtable">
             <thead><tr><th>Pestaña</th><th>Qué contiene</th></tr></thead>
             <tbody>
-              <tr><td>No encontradas</td><td>Órdenes del documento base (o de la parte elegida) que no aparecen en ningún PDF. Debajo, si las hay, se listan las <b>páginas con forma de orden de pago que no se pudieron identificar</b>, con su archivo, su página y qué pasó: ahí es donde conviene buscar las órdenes que faltan. Cuando una de esas páginas <b>parece ser</b> una orden del documento base —por el nombre del archivo o porque lo leído se le parece— la orden no se da por perdida: aparece en la tabla como <span class="pill ile">Ilegible</span> con la página donde está.</td></tr>
+              <tr><td>No encontradas</td><td>Órdenes del documento base (o de la parte elegida) que no aparecen en <b>ningún</b> PDF. Solo se dice "no encontrada" cuando ninguna página quedó sin leer: si quedan páginas o archivos sin poder leer, la orden pudo estar en uno de ellos y sale como <span class="pill ile">Ilegible</span>. Debajo, si las hay, se listan las <b>páginas con forma de orden de pago que no se pudieron identificar</b>, con su archivo, su página y qué pasó: ahí es donde conviene buscar las órdenes que faltan. Cuando una de esas páginas <b>parece ser</b> una orden del documento base —por el nombre del archivo o porque lo leído se le parece— la orden no se da por perdida: aparece en la tabla como <span class="pill ile">Ilegible</span> con la página donde está.</td></tr>
               <tr><td>Revisión manual</td><td>Órdenes que están en dos o más archivos distintos con el mismo ejercicio. Sus archivos van a la carpeta <b>Revisión manual</b>.</td></tr>
               <tr><td>Duplicados omitidos</td><td>Archivos idénticos a otro que no se incluyen en la descarga. Quedan listados como evidencia.</td></tr>
               <tr><td>Renombres</td><td>Archivo original y nombre nuevo. Solo si marcaste "Incluir hoja Renombres".</td></tr>
@@ -3754,7 +3754,24 @@ function construir(leido, pide){
       continue;
     }
     const pista = pistaDe(d.op, libres, ordenesBase, mudos);
-    if (!pista){ pedidos.forEach(m => nNotFound.push([d.op, d.ejercicio || '—', m])); continue; }
+    if (!pista){
+      // "No encontrada" solo se dice cuando de verdad no puede estar: ninguna página con forma
+      // de orden quedó sin leer y ningún archivo se quedó mudo. Si quedan, la orden puede
+      // estar en una de ellas: eso es Ilegible (hay que ir a ver), no un hecho sobre los PDFs.
+      const sinLeer = libres.length + mudos.length;
+      if (!sinLeer){ pedidos.forEach(m => nNotFound.push([d.op, d.ejercicio || '—', m])); continue; }
+      const motivo = `No se identificó en ninguna página, pero quedan ${fmtInt(sinLeer)} ${sinLeer === 1 ? 'página o archivo' : 'páginas o archivos'} con forma de orden sin poder leer: puede estar en uno de ellos (lista en la pestaña No encontradas)`;
+      pedidos.forEach(pedido => {
+        const ile = ['ile', motivo];
+        nRows.push({
+          op: d.op, ej: d.ejercicio || '—', file: '—', pag: '—', montoNum: pedido,
+          lines: [], total: 0, sheet: {blurTable:true, blurFoot:true},
+          r: { op: ile, ej: pide.ej ? ile : NA_REV, monto: pide.monto ? ile : NA_REV,
+               firmas: pide.firmas ? ile : NA_REV, sellos: pide.sellos ? ile : NA_REV }
+        });
+      });
+      continue;
+    }
     usadas.add(pista.pagina);
     const motivo = `${pista.pagina.motivo}. Se ubicó por ${pista.por}: revísala a mano.`;
     pedidos.forEach(pedido => {
@@ -3788,6 +3805,7 @@ function construir(leido, pide){
 const visor = { pdf: null, archivo: null, pagina: 1, total: 1, grande: false, arrastro: false };
 async function abrirPaginaDe(fila){
   if (!fila) return;
+  if (fila.file === '—') return toast('Esta orden no tiene una página asignada: puede estar en cualquiera de las páginas sin leer.');
   const f = real.archivos.find(x => x.name === fila.file);
   if (!f) return toast(real.archivos.length
     ? `El archivo "${fila.file}" no está entre los PDFs elegidos.`
