@@ -2,6 +2,21 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.25.2 — 2026-09-19
+
+Lo trajo el usuario al verificar la parte 3 de 4 de un documento base de 5,426 órdenes
+(1,356 órdenes esperadas): la lista de "No encontradas" traía 10,618.
+
+- **La parte elegida ahora se aplica de verdad.** "Parte a verificar" solo cambiaba el texto
+  y el nombre de los archivos; la corrida recorría el documento base completo y todo lo que
+  no estaba en los PDFs de esa parte salía como no encontrado. Ahora solo se buscan las
+  órdenes de la parte (mismo reparto que "Partir Layout"). El resumen dice "1,356 de 5,426
+  órdenes". Medido con una muestra de 10 PDFs: 8 con fila y 1,348 no encontradas = 1,356 − 8.
+- **Los conteos de "No encontradas" son de órdenes, no de filas.** Una orden con varios
+  montos ocupa una fila por monto (el documento base trae 11,421 filas para 5,426
+  órdenes); el encabezado decía "órdenes" pero contaba filas. La lista sigue mostrando una
+  fila por monto, pero el número es de órdenes.
+
 ## v0.25.1 — 2026-09-18
 
 - **Guía:** la frase de "segundo plano" decía que la pestaña oculta "se va más despacio"

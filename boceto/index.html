@@ -462,7 +462,7 @@ table.parts td{vertical-align:middle}
   <header class="top">
     <div class="brand">
       <h1>Verificador de Órdenes de Pago</h1>
-      <span class="stamp">v0.25.1</span>
+      <span class="stamp">v0.25.2</span>
     </div>
     <div class="topright">
     <div class="toprow">
@@ -2369,7 +2369,7 @@ function toast(msg){
 function renderStatic(){
   const nArch = real.archivos.length;
   $('#s-files').textContent = nArch ? `${fmtInt(nArch)} PDF${nArch === 1 ? '' : 's'}` : state.demo ? `${fmtInt(TOTAL_FILES)} archivos · ${fmtInt(TOTAL_PAGES)} págs.` : 'Sin elegir';
-  $('#s-excel').textContent = real.base ? `${fmtInt(real.base.ordenes.length)} órdenes` : state.demo ? `${fmtInt(rows.length)} filas` : 'Sin elegir';
+  $('#s-excel').textContent = real.base ? (() => { const e = detalleEsperado().length, t = real.base.ordenes.length; return e === t ? `${fmtInt(t)} órdenes` : `${fmtInt(e)} de ${fmtInt(t)} órdenes`; })() : state.demo ? `${fmtInt(rows.length)} filas` : 'Sin elegir';
   $('#s-pages').textContent = real.on
     ? `${fmtInt(nArch - dups.length)} de ${fmtInt(nArch)} PDFs revisados${dups.length ? ` · ${fmtInt(dups.length)} repetidos omitidos` : ''}`
       + ` · ${fmtInt(real.paginas)} págs. · ${fmtInt(real.ordenes)} órdenes halladas`
@@ -2388,16 +2388,18 @@ function renderConfigSum(){
     : state.demo ? `<span><b class="num">${fmtInt(TOTAL_FILES)}</b> PDFs</span><span>Documento base <b class="num">${fmtInt(rows.length)}</b> filas</span>` : '';
   $('#configsum').innerHTML = `${cuenta}${partSum()}<span>Revisa: <b>${act.length ? act.map(x=>x.label).join(', ') : 'nada'}</b></span><span>${esc(fmt)}${$('#chk-renombres').checked ? ' + Renombres' : ''}</span>`;
 }
+/* Una orden con varios montos ocupa una fila por monto en la lista; los conteos son de ÓRDENES. */
+const ordenesNoEncontradas = () => new Set(notFound.map(r => r[0])).size;
 function renderSummary(){
   const c = {ok:0, bad:0, rev:0, ile:0};
   stateCache.forEach(s => c[s]++);
   $('#bar').innerHTML = ['ok','rev','ile','bad'].map(s => `<i style="flex-grow:${c[s]};background:var(--${s})"></i>`).join('');
   $('#tallies').innerHTML = ['ok','bad','rev','ile'].map(s =>
     `<button type="button" class="tally ${s}" id="tally-${s}" data-s="${s}" aria-pressed="${state.filter===s}"><b>${fmtInt(c[s])}</b><span>${LABEL[s]}</span></button>`).join('') +
-    `<span class="extras"><span><b>${fmtInt(overrides.size)}</b> corregidas a mano</span><span><b>${notFound.length}</b> no encontradas</span><span><b>${dups.length}</b> duplicados omitidos</span><span><b>${manual.length}</b> a revisión manual</span><span><b>${fmtInt(renames.length)}</b> renombrados</span></span>`;
+    `<span class="extras"><span><b>${fmtInt(overrides.size)}</b> corregidas a mano</span><span><b>${fmtInt(ordenesNoEncontradas())}</b> no encontradas</span><span><b>${dups.length}</b> duplicados omitidos</span><span><b>${manual.length}</b> a revisión manual</span><span><b>${fmtInt(renames.length)}</b> renombrados</span></span>`;
 }
 function renderTabs(){
-  const tabs = [['ver','Verificación', rows.length],['nf','No encontradas', notFound.length],['man','Revisión manual', manual.length],['dup','Duplicados omitidos', dups.length]];
+  const tabs = [['ver','Verificación', rows.length],['nf','No encontradas', ordenesNoEncontradas()],['man','Revisión manual', manual.length],['dup','Duplicados omitidos', dups.length]];
   if ($('#chk-renombres').checked) tabs.push(['ren','Renombres', renames.length]);
   if (!tabs.some(t => t[0] === state.tab)) state.tab = 'ver';
   $('#tabs').innerHTML = tabs.map(([id, l, n]) =>
@@ -2862,7 +2864,7 @@ async function buildWorkbook(){
     data: rows.map((r, i) => [r.op, r.ej, r.montoNum == null ? '' : r.montoNum, ...act.map(x => XL_STATE[r.r[x.k][0]]), LABEL[stateCache[i]], motivoText(r) || 'Cumple todo lo revisado', LABEL[autoCache[i]], overrides.has(i) ? overrides.get(i).note : '', r.file, r.pag])
   });
   addStyledSheet(wb, 'No encontradas', {
-    title:'Órdenes no encontradas en los PDFs', meta:meta(`${notFound.length} órdenes`), tab:'FFB0281C',
+    title:'Órdenes no encontradas en los PDFs', meta:meta(`${fmtInt(ordenesNoEncontradas())} órdenes`), tab:'FFB0281C',
     columns:[{header:'Orden de pago', width:15, mono:true}, {header:'Ejercicio', width:10, align:'center'}, {header:'Monto solicitado', width:17, money:true, mono:true, align:'right'}],
     data: notFound.map(r => [r[0], r[1], r[2] == null ? '' : r[2]])
   });
@@ -3052,6 +3054,15 @@ function layoutPartsCount(){
   const n = parseInt($('#parts').value, 10);
   return Number.isFinite(n) && n >= 2 ? n : 2;
 }
+/* Las órdenes que SÍ se esperan en esta verificación. Con una parte elegida, solo las de
+   esa parte (mismo reparto que "Partir Layout", sobre el orden del documento base); las
+   demás no se buscan ni salen como "No encontradas". El motor sigue conociendo todas para
+   identificar lo que lea. */
+function detalleEsperado(){
+  const todo = real.base.detalle, sel = $('#verify-part'), n = layoutPartsCount();
+  if (!sel || sel.value === 'all' || n < 2) return todo;
+  return splitParts(todo, Math.min(n, todo.length))[+sel.value - 1] || todo;
+}
 function renderVerifyPart(){
   const n = layoutPartsCount();
   const input = $('#verify-parts'), sel = $('#verify-part');
@@ -3085,7 +3096,7 @@ function setLayoutParts(n){
   n = Number.isFinite(n) ? Math.max(1, Math.min(500, Math.round(n))) : 1;
   $('#split').checked = n > 1;
   if (n > 1) $('#parts').value = n;
-  renderLayoutPanel(); renderVerifyPart(); renderNames(); renderConfigSum();
+  renderLayoutPanel(); renderVerifyPart(); renderNames(); renderConfigSum(); renderStatic();
 }
 
 async function layoutBlob(list){
@@ -3286,9 +3297,9 @@ function renderAll(){ computeStates(); renderConfigSum(); renderSummary(); rende
 document.addEventListener('change', e => {
   if (e.target.matches('#checks input, #chk-renombres')) renderAll();
   if (e.target.id === 'base-file' && e.target.files[0]){ loadBaseFile(e.target.files[0]); e.target.value = ''; }
-  if (e.target.id === 'split' || e.target.id === 'parts'){ renderLayoutPanel(); renderVerifyPart(); renderNames(); renderConfigSum(); }
+  if (e.target.id === 'split' || e.target.id === 'parts'){ renderLayoutPanel(); renderVerifyPart(); renderNames(); renderConfigSum(); renderStatic(); }
   if (e.target.id === 'verify-parts'){ setLayoutParts(parseInt(e.target.value, 10)); }
-  if (e.target.id === 'verify-part'){ renderVerifyPart(); renderNames(); renderConfigSum(); }
+  if (e.target.id === 'verify-part'){ renderVerifyPart(); renderNames(); renderConfigSum(); renderStatic(); }
   if (e.target.id === 'fmt'){
     const names = {zip:'Carpeta (ZIP)', '7z':'Carpeta (7z)', tgz:'Carpeta (TAR.GZ)', folder:'Guardar carpeta'};
     $('#dl-zip-label').textContent = names[e.target.value];
@@ -3639,7 +3650,7 @@ function construir(leido, pide){
   const NA = NA_REV;
 
   const sinHallar = [];
-  for (const d of real.base.detalle){
+  for (const d of detalleEsperado()){
     const g = porOp.get(d.op);
     const pedidos = d.montos.length ? d.montos : [null];
     if (!g){ sinHallar.push({ d, pedidos }); continue; }
