@@ -913,35 +913,48 @@ hueco por completo. **Pregunta pendiente al usuario.**
 
 ## Pendiente
 
-Estado al 2026-09-17 (v0.10.0):
+Estado al 2026-09-18 (v0.25.1). Las dos etapas funcionan y el usuario ya probó la
+verificación con carpetas reales de tres dependencias.
 
-- **Etapa 1, Preparar Layout: funcional** y probada por el usuario con un documento base real.
-- **Etapa 2, Verificar órdenes:** interfaz lista con demostración; todavía no procesa PDFs.
-- **Fase 0: terminada.** La lectura de PDFs reales está medida y resuelta (arriba).
-
-Al 2026-09-18 (v0.25.0), después de que el usuario probó Caso C.
-
-**Lo que él pidió dejar para el final: firmas y sellos.** Sus palabras: "eso es muy
-difícil todavía y sería desperdiciar tiempo". Lo que importa es orden de pago, ejercicio
-y monto. Queda anotado lo que reportó, para cuando se retome:
+**Firmas y sellos: lo dejó para el final.** Sus palabras: "eso es muy difícil todavía y
+sería desperdiciar tiempo". Lo que importa es orden de pago, ejercicio y monto. Lo que
+reportó, para cuando se retome:
 
 1. **Falso positivo de firma:** un sello encima del lugar de la firma se cuenta como
    firma. La señal de "tinta fina de color" (pensada para la pluma DEBAJO de un sello)
-   recoge también el borde suavizado del propio sello. La idea sin probar: contar solo la
+   recoge también el borde suavizado del propio sello. Idea sin probar: contar solo la
    tinta fina que **no toca** tinta gruesa, porque el borde de un trazo grueso siempre la
    toca y una pluma delgada no.
-2. **Dice 3 firmas donde hay 2.** Ya se puso una defensa: si no se localizan los tres
-   rótulos se usan las coordenadas fijas, para no decir "2 de 2, correcto" en un formato
-   que lleva tres.
-3. El conteo de sellos sigue sin ser de fiar cuando se traslapan; por eso solo se informa
-   si hay o no hay, que es lo que él eligió.
+2. **Dice 3 firmas donde hay 2.** Defensa puesta: si no se localizan los tres rótulos se
+   usan las coordenadas fijas.
+3. El conteo de sellos no es de fiar cuando se traslapan; por eso solo se informa si hay
+   o no hay, que es lo que él eligió.
 
-**Lo demás que sigue pendiente**
+**Lo que falta por resolver o medir**
 
-4. **El caso Caso C (~8,600 páginas) nunca se ha corrido entero.** Es la prueba de
-   resistencia: memoria, tiempo y cancelar a medias.
-5. **Queda una página de orden sin identificar** en el caso Caso A, y cuatro órdenes del
-   documento base cuyo PDF no aparece por ningún lado (su archivo resultó ser copia de
-   otro).
-6. **Sin medir todavía:** una ADEFA real (no hubo ninguna en los documentos base
-   revisados) y páginas giradas 90°.
+4. **Pregunta abierta al usuario:** ¿toda hoja con la caja de 3 renglones ("Doc.
+   Logístico" y "Orden de Compra") es una ADEFA, y las originales son siempre de 2
+   renglones? Si sí, se puede exigir la de 2 renglones y cerrar por completo el riesgo
+   residual de la ADEFA cuyo "-A" el OCR pierde.
+5. **Riesgo residual de la ADEFA:** una de una sola hoja cuyo "-A" se pierda en todas las
+   variantes todavía podría confirmarse. Y el sufijo solo está validado para la caja de 3
+   renglones; en la de 2 renglones no hay ninguna ADEFA de muestra.
+6. **El caso Caso C completo (9,052 páginas, 2.7 GB) nunca se ha corrido entero**; solo
+   sus dos primeros archivos. Proyección: unos 30 minutos. Es la prueba de resistencia de
+   memoria y de cancelar a medias.
+7. **La memoria no se mide ni se adapta.** Un PDF se carga entero: el de 782 MB puede pedir
+   1.5 GB o más (nunca probado). Falta un aviso antes de abrir un archivo demasiado grande.
+   Los trabajadores de OCR sí se adaptan a los hilos de la máquina (tope del 75 %), pero
+   solo se midió en un i5-9500 de 6 hilos con Firefox: **Chrome, Edge y otras
+   computadoras están sin medir.**
+8. **Pestaña en segundo plano:** no se midió cuánto se frena. La guía pide dejar la
+   ventana visible.
+9. **Velocidad con muchos archivos chicos:** las mismas 284 páginas tardan 61 s en un
+   archivo y 95 s partidas en 29 (~1.1 s de sobrecarga por archivo, porque cada archivo
+   espera a terminar todas sus fases). Idea: tubería entre archivos, empezar a clasificar
+   el siguiente mientras se reintenta el anterior. Sin hacer; lo dejó a su decisión.
+10. **Quedan órdenes sin leer:** una página de orden sin identificar en el caso Caso A, y
+    cuatro órdenes del documento base cuyo PDF resultó ser copia de otro archivo. En Caso C
+    quedan varias decenas de hojas de continuación sin identificar (no afectan: la orden
+    se confirma por otra hoja).
+11. **Sin medir todavía:** páginas giradas 90°.

@@ -2,6 +2,18 @@
 
 Formato: versión — fecha — qué cambió. Las versiones 0.x son de desarrollo.
 
+## v0.25.1 — 2026-09-18
+
+- **Guía:** la frase de "segundo plano" decía que la pestaña oculta "se va más despacio"
+  como un hecho; era una suposición mía y no está medida. Ahora dice lo que sí se sabe (los
+  navegadores frenan y, con poca memoria, pueden descartar las pestañas que no se ven) y
+  pide dejar la ventana visible, aunque sea a un lado.
+- **Requisitos:** la sección *Pendiente* estaba desactualizada (decía que la etapa 2 no
+  procesaba PDFs y que no había ninguna ADEFA real). Reescrita con lo que de verdad falta:
+  la pregunta de las cajas de 3 renglones, el riesgo residual de la ADEFA, la memoria, los
+  navegadores y computadoras sin medir, la pestaña en segundo plano, y la velocidad con
+  muchos archivos chicos.
+
 ## v0.25.0 — 2026-09-18
 
 Lo trajo el usuario al revisar los documentos de Caso C (9,052 páginas, 20 archivos): la
